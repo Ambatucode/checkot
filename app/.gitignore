@@ -1,5 +1,11 @@
-# APK and release files
-release/
-*.apk
-*.aab
-baselineProfiles/
+# Add build folder to .gitignore
+echo "build/" >> .gitignore
+
+# Add the updated .gitignore
+git add .gitignore
+
+# Commit
+git commit -m "Add build folder to .gitignore"
+
+# Check status
+git status
