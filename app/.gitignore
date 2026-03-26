@@ -1,1 +1,5 @@
-/build
+# APK and release files
+release/
+*.apk
+*.aab
+baselineProfiles/
