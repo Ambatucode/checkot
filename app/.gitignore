@@ -1,11 +1,27 @@
-# Add build folder to .gitignore
-echo "build/" >> .gitignore
+# Firebase
+google-services.json
 
-# Add the updated .gitignore
-git add .gitignore
+# APK and build files
+*.apk
+*.aab
+release/
+build/
+baselineProfiles/
 
-# Commit
-git commit -m "Add build folder to .gitignore"
+# Android build
+/build/
+/app/build/
+.cxx/
+.gradle/
+local.properties
 
-# Check status
-git status
+# Android Studio
+*.iml
+.idea/
+.DS_Store
+captures/
+.externalNativeBuild
+
+# OS files
+.DS_Store
+Thumbs.db
