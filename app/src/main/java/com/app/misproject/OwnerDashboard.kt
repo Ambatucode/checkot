@@ -22,13 +22,16 @@ fun OwnerDashboard(
     adminViewModel: AdminViewModel = viewModel()
 ) {
     var selectedTab by remember { mutableStateOf(0) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Owner Dashboard") },
                 actions = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(
+                        onClick = { showLogoutDialog = true }
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Logout,
                             contentDescription = "Logout"
@@ -72,6 +75,36 @@ fun OwnerDashboard(
             2 -> OwnerRevenueTab(adminViewModel, paddingValues)
             3 -> Text("Services Tab - Coming Soon", modifier = Modifier.padding(paddingValues))
         }
+    }
+
+    // Logout Confirmation Dialog
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = { Text("Logout") },
+            text = { Text("Are you sure you want to logout?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        adminViewModel.logout {
+                            showLogoutDialog = false
+                            navController.navigate("login") {
+                                popUpTo(0) // Clears all screens from back stack
+                            }
+                        }
+                    }
+                ) {
+                    Text("Yes")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showLogoutDialog = false }
+                ) {
+                    Text("No")
+                }
+            }
+        )
     }
 }
 
