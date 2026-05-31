@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="com.app.misproject" />
-                  <option name="mobileSdkAppId" value="1:768551317829:android:d065f00a5af336c37d4e2c" />
-                  <option name="projectId" value="misproject-df034" />
-                  <option name="projectNumber" value="768551317829" />
+                  <option name="appId" value="com.app.checkot" />
+                  <option name="mobileSdkAppId" value="1:670218480723:android:9f8331926a090c56c2eaa6" />
+                  <option name="projectId" value="checkot-14700" />
+                  <option name="projectNumber" value="670218480723" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

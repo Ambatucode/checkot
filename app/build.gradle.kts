@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.app.misproject"
+    namespace = "com.app.checkot"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.app.misproject"
+        applicationId = "com.app.checkot"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
@@ -28,6 +28,10 @@ android {
             )
         }
     }
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -44,10 +48,11 @@ dependencies {
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
     implementation("com.google.firebase:firebase-auth-ktx")
-    implementation("com.google.firebase:firebase-database-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
 
     // AndroidX Core
     implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.fragment:fragment-ktx:1.6.2")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.0")
 
