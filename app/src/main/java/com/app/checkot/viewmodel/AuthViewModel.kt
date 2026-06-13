@@ -3,10 +3,12 @@ package com.app.checkot.viewmodel
 import android.app.Application
 import com.app.checkot.model.*
 import com.app.checkot.service.NotificationHelper
+import com.app.checkot.service.FCMSender
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -16,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.channels.awaitClose
 
 sealed class AuthState {
     object Authenticated : AuthState()
@@ -31,6 +34,24 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     // Track previous booking statuses to detect changes
     private var previousBookingStatuses = mutableMapOf<String, BookingStatus>()
+
+    // Upload the FCM token to Firestore for shop owners
+    private fun uploadFcmToken(userId: String) {
+        FirebaseMessaging.getInstance().token
+            .addOnSuccessListener { token ->
+                firestore.collection("users").document(userId)
+                    .update("fcmToken", token)
+                    .addOnSuccessListener {
+                        println("✅ FCM token saved to Firestore")
+                    }
+                    .addOnFailureListener { e ->
+                        println("Failed to upload FCM token: ${e.message}")
+                    }
+            }
+            .addOnFailureListener { e ->
+                println("Failed to get FCM token: ${e.message}")
+            }
+    }
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Unauthenticated)
     val authState: StateFlow<AuthState> = _authState
@@ -122,7 +143,13 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             val user = auth.currentUser ?: return@launch
             try {
                 val snapshot = firestore.collection("users").document(user.uid).get().await()
-                _currentUserData.value = snapshot.toObject(CarWashUser::class.java)
+                val userData = snapshot.toObject(CarWashUser::class.java)
+                _currentUserData.value = userData
+                // Upload FCM token for ALL users (customers AND owners)
+                // so the Cloud Function can send push notifications to anyone
+                if (userData != null) {
+                    uploadFcmToken(userData.userId)
+                }
             } catch (e: Exception) {
                 println("Failed to load user data: ${e.message}")
             }
@@ -237,6 +264,21 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 // Show confirmation notification
                 val serviceSummary = newBooking.services.joinToString(", ") { it.displayName }
                 NotificationHelper.showBookingCreatedNotification(appContext, serviceSummary)
+
+                // Notify the owner via FCM so it works when the app is swiped away
+                val ownersSnapshot = firestore.collection("users")
+                    .whereEqualTo("ownedShopId", newBooking.shopId)
+                    .get().await()
+                
+                for (doc in ownersSnapshot.documents) {
+                    FCMSender.sendToUser(
+                        context = appContext,
+                        userId = doc.id,
+                        title = "New Booking Received! 📋",
+                        body = "New booking: $serviceSummary — ${newBooking.carDetails}",
+                        bookingId = newBooking.bookingId
+                    )
+                }
             } catch (e: Exception) {
                 println("Failed to create booking: ${e.message}")
             } finally {
@@ -248,8 +290,29 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun cancelBooking(bookingId: String) {
         viewModelScope.launch {
             try {
+                val bookingSnapshot = firestore.collection("bookings").document(bookingId).get().await()
+                val booking = bookingSnapshot.toObject(Booking::class.java)
+
                 firestore.collection("bookings").document(bookingId).update("status", BookingStatus.CANCELLED).await()
                 sendBookingNotification(bookingId, "Booking cancelled")
+
+                // Notify the owner via FCM
+                if (booking != null) {
+                    val serviceSummary = booking.services.joinToString(", ") { it.displayName }
+                    val ownersSnapshot = firestore.collection("users")
+                        .whereEqualTo("ownedShopId", booking.shopId)
+                        .get().await()
+                    
+                    for (doc in ownersSnapshot.documents) {
+                        FCMSender.sendToUser(
+                            context = appContext,
+                            userId = doc.id,
+                            title = "Booking Cancelled ❌",
+                            body = "Booking for $serviceSummary has been cancelled.",
+                            bookingId = bookingId
+                        )
+                    }
+                }
             } catch (e: Exception) {
                 println("Failed to cancel booking: ${e.message}")
             }
@@ -330,11 +393,27 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         return auth.currentUser
     }
 
-    fun getQueuePosition(): Int {
-        val yourBookings = _userBookings.value.filter {
-            it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED
-        }.size
-        return yourBookings
+    fun getQueuePositionRealTime(booking: Booking): kotlinx.coroutines.flow.Flow<Int> = kotlinx.coroutines.flow.callbackFlow {
+        val listener = firestore.collection("bookings")
+            .whereEqualTo("shopId", booking.shopId)
+            .whereEqualTo("bookingDate", booking.bookingDate)
+            .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) {
+                    val bookings = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
+                    val sorted = bookings.sortedBy { it.createdAt }
+                    val index = sorted.indexOfFirst { it.bookingId == booking.bookingId }
+                    val position = if (index != -1) index + 1 else -1
+                    trySend(position)
+                }
+            }
+        awaitClose {
+            listener.remove()
+        }
     }
 
     override fun onCleared() {

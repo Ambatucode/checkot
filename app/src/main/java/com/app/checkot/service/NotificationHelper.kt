@@ -2,6 +2,7 @@ package com.app.checkot.service
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -38,7 +39,6 @@ object NotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
-
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.notify(System.currentTimeMillis().toInt(), notification)
     }
@@ -63,7 +63,6 @@ object NotificationHelper {
             )
             else -> return
         }
-
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
@@ -72,14 +71,12 @@ object NotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
-
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.notify(System.currentTimeMillis().toInt(), notification)
     }
 
     fun showNewBookingForOwnerNotification(context: Context, serviceSummary: String, carDetails: String) {
         val body = "New booking received: $serviceSummary — $carDetails"
-
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle("New Booking Received! 📋")
@@ -88,7 +85,25 @@ object NotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager.notify(System.currentTimeMillis().toInt(), notification)
+    }
 
+    /**
+     * Show a generic notification from an FCM data payload.
+     */
+    fun showFCMNotification(context: Context, title: String, body: String, pendingIntent: PendingIntent? = null) {
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+        if (pendingIntent != null) {
+            builder.setContentIntent(pendingIntent)
+        }
+        val notification = builder.build()
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.notify(System.currentTimeMillis().toInt(), notification)
     }

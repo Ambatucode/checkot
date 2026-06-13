@@ -170,8 +170,13 @@ fun ShopCard(
 @Composable
 fun BookingCard(
     booking: Booking,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    authViewModel: AuthViewModel = viewModel()
 ) {
+    val queuePosition by remember(booking) {
+        authViewModel.getQueuePositionRealTime(booking)
+    }.collectAsState(initial = -1)
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -202,6 +207,14 @@ fun BookingCard(
                     text = booking.carDetails,
                     style = MaterialTheme.typography.bodyMedium
                 )
+                if (queuePosition > 0) {
+                    Text(
+                        text = "Queue Position: #$queuePosition",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
+                }
                 Text(
                     text = "₱${booking.price}",
                     style = MaterialTheme.typography.bodyLarge,

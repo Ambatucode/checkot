@@ -3,6 +3,7 @@ package com.app.checkot.viewmodel
 import android.app.Application
 import com.app.checkot.model.*
 import com.app.checkot.service.NotificationHelper
+import com.app.checkot.service.FCMSender
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.ktx.auth
@@ -130,9 +131,46 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
     fun updateBookingStatus(bookingId: String, status: BookingStatus) {
         viewModelScope.launch {
             try {
+                // 1. Get booking details before updating
+                val bookingDoc = firestore.collection("bookings").document(bookingId).get().await()
+                val booking = bookingDoc.toObject(Booking::class.java)
+
+                // 2. Update status in Firestore
                 firestore.collection("bookings").document(bookingId)
                     .update("status", status.name).await()
                 println("✅ Booking $bookingId updated to $status")
+
+                // 3. Send FCM push notification to the CUSTOMER
+                if (booking != null) {
+                    val services = booking.services.joinToString(", ") { it.displayName }
+                    val (title, body) = when (status) {
+                        BookingStatus.CONFIRMED -> Pair(
+                            "Booking Confirmed! ✅",
+                            "Your booking for $services has been confirmed."
+                        )
+                        BookingStatus.IN_PROGRESS -> Pair(
+                            "Service In Progress \uD83D\uDD27",
+                            "Your $services is now being worked on!"
+                        )
+                        BookingStatus.COMPLETED -> Pair(
+                            "Service Completed! \uD83C\uDF89",
+                            "Your $services is done. Your car is ready!"
+                        )
+                        BookingStatus.CANCELLED -> Pair(
+                            "Booking Cancelled ❌",
+                            "Your booking for $services has been cancelled."
+                        )
+                        else -> Pair("Booking Update", "Status: $status")
+                    }
+                    FCMSender.sendToUser(
+                        context = appContext,
+                        userId = booking.userId,
+                        title = title,
+                        body = body,
+                        bookingId = bookingId
+                    )
+                }
+
                 loadBookings()
             } catch (e: Exception) {
                 println("❌ Failed to update booking: ${e.message}")
