@@ -75,18 +75,11 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                 _allBookings.value = bookingsList
                 println("🔥 Bookings updated in real-time: ${bookingsList.size}")
 
-                // Detect NEW bookings and notify the owner
+                // Update known IDs
                 if (!isInitialLoad) {
-                    for (booking in bookingsList) {
-                        if (!knownBookingIds.contains(booking.bookingId)) {
-                            val serviceSummary = booking.services.joinToString(", ") { it.displayName }
-                            NotificationHelper.showNewBookingForOwnerNotification(
-                                appContext,
-                                serviceSummary,
-                                booking.carDetails
-                            )
-                        }
-                    }
+                    // We removed the local NotificationHelper call here because
+                    // FCMSender now handles sending push notifications for new bookings.
+                    // This prevents duplicate notifications.
                 }
 
                 // Update known IDs

@@ -171,18 +171,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 val bookings = snapshot?.documents?.mapNotNull { it.toObject(Booking::class.java) }
                     ?.sortedByDescending { it.createdAt } ?: emptyList()
 
-                // Detect status changes and notify
+                // Detect status changes and update previous statuses
                 for (booking in bookings) {
                     val previousStatus = previousBookingStatuses[booking.bookingId]
-                    if (previousStatus != null && previousStatus != booking.status) {
-                        // Status changed! Send notification
-                        val serviceSummary = booking.services.joinToString(", ") { it.displayName }
-                        NotificationHelper.showStatusChangeNotification(
-                            appContext,
-                            serviceSummary,
-                            booking.status
-                        )
-                    }
+                    // We removed the local NotificationHelper call here because 
+                    // FCMSender now handles sending push notifications for status changes.
+                    // This prevents duplicate notifications.
                     previousBookingStatuses[booking.bookingId] = booking.status
                 }
 
