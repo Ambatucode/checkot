@@ -323,13 +323,13 @@ fun BookServiceScreen(
                                     status = BookingStatus.PENDING
                                 )
                                 authViewModel.createBooking(booking)
+                                kotlinx.coroutines.delay(1500) // Show loading and prevent double clicks
                                 navController.popBackStack()
-                                isLoading = false
                             }
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    enabled = when (step) {
+                    enabled = !isLoading && when (step) {
                         1 -> selectedServices.isNotEmpty()
                         2 -> selectedCar != null
                         3 -> selectedTimeSlot.isNotEmpty()

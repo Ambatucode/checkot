@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OwnerDashboard(
@@ -408,6 +409,9 @@ fun OwnerBookingCard(
     onReject: () -> Unit,
     onComplete: () -> Unit
 ) {
+    var isProcessing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -456,24 +460,72 @@ fun OwnerBookingCard(
             if (booking.status == BookingStatus.PENDING) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onApprove, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)) {
-                        Icon(Icons.Default.Check, contentDescription = "Approve", modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Approve")
+                    Button(
+                        onClick = { 
+                            scope.launch {
+                                isProcessing = true
+                                onApprove()
+                                kotlinx.coroutines.delay(2000)
+                                isProcessing = false
+                            }
+                        }, 
+                        modifier = Modifier.weight(1f), 
+                        enabled = !isProcessing,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        if (isProcessing) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary)
+                        } else {
+                            Icon(Icons.Default.Check, contentDescription = "Approve", modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Approve")
+                        }
                     }
-                    Button(onClick = onReject, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
-                        Icon(Icons.Default.Close, contentDescription = "Reject", modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Reject")
+                    Button(
+                        onClick = { 
+                            scope.launch {
+                                isProcessing = true
+                                onReject()
+                                kotlinx.coroutines.delay(2000)
+                                isProcessing = false
+                            }
+                        }, 
+                        modifier = Modifier.weight(1f), 
+                        enabled = !isProcessing,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        if (isProcessing) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onError)
+                        } else {
+                            Icon(Icons.Default.Close, contentDescription = "Reject", modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Reject")
+                        }
                     }
                 }
             }
             if (booking.status == BookingStatus.CONFIRMED) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Button(onClick = onComplete, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)) {
-                    Icon(Icons.Default.Done, contentDescription = "Complete", modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Mark as Completed")
+                Button(
+                    onClick = { 
+                        scope.launch {
+                            isProcessing = true
+                            onComplete()
+                            kotlinx.coroutines.delay(2000)
+                            isProcessing = false
+                        }
+                    }, 
+                    modifier = Modifier.fillMaxWidth(), 
+                    enabled = !isProcessing,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                ) {
+                    if (isProcessing) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onTertiary)
+                    } else {
+                        Icon(Icons.Default.Done, contentDescription = "Complete", modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Mark as Completed")
+                    }
                 }
             }
         }

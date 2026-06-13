@@ -15,8 +15,15 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
 import com.app.checkot.navigation.NavigationGraph
+import android.content.Intent
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 class MainActivity : ComponentActivity() {
+
+    private var pendingBookingId by mutableStateOf<String?>(null)
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -31,6 +38,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.Theme_Checkot_App)
         super.onCreate(savedInstanceState)
+        
+        handleIntent(intent)
 
         // Create notification channel early
         NotificationHelper.createNotificationChannel(this)
@@ -45,9 +54,29 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
+                    
+                    LaunchedEffect(pendingBookingId) {
+                        pendingBookingId?.let { bookingId ->
+                            navController.navigate("booking_details/$bookingId")
+                            pendingBookingId = null
+                        }
+                    }
+
                     NavigationGraph(navController = navController)
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        val bookingId = intent?.getStringExtra("bookingId")
+        if (!bookingId.isNullOrEmpty()) {
+            pendingBookingId = bookingId
         }
     }
 
