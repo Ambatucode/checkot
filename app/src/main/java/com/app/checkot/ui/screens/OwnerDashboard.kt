@@ -410,7 +410,76 @@ fun OwnerBookingCard(
     onComplete: () -> Unit
 ) {
     var isProcessing by remember { mutableStateOf(false) }
+    var showApproveDialog by remember { mutableStateOf(false) }
+    var showRejectDialog by remember { mutableStateOf(false) }
+    var showCompleteDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    if (showApproveDialog) {
+        AlertDialog(
+            onDismissRequest = { showApproveDialog = false },
+            title = { Text("Approve Booking") },
+            text = { Text("Are you sure you want to approve this booking? The customer will be notified.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showApproveDialog = false
+                    scope.launch {
+                        isProcessing = true
+                        onApprove()
+                        kotlinx.coroutines.delay(2000)
+                        isProcessing = false
+                    }
+                }) { Text("Yes, Approve") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showApproveDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showRejectDialog) {
+        AlertDialog(
+            onDismissRequest = { showRejectDialog = false },
+            title = { Text("Reject Booking") },
+            text = { Text("Are you sure you want to reject this booking? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRejectDialog = false
+                    scope.launch {
+                        isProcessing = true
+                        onReject()
+                        kotlinx.coroutines.delay(2000)
+                        isProcessing = false
+                    }
+                }) { Text("Yes, Reject", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRejectDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showCompleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showCompleteDialog = false },
+            title = { Text("Complete Booking") },
+            text = { Text("Are you sure you want to mark this booking as completed? Please ensure the service is fully done.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showCompleteDialog = false
+                    scope.launch {
+                        isProcessing = true
+                        onComplete()
+                        kotlinx.coroutines.delay(2000)
+                        isProcessing = false
+                    }
+                }) { Text("Yes, Complete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCompleteDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -461,14 +530,7 @@ fun OwnerBookingCard(
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
-                        onClick = { 
-                            scope.launch {
-                                isProcessing = true
-                                onApprove()
-                                kotlinx.coroutines.delay(2000)
-                                isProcessing = false
-                            }
-                        }, 
+                        onClick = { showApproveDialog = true }, 
                         modifier = Modifier.weight(1f), 
                         enabled = !isProcessing,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
@@ -482,14 +544,7 @@ fun OwnerBookingCard(
                         }
                     }
                     Button(
-                        onClick = { 
-                            scope.launch {
-                                isProcessing = true
-                                onReject()
-                                kotlinx.coroutines.delay(2000)
-                                isProcessing = false
-                            }
-                        }, 
+                        onClick = { showRejectDialog = true }, 
                         modifier = Modifier.weight(1f), 
                         enabled = !isProcessing,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
@@ -507,14 +562,7 @@ fun OwnerBookingCard(
             if (booking.status == BookingStatus.CONFIRMED) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
-                    onClick = { 
-                        scope.launch {
-                            isProcessing = true
-                            onComplete()
-                            kotlinx.coroutines.delay(2000)
-                            isProcessing = false
-                        }
-                    }, 
+                    onClick = { showCompleteDialog = true }, 
                     modifier = Modifier.fillMaxWidth(), 
                     enabled = !isProcessing,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
