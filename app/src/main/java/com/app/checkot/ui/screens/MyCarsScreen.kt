@@ -22,9 +22,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun MyCarsScreen(
     navController: NavController,
-    authViewModel: AuthViewModel = viewModel()
+    carViewModel: CarViewModel = viewModel()
 ) {
-    val userData by authViewModel.currentUserData.collectAsState()
+    val savedCars by carViewModel.savedCars.collectAsState()
     val scope = rememberCoroutineScope()
     Scaffold(
         topBar = {
@@ -43,7 +43,7 @@ fun MyCarsScreen(
             )
         }
     ) { paddingValues ->
-        if (userData?.savedCars.isNullOrEmpty()) {
+        if (savedCars.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -84,13 +84,13 @@ fun MyCarsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(16.dp)
             ) {
-                items(userData?.savedCars ?: emptyList()) { car ->
+                items(savedCars) { car ->
                     CarCard(
                         car = car,
                         onEdit = { /* Navigate to edit car */ },
                         onDelete = {
                             scope.launch {
-                                authViewModel.deleteCar(car.carId)
+                                carViewModel.deleteCar(car.carId)
                             }
                         },
                         onSelect = {

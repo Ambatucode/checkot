@@ -24,7 +24,7 @@ import java.util.UUID
 @Composable
 fun AddCarScreen(
     navController: NavController,
-    authViewModel: AuthViewModel = viewModel()
+    carViewModel: CarViewModel = viewModel()
 ) {
     var plateNumber by remember { mutableStateOf("") }
     var brand by remember { mutableStateOf("") }
@@ -32,7 +32,7 @@ fun AddCarScreen(
     var color by remember { mutableStateOf("") }
     var isDefault by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val isLoading by authViewModel.isLoading.collectAsState()
+    val isLoading by carViewModel.isLoading.collectAsState()
     Scaffold(
         topBar = {
             TopAppBar(
@@ -160,7 +160,7 @@ fun AddCarScreen(
                         color = color,
                         isDefault = isDefault
                     )
-                    authViewModel.addCar(newCar)
+                    carViewModel.addCar(newCar)
                     navController.popBackStack()
                 },
                 modifier = Modifier.fillMaxWidth(),

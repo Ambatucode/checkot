@@ -24,14 +24,17 @@ sealed class Screen(val route: String) {
     object BookingDetails : Screen("booking_details/{bookingId}")
     object Cars : Screen("cars")
     object AddCar : Screen("add_car")
-    object MyBookings : Screen("my_bookings")  // ADD THIS LINE
+    object MyBookings : Screen("my_bookings")
     object EditProfile : Screen("edit_profile")
     object OwnerDashboard : Screen("owner_dashboard")
 }
 @Composable
 fun NavigationGraph(
     navController: NavHostController,
-    authViewModel: AuthViewModel = viewModel()
+    authViewModel: AuthViewModel = viewModel(),
+    bookingViewModel: BookingViewModel = viewModel(),
+    carViewModel: CarViewModel = viewModel(),
+    profileViewModel: ProfileViewModel = viewModel()
 ) {
     val authState by authViewModel.authState.collectAsState()
     val currentUser by authViewModel.currentUserData.collectAsState()
@@ -79,7 +82,8 @@ fun NavigationGraph(
         composable(Screen.Home.route) {
             HomeScreen(
                 navController = navController,
-                authViewModel = authViewModel
+                authViewModel = authViewModel,
+                bookingViewModel = bookingViewModel
             )
         }
         composable(Screen.Profile.route) {
@@ -97,6 +101,7 @@ fun NavigationGraph(
             BookServiceScreen(
                 navController = navController,
                 authViewModel = authViewModel,
+                bookingViewModel = bookingViewModel,
                 shopId = shopId
             )
         }
@@ -106,6 +111,7 @@ fun NavigationGraph(
             BookServiceScreen(
                 navController = navController,
                 authViewModel = authViewModel,
+                bookingViewModel = bookingViewModel,
                 shopId = shopId,
                 preselectedService = serviceType?.let { ServiceType.valueOf(it) }
             )
@@ -113,7 +119,7 @@ fun NavigationGraph(
         composable(Screen.Bookings.route) {
             BookingsScreen(
                 navController = navController,
-                authViewModel = authViewModel
+                bookingViewModel = bookingViewModel
             )
         }
         composable(Screen.BookingDetails.route) { backStackEntry ->
@@ -121,32 +127,32 @@ fun NavigationGraph(
             BookingDetailsScreen(
                 bookingId = bookingId,
                 navController = navController,
-                authViewModel = authViewModel
+                bookingViewModel = bookingViewModel
             )
         }
         composable(Screen.Cars.route) {
             MyCarsScreen(
                 navController = navController,
-                authViewModel = authViewModel
+                carViewModel = carViewModel
             )
         }
         composable(Screen.AddCar.route) {
             AddCarScreen(
                 navController = navController,
-                authViewModel = authViewModel
+                carViewModel = carViewModel
             )
         }
-        // ADD THIS NEW COMPOSABLE - put it after AddCar or before the closing brace
         composable(Screen.MyBookings.route) {
             MyBookingsScreen(
                 navController = navController,
-                authViewModel = authViewModel
+                bookingViewModel = bookingViewModel
             )
         }
         composable(Screen.EditProfile.route) {
             EditProfileScreen(
                 navController = navController,
-                authViewModel = authViewModel
+                authViewModel = authViewModel,
+                profileViewModel = profileViewModel
             )
         }
     }

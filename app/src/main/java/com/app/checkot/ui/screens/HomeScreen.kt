@@ -26,10 +26,11 @@ val partnerShops = listOf(
 @Composable
 fun HomeScreen(
     navController: NavController,
-    authViewModel: AuthViewModel = viewModel()
+    authViewModel: AuthViewModel = viewModel(),
+    bookingViewModel: BookingViewModel = viewModel()
 ) {
     val userData by authViewModel.currentUserData.collectAsState()
-    val recentBookings by authViewModel.userBookings.collectAsState()
+    val recentBookings by bookingViewModel.userBookings.collectAsState()
 
     Scaffold(
         topBar = {
@@ -171,10 +172,10 @@ fun ShopCard(
 fun BookingCard(
     booking: Booking,
     onClick: () -> Unit,
-    authViewModel: AuthViewModel = viewModel()
+    bookingViewModel: BookingViewModel = viewModel()
 ) {
     val queuePosition by remember(booking) {
-        authViewModel.getQueuePositionRealTime(booking)
+        bookingViewModel.getQueuePositionRealTime(booking)
     }.collectAsState(initial = -1)
 
     Card(

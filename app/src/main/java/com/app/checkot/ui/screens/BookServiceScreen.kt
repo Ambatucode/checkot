@@ -25,6 +25,7 @@ import java.util.*
 fun BookServiceScreen(
     navController: NavController,
     authViewModel: AuthViewModel = viewModel(),
+    bookingViewModel: BookingViewModel = viewModel(),
     shopId: String = "",
     preselectedService: ServiceType? = null
 ) {
@@ -38,10 +39,10 @@ fun BookServiceScreen(
     var step by remember { mutableStateOf(1) }
     var isLoading by remember { mutableStateOf(false) }
     
-    val availableTimeSlots by authViewModel.availableTimeSlots.collectAsState()
+    val availableTimeSlots by bookingViewModel.availableTimeSlots.collectAsState()
 
     LaunchedEffect(selectedDate, shopId) {
-        authViewModel.fetchAvailableTimeSlots(selectedDate, shopId)
+        bookingViewModel.fetchAvailableTimeSlots(selectedDate, shopId)
     }
     // Date picker state
     val datePickerState = rememberDatePickerState(
@@ -326,7 +327,7 @@ fun BookServiceScreen(
                                     notes = notes,
                                     status = BookingStatus.PENDING
                                 )
-                                authViewModel.createBooking(booking)
+                                bookingViewModel.createBooking(booking)
                                 kotlinx.coroutines.delay(1500) // Show loading and prevent double clicks
                                 navController.popBackStack()
                             }

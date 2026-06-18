@@ -25,9 +25,10 @@ import kotlinx.coroutines.launch
 fun BookingDetailsScreen(
     bookingId: String?,
     navController: NavController,
-    authViewModel: AuthViewModel = viewModel()
+    authViewModel: AuthViewModel = viewModel(),
+    bookingViewModel: BookingViewModel = viewModel()
 ) {
-    val bookings by authViewModel.userBookings.collectAsState()
+    val bookings by bookingViewModel.userBookings.collectAsState()
     val booking = bookings.find { it.bookingId == bookingId }
     val scope = rememberCoroutineScope()
     var isCancelling by remember { mutableStateOf(false) }
@@ -35,7 +36,7 @@ fun BookingDetailsScreen(
 
     val queuePosition by remember(booking) {
         if (booking != null) {
-            authViewModel.getQueuePositionRealTime(booking)
+            bookingViewModel.getQueuePositionRealTime(booking)
         } else {
             kotlinx.coroutines.flow.flowOf(-1)
         }
@@ -63,7 +64,7 @@ fun BookingDetailsScreen(
                     onClick = {
                         scope.launch {
                             isCancelling = true
-                            authViewModel.cancelBooking(booking.bookingId)
+                            bookingViewModel.cancelBooking(booking.bookingId)
                             isCancelling = false
                             showCancelDialog = false
                             navController.popBackStack()

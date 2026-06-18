@@ -23,9 +23,10 @@ import androidx.navigation.NavController
 @Composable
 fun MyBookingsScreen(
     navController: NavController,
-    authViewModel: AuthViewModel = viewModel()
+    authViewModel: AuthViewModel = viewModel(),
+    bookingViewModel: BookingViewModel = viewModel()
 ) {
-    val bookings by authViewModel.userBookings.collectAsState()
+    val bookings by bookingViewModel.userBookings.collectAsState()
     var selectedTab by remember { mutableStateOf(0) }
     val pendingBookings = bookings.filter { it.status == BookingStatus.PENDING }
     val confirmedBookings = bookings.filter { it.status == BookingStatus.CONFIRMED }

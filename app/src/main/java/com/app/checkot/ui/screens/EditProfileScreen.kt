@@ -23,7 +23,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun EditProfileScreen(
     navController: NavController,
-    authViewModel: AuthViewModel = viewModel()
+    authViewModel: AuthViewModel = viewModel(),
+    profileViewModel: ProfileViewModel = viewModel()
 ) {
     val userData by authViewModel.currentUserData.collectAsState()
     val scope = rememberCoroutineScope()
@@ -48,7 +49,7 @@ fun EditProfileScreen(
                                     "fullName" to fullName,
                                     "phoneNumber" to phoneNumber
                                 )
-                                authViewModel.updateUserProfile(updates)
+                                profileViewModel.updateUserProfile(updates)
                                 isLoading = false
                                 navController.popBackStack()
                             }
