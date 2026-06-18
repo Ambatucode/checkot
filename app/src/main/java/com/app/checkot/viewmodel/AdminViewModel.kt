@@ -128,41 +128,60 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                 val bookingDoc = firestore.collection("bookings").document(bookingId).get().await()
                 val booking = bookingDoc.toObject(Booking::class.java)
 
-                // 2. Update status in Firestore
+                // SECURITY: Verify the booking belongs to the owner's own shop.
+                // This prevents a rogue owner from modifying another shop's bookings.
+                val ownerShopId = _currentOwnerShopId.value
+                if (booking == null || booking.shopId != ownerShopId) {
+                    println("❌ Security: Attempted to update a booking not belonging to this shop. Blocked.")
+                    return@launch
+                }
+
+                // SECURITY: Only allow status to move forward, never back to PENDING.
+                // This prevents an owner from resetting a COMPLETED booking to PENDING.
+                val allowedTransitions = mapOf(
+                    BookingStatus.PENDING    to setOf(BookingStatus.CONFIRMED, BookingStatus.CANCELLED),
+                    BookingStatus.CONFIRMED  to setOf(BookingStatus.IN_PROGRESS, BookingStatus.CANCELLED),
+                    BookingStatus.IN_PROGRESS to setOf(BookingStatus.COMPLETED)
+                )
+                val currentStatus = booking.status
+                if (status !in (allowedTransitions[currentStatus] ?: emptySet())) {
+                    println("❌ Security: Invalid status transition $currentStatus → $status. Blocked.")
+                    return@launch
+                }
+
+                // 2. Only update the 'status' field — never the whole document
                 firestore.collection("bookings").document(bookingId)
                     .update("status", status.name).await()
                 println("✅ Booking $bookingId updated to $status")
 
                 // 3. Send FCM push notification to the CUSTOMER
-                if (booking != null) {
-                    val services = booking.services.joinToString(", ") { it.displayName }
-                    val (title, body) = when (status) {
-                        BookingStatus.CONFIRMED -> Pair(
-                            "Booking Confirmed! ✅",
-                            "Your booking for $services has been confirmed."
-                        )
-                        BookingStatus.IN_PROGRESS -> Pair(
-                            "Service In Progress \uD83D\uDD27",
-                            "Your $services is now being worked on!"
-                        )
-                        BookingStatus.COMPLETED -> Pair(
-                            "Service Completed! \uD83C\uDF89",
-                            "Your $services is done. Your car is ready!"
-                        )
-                        BookingStatus.CANCELLED -> Pair(
-                            "Booking Cancelled ❌",
-                            "Your booking for $services has been cancelled."
-                        )
-                        else -> Pair("Booking Update", "Status: $status")
-                    }
-                    FCMSender.sendToUser(
-                        context = appContext,
-                        userId = booking.userId,
-                        title = title,
-                        body = body,
-                        bookingId = bookingId
+                val services = booking.services.joinToString(", ") { it.displayName }
+                val (title, body) = when (status) {
+                    BookingStatus.CONFIRMED -> Pair(
+                        "Booking Confirmed! ✅",
+                        "Your booking for $services has been confirmed."
                     )
+                    BookingStatus.IN_PROGRESS -> Pair(
+                        "Service In Progress \uD83D\uDD27",
+                        "Your $services is now being worked on!"
+                    )
+                    BookingStatus.COMPLETED -> Pair(
+                        "Service Completed! \uD83C\uDF89",
+                        "Your $services is done. Your car is ready!"
+                    )
+                    BookingStatus.CANCELLED -> Pair(
+                        "Booking Cancelled ❌",
+                        "Your booking for $services has been cancelled."
+                    )
+                    else -> Pair("Booking Update", "Status: $status")
                 }
+                FCMSender.sendToUser(
+                    context = appContext,
+                    userId = booking.userId,
+                    title = title,
+                    body = body,
+                    bookingId = bookingId
+                )
 
                 loadBookings()
             } catch (e: Exception) {

@@ -230,7 +230,13 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val user = auth.currentUser ?: return@launch
             try {
-                firestore.collection("users").document(user.uid).update(updates).await()
+                // SECURITY: Strip out privileged fields so a user cannot
+                // promote themselves to 'owner' or overwrite their userId.
+                val safeUpdates = updates.filterKeys { key ->
+                    key !in setOf("role", "userId", "ownedShopId")
+                }
+                if (safeUpdates.isEmpty()) return@launch
+                firestore.collection("users").document(user.uid).update(safeUpdates).await()
                 loadUserData()
             } catch (e: Exception) {
                 println("Failed to update profile: ${e.message}")
@@ -244,11 +250,22 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             val user = auth.currentUser ?: return@launch
             try {
                 val bookingDoc = firestore.collection("bookings").document()
+
+                // SECURITY: Recalculate price from the trusted ServiceType enum.
+                // Never trust the price value sent from the frontend — a manipulated
+                // client could send price = 0. We look up the real price here instead.
+                val verifiedPrice = booking.services.sumOf { serviceType ->
+                    ServiceType.values()
+                        .find { it.name == serviceType.name }
+                        ?.price ?: 0.0
+                }
+
                 val newBooking = booking.copy(
                     bookingId = bookingDoc.id,
-                    userId = user.uid,
+                    userId = user.uid,                 // Always use the authenticated UID
+                    price = verifiedPrice,              // Use server-verified price
                     createdAt = System.currentTimeMillis(),
-                    status = BookingStatus.PENDING
+                    status = BookingStatus.PENDING      // Always start as PENDING
                 )
                 bookingDoc.set(newBooking).await()
 
