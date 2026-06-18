@@ -151,7 +151,14 @@ fun SignupScreen(
             value = password,
             onValueChange = {
                 password = it
-                passwordError = if (it.length < 6) "Password must be at least 6 characters" else null
+                val passwordPattern = "^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#\$%^&+=!]).{8,}\$".toRegex()
+                passwordError = if (it.isEmpty()) {
+                    "Password cannot be empty"
+                } else if (!it.matches(passwordPattern)) {
+                    "Must be 8+ chars with 1 uppercase, 1 lowercase, 1 number, and 1 special character"
+                } else {
+                    null
+                }
             },
             label = { Text("Password") },
             leadingIcon = {
@@ -285,11 +292,11 @@ fun SignupScreen(
                 // Make sure all fields are valid before calling signUp
                 if (fullName.isNotEmpty() &&
                     email.isNotEmpty() &&
-                    phoneNumber.isNotEmpty() &&  // Added phone validation
+                    phoneNumber.isNotEmpty() &&
                     password.isNotEmpty() &&
                     password == confirmPassword &&
-                    password.length >= 6) {
-                    authViewModel.signUp(email, password, fullName, phoneNumber)  // Now passing phoneNumber
+                    passwordError == null) {
+                    authViewModel.signUp(email, password, fullName, phoneNumber)
                 }
             },
             modifier = Modifier
@@ -299,10 +306,10 @@ fun SignupScreen(
             enabled = authState != AuthState.Loading &&
                     fullName.isNotEmpty() &&
                     email.isNotEmpty() &&
-                    phoneNumber.isNotEmpty() &&  // Added phone validation
+                    phoneNumber.isNotEmpty() &&
                     password.isNotEmpty() &&
                     password == confirmPassword &&
-                    password.length >= 6
+                    passwordError == null
         ) {
             if (authState is AuthState.Loading) {
                 CircularProgressIndicator(

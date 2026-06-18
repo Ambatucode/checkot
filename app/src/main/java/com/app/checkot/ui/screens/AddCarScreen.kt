@@ -71,7 +71,9 @@ fun AddCarScreen(
             // Plate Number
             OutlinedTextField(
                 value = plateNumber,
-                onValueChange = { plateNumber = it.uppercase() },
+                onValueChange = { 
+                    if (it.length <= 15) plateNumber = it.uppercase() 
+                },
                 label = { Text("Plate Number") },
                 leadingIcon = { Icon(Icons.Default.LocalPolice, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth(),
@@ -85,7 +87,9 @@ fun AddCarScreen(
             // Brand
             OutlinedTextField(
                 value = brand,
-                onValueChange = { brand = it },
+                onValueChange = { 
+                    if (it.length <= 30) brand = it 
+                },
                 label = { Text("Brand (e.g., Toyota, Honda)") },
                 leadingIcon = { Icon(Icons.Default.Business, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth(),
@@ -99,7 +103,9 @@ fun AddCarScreen(
             // Model
             OutlinedTextField(
                 value = model,
-                onValueChange = { model = it },
+                onValueChange = { 
+                    if (it.length <= 30) model = it 
+                },
                 label = { Text("Model (e.g., Vios, Civic)") },
                 leadingIcon = { Icon(Icons.Default.CarRental, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth(),
@@ -113,7 +119,9 @@ fun AddCarScreen(
             // Color
             OutlinedTextField(
                 value = color,
-                onValueChange = { color = it },
+                onValueChange = { 
+                    if (it.length <= 30) color = it 
+                },
                 label = { Text("Color (Optional)") },
                 leadingIcon = { Icon(Icons.Default.Palette, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth(),

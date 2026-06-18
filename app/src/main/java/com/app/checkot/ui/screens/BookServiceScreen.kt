@@ -249,7 +249,11 @@ fun BookServiceScreen(
                     item {
                         OutlinedTextField(
                             value = notes,
-                            onValueChange = { notes = it },
+                            onValueChange = { 
+                                if (it.length <= 500) {
+                                    notes = it 
+                                }
+                            },
                             label = { Text("Special requests or notes (Optional)") },
                             modifier = Modifier.fillMaxWidth(),
                             minLines = 3,
