@@ -197,7 +197,10 @@ fun OwnerBookingsTab(
                     }
                 }
             } else {
-                items(filteredBookings) { booking ->
+                items(
+                    items = filteredBookings,
+                    key = { it.bookingId }
+                ) { booking ->
                     OwnerBookingCard(
                         booking = booking,
                         onApprove = {
@@ -276,7 +279,10 @@ fun OwnerCustomersTab(
                     }
                 }
             } else {
-                items(filteredUsers) { user ->
+                items(
+                    items = filteredUsers,
+                    key = { it.userId }
+                ) { user ->
                     CustomerCard(user = user)
                 }
             }
@@ -376,7 +382,10 @@ fun OwnerRevenueTab(adminViewModel: AdminViewModel, paddingValues: PaddingValues
         Text(text = "Recent Transactions", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(8.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(filteredBookings.take(10)) { booking ->
+            items(
+                items = filteredBookings.take(10),
+                key = { it.bookingId }
+            ) { booking ->
                 TransactionItem(booking = booking)
             }
             if (filteredBookings.isEmpty()) {
