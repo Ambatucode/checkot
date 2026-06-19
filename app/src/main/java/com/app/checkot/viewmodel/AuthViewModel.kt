@@ -82,6 +82,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     )
                     firestore.collection("users").document(user.uid).set(userData).await()
                     _currentUserData.value = userData
+                    uploadFcmToken(user.uid)
                     _authState.value = AuthState.Authenticated
                 }
             } catch (e: Exception) {

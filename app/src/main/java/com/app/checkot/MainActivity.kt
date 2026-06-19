@@ -20,6 +20,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.app.checkot.viewmodel.AuthViewModel
 
 class MainActivity : ComponentActivity() {
 
@@ -54,10 +57,18 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
+                    val authViewModel: AuthViewModel = viewModel()
+                    val currentUser by authViewModel.currentUserData.collectAsState()
                     
-                    LaunchedEffect(pendingBookingId) {
-                        pendingBookingId?.let { bookingId ->
-                            navController.navigate("booking_details/$bookingId")
+                    LaunchedEffect(pendingBookingId, currentUser) {
+                        val role = currentUser?.role
+                        val bookingId = pendingBookingId
+                        if (bookingId != null && role != null) {
+                            if (role == "owner") {
+                                navController.navigate("owner_dashboard")
+                            } else {
+                                navController.navigate("booking_details/$bookingId")
+                            }
                             pendingBookingId = null
                         }
                     }

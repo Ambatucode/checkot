@@ -136,6 +136,7 @@ fun OwnerBookingsTab(
     val filteredBookings = when (filter) {
         "pending" -> allBookings.filter { it.status == BookingStatus.PENDING }
         "confirmed" -> allBookings.filter { it.status == BookingStatus.CONFIRMED }
+        "in_progress" -> allBookings.filter { it.status == BookingStatus.IN_PROGRESS }
         "completed" -> allBookings.filter { it.status == BookingStatus.COMPLETED }
         else -> allBookings
     }
@@ -150,19 +151,21 @@ fun OwnerBookingsTab(
                 "all" -> 0
                 "pending" -> 1
                 "confirmed" -> 2
-                "completed" -> 3
+                "in_progress" -> 3
+                "completed" -> 4
                 else -> 0
             },
             modifier = Modifier.fillMaxWidth(),
             edgePadding = 16.dp
         ) {
-            listOf("All", "Pending", "Confirmed", "Completed").forEachIndexed { index, label ->
+            listOf("All", "Pending", "Confirmed", "In Progress", "Completed").forEachIndexed { index, label ->
                 FilterChip(
                     selected = when (filter) {
                         "all" -> index == 0
                         "pending" -> index == 1
                         "confirmed" -> index == 2
-                        "completed" -> index == 3
+                        "in_progress" -> index == 3
+                        "completed" -> index == 4
                         else -> false
                     },
                     onClick = {
@@ -170,7 +173,8 @@ fun OwnerBookingsTab(
                             0 -> "all"
                             1 -> "pending"
                             2 -> "confirmed"
-                            3 -> "completed"
+                            3 -> "in_progress"
+                            4 -> "completed"
                             else -> "all"
                         }
                     },
@@ -208,6 +212,9 @@ fun OwnerBookingsTab(
                         },
                         onReject = {
                             adminViewModel.updateBookingStatus(booking.bookingId, BookingStatus.CANCELLED)
+                        },
+                        onStart = {
+                            adminViewModel.updateBookingStatus(booking.bookingId, BookingStatus.IN_PROGRESS)
                         },
                         onComplete = {
                             adminViewModel.updateBookingStatus(booking.bookingId, BookingStatus.COMPLETED)
@@ -416,11 +423,13 @@ fun OwnerBookingCard(
     booking: Booking,
     onApprove: () -> Unit,
     onReject: () -> Unit,
+    onStart: () -> Unit,
     onComplete: () -> Unit
 ) {
     var isProcessing by remember { mutableStateOf(false) }
     var showApproveDialog by remember { mutableStateOf(false) }
     var showRejectDialog by remember { mutableStateOf(false) }
+    var showStartDialog by remember { mutableStateOf(false) }
     var showCompleteDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
@@ -468,6 +477,28 @@ fun OwnerBookingCard(
         )
     }
 
+    if (showStartDialog) {
+        AlertDialog(
+            onDismissRequest = { showStartDialog = false },
+            title = { Text("Start Service") },
+            text = { Text("Are you sure you want to start this service? The customer will be notified that their car is now being worked on.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showStartDialog = false
+                    scope.launch {
+                        isProcessing = true
+                        onStart()
+                        kotlinx.coroutines.delay(2000)
+                        isProcessing = false
+                    }
+                }) { Text("Yes, Start") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     if (showCompleteDialog) {
         AlertDialog(
             onDismissRequest = { showCompleteDialog = false },
@@ -491,96 +522,189 @@ fun OwnerBookingCard(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = when (booking.status) {
-                BookingStatus.PENDING -> MaterialTheme.colorScheme.secondaryContainer
-                BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.primaryContainer
-                BookingStatus.COMPLETED -> MaterialTheme.colorScheme.surfaceVariant
-                BookingStatus.CANCELLED -> MaterialTheme.colorScheme.errorContainer
-                else -> MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            when (booking.status) {
+                BookingStatus.PENDING -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
+                BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
+                BookingStatus.CANCELLED -> MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
+                else -> MaterialTheme.colorScheme.outlineVariant
             }
-        )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                    Text(text = "Booking #${booking.bookingId.takeLast(6)}", style = MaterialTheme.typography.labelSmall)
-                    Text(text = booking.services.joinToString(", ") { it.displayName }, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = "Booking #${booking.bookingId.takeLast(6).uppercase()}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        text = booking.services.joinToString(", ") { it.displayName },
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
                 }
                 Surface(
                     color = when (booking.status) {
-                        BookingStatus.PENDING -> MaterialTheme.colorScheme.secondary
-                        BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.primary
-                        BookingStatus.COMPLETED -> MaterialTheme.colorScheme.tertiary
-                        BookingStatus.CANCELLED -> MaterialTheme.colorScheme.error
+                        BookingStatus.PENDING -> MaterialTheme.colorScheme.secondaryContainer
+                        BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.primaryContainer
+                        BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.tertiaryContainer
+                        BookingStatus.CANCELLED -> MaterialTheme.colorScheme.errorContainer
                         else -> MaterialTheme.colorScheme.surfaceVariant
                     },
-                    shape = MaterialTheme.shapes.small
+                    contentColor = when (booking.status) {
+                        BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
+                        BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.onPrimaryContainer
+                        BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.onTertiaryContainer
+                        BookingStatus.CANCELLED -> MaterialTheme.colorScheme.onErrorContainer
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
                 ) {
-                    Text(text = booking.status.name, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                    Text(
+                        text = booking.status.displayName,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.DirectionsCar, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(booking.carDetails, style = MaterialTheme.typography.bodyMedium)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("${DateUtils.formatDate(booking.bookingDate)} at ${booking.timeSlot}")
-            }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                Text(text = "₱${booking.price}", style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.DirectionsCar,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = booking.carDetails,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarToday,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "${DateUtils.formatDate(booking.bookingDate)} at ${booking.timeSlot}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.Center) {
+                    Text(
+                        text = "Total Price",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        text = "₱${booking.price}",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold
+                    )
+                }
             }
             if (booking.status == BookingStatus.PENDING) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { showApproveDialog = true }, 
                         modifier = Modifier.weight(1f), 
                         enabled = !isProcessing,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         if (isProcessing) {
                             CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary)
                         } else {
                             Icon(Icons.Default.Check, contentDescription = "Approve", modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text("Approve")
                         }
                     }
-                    Button(
+                    OutlinedButton(
                         onClick = { showRejectDialog = true }, 
                         modifier = Modifier.weight(1f), 
                         enabled = !isProcessing,
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
                     ) {
                         if (isProcessing) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onError)
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.error)
                         } else {
                             Icon(Icons.Default.Close, contentDescription = "Reject", modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text("Reject")
                         }
                     }
                 }
             }
             if (booking.status == BookingStatus.CONFIRMED) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = { showStartDialog = true }, 
+                    modifier = Modifier.fillMaxWidth(), 
+                    enabled = !isProcessing,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                ) {
+                    if (isProcessing) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onSecondary)
+                    } else {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Start Service", modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Start Service")
+                    }
+                }
+            }
+            if (booking.status == BookingStatus.IN_PROGRESS) {
+                Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = { showCompleteDialog = true }, 
                     modifier = Modifier.fillMaxWidth(), 
                     enabled = !isProcessing,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
                 ) {
                     if (isProcessing) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onTertiary)
                     } else {
-                        Icon(Icons.Default.Done, contentDescription = "Complete", modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(Icons.Default.DoneAll, contentDescription = "Complete", modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text("Mark as Completed")
                     }
                 }

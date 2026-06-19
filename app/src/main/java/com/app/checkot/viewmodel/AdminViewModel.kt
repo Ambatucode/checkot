@@ -149,28 +149,37 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
 
-                // 2. Only update the 'status' field — never the whole document
+                // 2. Update status and timestamp
+                val updates = mutableMapOf<String, Any>("status" to status.name)
+                when (status) {
+                    BookingStatus.CONFIRMED -> updates["confirmedAt"] = System.currentTimeMillis()
+                    BookingStatus.IN_PROGRESS -> updates["inProgressAt"] = System.currentTimeMillis()
+                    BookingStatus.COMPLETED -> updates["completedAt"] = System.currentTimeMillis()
+                    BookingStatus.CANCELLED -> updates["cancelledAt"] = System.currentTimeMillis()
+                    else -> {}
+                }
+
                 firestore.collection("bookings").document(bookingId)
-                    .update("status", status.name).await()
+                    .update(updates).await()
                 println("✅ Booking $bookingId updated to $status")
 
                 // 3. Send FCM push notification to the CUSTOMER
                 val services = booking.services.joinToString(", ") { it.displayName }
                 val (title, body) = when (status) {
                     BookingStatus.CONFIRMED -> Pair(
-                        "Booking Confirmed! ✅",
+                        "Booking Confirmed!",
                         "Your booking for $services has been confirmed."
                     )
                     BookingStatus.IN_PROGRESS -> Pair(
-                        "Service In Progress \uD83D\uDD27",
+                        "Service In Progress",
                         "Your $services is now being worked on!"
                     )
                     BookingStatus.COMPLETED -> Pair(
-                        "Service Completed! \uD83C\uDF89",
+                        "Service Completed!",
                         "Your $services is done. Your car is ready!"
                     )
                     BookingStatus.CANCELLED -> Pair(
-                        "Booking Cancelled ❌",
+                        "Booking Cancelled",
                         "Your booking for $services has been cancelled."
                     )
                     else -> Pair("Booking Update", "Status: $status")

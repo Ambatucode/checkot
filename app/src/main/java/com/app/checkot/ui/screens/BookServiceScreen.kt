@@ -26,6 +26,7 @@ fun BookServiceScreen(
     navController: NavController,
     authViewModel: AuthViewModel = viewModel(),
     bookingViewModel: BookingViewModel = viewModel(),
+    carViewModel: CarViewModel = viewModel(),
     shopId: String = "",
     preselectedService: ServiceType? = null
 ) {
@@ -40,6 +41,14 @@ fun BookServiceScreen(
     var isLoading by remember { mutableStateOf(false) }
     
     val availableTimeSlots by bookingViewModel.availableTimeSlots.collectAsState()
+    val savedCars by carViewModel.savedCars.collectAsState()
+
+    LaunchedEffect(savedCars) {
+        // Auto-select default car or first car if none is selected
+        if (selectedCar == null && savedCars.isNotEmpty()) {
+            selectedCar = savedCars.find { it.isDefault } ?: savedCars.first()
+        }
+    }
 
     LaunchedEffect(selectedDate, shopId) {
         bookingViewModel.fetchAvailableTimeSlots(selectedDate, shopId)
@@ -151,7 +160,7 @@ fun BookServiceScreen(
                             modifier = Modifier.padding(top = 16.dp)
                         )
                     }
-                    if (userData?.savedCars.isNullOrEmpty()) {
+                    if (savedCars.isEmpty()) {
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -176,7 +185,7 @@ fun BookServiceScreen(
                             }
                         }
                     } else {
-                        items(userData?.savedCars ?: emptyList()) { car ->
+                        items(savedCars) { car ->
                             CarSelectionCard(
                                 car = car,
                                 isSelected = selectedCar?.carId == car.carId,

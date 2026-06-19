@@ -22,9 +22,11 @@ import kotlinx.coroutines.launch
 @Composable
 fun MyCarsScreen(
     navController: NavController,
-    carViewModel: CarViewModel = viewModel()
+    carViewModel: CarViewModel = viewModel(),
+    bookingViewModel: BookingViewModel = viewModel()
 ) {
     val savedCars by carViewModel.savedCars.collectAsState()
+    val userBookings by bookingViewModel.userBookings.collectAsState()
     val scope = rememberCoroutineScope()
     Scaffold(
         topBar = {
@@ -85,8 +87,13 @@ fun MyCarsScreen(
                 contentPadding = PaddingValues(16.dp)
             ) {
                 items(savedCars) { car ->
+                    val isActive = userBookings.any { 
+                        it.carId == car.carId && 
+                        it.status in listOf(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.IN_PROGRESS) 
+                    }
                     CarCard(
                         car = car,
+                        isActive = isActive,
                         onEdit = { /* Navigate to edit car */ },
                         onDelete = {
                             scope.launch {
@@ -105,6 +112,7 @@ fun MyCarsScreen(
 @Composable
 fun CarCard(
     car: Car,
+    isActive: Boolean = false,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onSelect: () -> Unit
@@ -147,17 +155,35 @@ fun CarCard(
                         )
                     }
                 }
-                if (car.isDefault) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary,
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            text = "DEFAULT",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        )
+                if (car.isDefault || isActive) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        if (car.isDefault) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = MaterialTheme.shapes.small,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            ) {
+                                Text(
+                                    text = "DEFAULT",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        if (isActive) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.tertiary,
+                                shape = MaterialTheme.shapes.small
+                            ) {
+                                Text(
+                                    text = "IN SERVICE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onTertiary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -179,8 +205,10 @@ fun CarCard(
                 Spacer(modifier = Modifier.width(8.dp))
                 TextButton(
                     onClick = onDelete,
+                    enabled = !isActive,
                     colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
+                        contentColor = MaterialTheme.colorScheme.error,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                     )
                 ) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(18.dp))

@@ -33,6 +33,8 @@ fun AddCarScreen(
     var isDefault by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val isLoading by carViewModel.isLoading.collectAsState()
+    val savedCars by carViewModel.savedCars.collectAsState()
+    val carLimitReached = savedCars.size >= 5
     Scaffold(
         topBar = {
             TopAppBar(
@@ -149,6 +151,13 @@ fun AddCarScreen(
                 )
             }
             Spacer(modifier = Modifier.weight(1f))
+            if (carLimitReached) {
+                Text(
+                    text = "You can only save up to 5 cars per account.",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
             // Add Car Button
             Button(
                 onClick = {
@@ -164,7 +173,7 @@ fun AddCarScreen(
                     navController.popBackStack()
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = plateNumber.isNotBlank() && brand.isNotBlank() && model.isNotBlank() && !isLoading
+                enabled = plateNumber.isNotBlank() && brand.isNotBlank() && model.isNotBlank() && !isLoading && !carLimitReached
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(

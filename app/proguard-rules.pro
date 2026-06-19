@@ -1,21 +1,17 @@
 # Add project specific ProGuard rules here.
 # You can control the set of applied configuration files using the
 # proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep Firebase models from being obfuscated so Firestore can serialize/deserialize them
+-keep class com.app.checkot.model.** { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep service classes (FCM, NotificationHelper) from being obfuscated
+-keep class com.app.checkot.service.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep Google Auth classes used for generating FCM tokens
+-keep class com.google.auth.** { *; }
+
+# Keep Coroutines and Firebase classes safe
+-keepattributes Signature
+-keepattributes *Annotation*
+-keepattributes EnclosingMethod

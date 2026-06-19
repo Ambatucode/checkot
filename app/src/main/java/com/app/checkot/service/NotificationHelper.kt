@@ -32,7 +32,7 @@ object NotificationHelper {
     fun showBookingCreatedNotification(context: Context, serviceSummary: String) {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Booking Confirmed! ✅")
+            .setContentTitle("Booking Pending!")
             .setContentText("Your booking for $serviceSummary has been submitted.")
             .setStyle(NotificationCompat.BigTextStyle()
                 .bigText("Your booking for $serviceSummary has been submitted. The shop owner will review it shortly."))
@@ -46,19 +46,19 @@ object NotificationHelper {
     fun showStatusChangeNotification(context: Context, serviceSummary: String, newStatus: BookingStatus) {
         val (title, body) = when (newStatus) {
             BookingStatus.CONFIRMED -> Pair(
-                "Booking Confirmed! ✅",
+                "Booking Confirmed!",
                 "Your booking for $serviceSummary has been confirmed by the shop."
             )
             BookingStatus.IN_PROGRESS -> Pair(
-                "Service In Progress 🔧",
+                "Service In Progress",
                 "Your $serviceSummary is now being worked on!"
             )
             BookingStatus.COMPLETED -> Pair(
-                "Service Completed! 🎉",
+                "Service Completed!",
                 "Your $serviceSummary is done. Your car is ready for pickup!"
             )
             BookingStatus.CANCELLED -> Pair(
-                "Booking Cancelled ❌",
+                "Booking Cancelled",
                 "Your booking for $serviceSummary has been cancelled."
             )
             else -> return
@@ -79,7 +79,7 @@ object NotificationHelper {
         val body = "New booking received: $serviceSummary — $carDetails"
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("New Booking Received! 📋")
+            .setContentTitle("New Booking Received!")
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)

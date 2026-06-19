@@ -102,6 +102,7 @@ fun NavigationGraph(
                 navController = navController,
                 authViewModel = authViewModel,
                 bookingViewModel = bookingViewModel,
+                carViewModel = carViewModel,
                 shopId = shopId
             )
         }
@@ -112,6 +113,7 @@ fun NavigationGraph(
                 navController = navController,
                 authViewModel = authViewModel,
                 bookingViewModel = bookingViewModel,
+                carViewModel = carViewModel,
                 shopId = shopId,
                 preselectedService = serviceType?.let { ServiceType.valueOf(it) }
             )
@@ -133,7 +135,8 @@ fun NavigationGraph(
         composable(Screen.Cars.route) {
             MyCarsScreen(
                 navController = navController,
-                carViewModel = carViewModel
+                carViewModel = carViewModel,
+                bookingViewModel = bookingViewModel
             )
         }
         composable(Screen.AddCar.route) {

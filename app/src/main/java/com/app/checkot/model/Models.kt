@@ -42,7 +42,11 @@ data class Booking(
     val status: BookingStatus = BookingStatus.PENDING,
     val price: Double = 0.0,
     val notes: String = "",
-    val createdAt: Long = 0
+    val createdAt: Long = 0,
+    val confirmedAt: Long? = null,
+    val inProgressAt: Long? = null,
+    val completedAt: Long? = null,
+    val cancelledAt: Long? = null
 )
 enum class ServiceType(val displayName: String, val price: Double, val duration: String) {
     BASIC_WASH("Basic Wash", 150.0, "30 mins"),
@@ -52,14 +56,19 @@ enum class ServiceType(val displayName: String, val price: Double, val duration:
     EXTERIOR_WAX("Exterior Wax", 350.0, "45 mins"),
     ENGINE_CLEAN("Engine Clean", 500.0, "1.5 hours")
 }
-enum class BookingStatus {
-    PENDING,
-    CONFIRMED,
-    IN_PROGRESS,
-    COMPLETED,
-    CANCELLED
+enum class BookingStatus(val displayName: String) {
+    PENDING("Pending"),
+    CONFIRMED("Confirmed"),
+    IN_PROGRESS("In Progress"),
+    COMPLETED("Completed"),
+    CANCELLED("Cancelled")
 }
 data class TimeSlot(
     val slot: String,
     val available: Boolean = true
+)
+data class QueueInfo(
+    val position: Int = -1,
+    val estimatedWaitMinutes: Int = 0,
+    val totalInQueue: Int = 0
 )

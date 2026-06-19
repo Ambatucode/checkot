@@ -23,23 +23,33 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
+    private var listenerRegistration: com.google.firebase.firestore.ListenerRegistration? = null
+
     init {
-        if (auth.currentUser != null) {
-            loadSavedCars()
+        auth.addAuthStateListener { firebaseAuth ->
+            val user = firebaseAuth.currentUser
+            if (user != null) {
+                loadSavedCars(user.uid)
+            } else {
+                listenerRegistration?.remove()
+                _savedCars.value = emptyList()
+            }
         }
     }
 
-    private fun loadSavedCars() {
-        viewModelScope.launch {
-            val user = auth.currentUser ?: return@launch
-            try {
-                val snapshot = firestore.collection("users").document(user.uid).get().await()
-                val userData = snapshot.toObject(CarWashUser::class.java)
-                _savedCars.value = userData?.savedCars ?: emptyList()
-            } catch (e: Exception) {
-                println("Failed to load saved cars: ${e.message}")
+    private fun loadSavedCars(uid: String) {
+        listenerRegistration?.remove()
+        listenerRegistration = firestore.collection("users").document(uid)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    println("Failed to listen for saved cars: ${error.message}")
+                    return@addSnapshotListener
+                }
+                if (snapshot != null && snapshot.exists()) {
+                    val userData = snapshot.toObject(CarWashUser::class.java)
+                    _savedCars.value = userData?.savedCars ?: emptyList()
+                }
             }
-        }
     }
 
     fun addCar(car: Car) {
@@ -48,6 +58,10 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
             val user = auth.currentUser ?: return@launch
             try {
                 val currentCars = _savedCars.value.toMutableList()
+                if (currentCars.size >= 5) {
+                    println("Car limit reached. Cannot add more than 5 cars.")
+                    return@launch
+                }
 
                 val carId = firestore.collection("users").document().id
                 val newCar = car.copy(carId = carId)

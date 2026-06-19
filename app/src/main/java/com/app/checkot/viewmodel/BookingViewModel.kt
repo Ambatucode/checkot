@@ -112,7 +112,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     FCMSender.sendToUser(
                         context = appContext,
                         userId = doc.id,
-                        title = "New Booking Received! 📋",
+                        title = "New Booking Received!",
                         body = "New booking: $serviceSummary — ${newBooking.carDetails}",
                         bookingId = newBooking.bookingId
                     )
@@ -131,7 +131,10 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 val bookingSnapshot = firestore.collection("bookings").document(bookingId).get().await()
                 val booking = bookingSnapshot.toObject(Booking::class.java)
 
-                firestore.collection("bookings").document(bookingId).update("status", BookingStatus.CANCELLED).await()
+                firestore.collection("bookings").document(bookingId).update(
+                    "status", BookingStatus.CANCELLED,
+                    "cancelledAt", System.currentTimeMillis()
+                ).await()
                 sendBookingNotification(bookingId, "Booking cancelled")
 
                 // Notify the owner via FCM
@@ -145,7 +148,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                         FCMSender.sendToUser(
                             context = appContext,
                             userId = doc.id,
-                            title = "Booking Cancelled ❌",
+                            title = "Booking Cancelled",
                             body = "Booking for $serviceSummary has been cancelled.",
                             bookingId = bookingId
                         )
@@ -227,7 +230,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun getQueuePositionRealTime(booking: Booking): kotlinx.coroutines.flow.Flow<Int> = kotlinx.coroutines.flow.callbackFlow {
+    fun getQueueInfoRealTime(booking: Booking): kotlinx.coroutines.flow.Flow<QueueInfo> = kotlinx.coroutines.flow.callbackFlow {
         val listener = firestore.collection("bookings")
             .whereEqualTo("shopId", booking.shopId)
             .whereEqualTo("bookingDate", booking.bookingDate)
@@ -242,11 +245,31 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     val sorted = bookings.sortedBy { it.createdAt }
                     val index = sorted.indexOfFirst { it.bookingId == booking.bookingId }
                     val position = if (index != -1) index + 1 else -1
-                    trySend(position)
+
+                    // Calculate estimated wait from bookings ahead
+                    val aheadBookings = if (index > 0) sorted.subList(0, index) else emptyList()
+                    val estimatedWaitMinutes = aheadBookings.sumOf { b ->
+                        b.services.sumOf { service -> parseDurationMinutes(service.duration) }
+                    }
+
+                    trySend(QueueInfo(position, estimatedWaitMinutes, sorted.size))
                 }
             }
         awaitClose {
             listener.remove()
+        }
+    }
+
+    private fun parseDurationMinutes(duration: String): Int {
+        return when {
+            duration.contains("hour") -> {
+                val hours = duration.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 1.0
+                (hours * 60).toInt()
+            }
+            duration.contains("min") -> {
+                duration.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 30
+            }
+            else -> 30
         }
     }
 

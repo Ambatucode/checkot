@@ -174,9 +174,9 @@ fun BookingCard(
     onClick: () -> Unit,
     bookingViewModel: BookingViewModel = viewModel()
 ) {
-    val queuePosition by remember(booking) {
-        bookingViewModel.getQueuePositionRealTime(booking)
-    }.collectAsState(initial = -1)
+    val queueInfo by remember(booking) {
+        bookingViewModel.getQueueInfoRealTime(booking)
+    }.collectAsState(initial = QueueInfo())
 
     Card(
         modifier = Modifier
@@ -208,9 +208,10 @@ fun BookingCard(
                     text = booking.carDetails,
                     style = MaterialTheme.typography.bodyMedium
                 )
-                if (queuePosition > 0) {
+                if (queueInfo.position > 0 && (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS)) {
+                    val carsAhead = queueInfo.position - 1
                     Text(
-                        text = "Queue Position: #$queuePosition",
+                        text = if (carsAhead == 0) "Queue: #${queueInfo.position} — You're next!" else "Queue: #${queueInfo.position} — $carsAhead ahead",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
@@ -248,7 +249,7 @@ fun BookingStatusBadge(status: BookingStatus) {
         modifier = Modifier.padding(horizontal = 4.dp)
     ) {
         Text(
-            text = status.name,
+            text = status.displayName,
             style = MaterialTheme.typography.labelSmall,
             color = textColor,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)

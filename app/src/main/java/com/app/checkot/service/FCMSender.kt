@@ -88,7 +88,7 @@ object FCMSender {
 
                         // Android-specific settings
                         put("android", JSONObject().apply {
-                            put("priority", "high")
+                            put("priority", "HIGH")
                             put("notification", JSONObject().apply {
                                 put("channel_id", "checkot_bookings")
                                 put("sound", "default")
@@ -132,16 +132,7 @@ object FCMSender {
      * stored in res/raw/service_account.json
      */
     private fun getAccessToken(context: Context): String {
-        val resourceId = context.resources.getIdentifier(
-            "service_account", "raw", context.packageName
-        )
-        if (resourceId == 0) {
-            throw IllegalStateException(
-                "service_account.json not found in res/raw/. " +
-                "Download it from Firebase Console → Project Settings → Service Accounts."
-            )
-        }
-
+        val resourceId = com.app.checkot.R.raw.service_account
         val inputStream = context.resources.openRawResource(resourceId)
         val credentials = GoogleCredentials
             .fromStream(inputStream)

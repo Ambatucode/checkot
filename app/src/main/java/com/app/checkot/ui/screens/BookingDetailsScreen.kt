@@ -34,13 +34,13 @@ fun BookingDetailsScreen(
     var isCancelling by remember { mutableStateOf(false) }
     var showCancelDialog by remember { mutableStateOf(false) }
 
-    val queuePosition by remember(booking) {
+    val queueInfo by remember(booking) {
         if (booking != null) {
-            bookingViewModel.getQueuePositionRealTime(booking)
+            bookingViewModel.getQueueInfoRealTime(booking)
         } else {
-            kotlinx.coroutines.flow.flowOf(-1)
+            kotlinx.coroutines.flow.flowOf(QueueInfo())
         }
-    }.collectAsState(initial = -1)
+    }.collectAsState(initial = QueueInfo())
 
     if (booking == null) {
         Box(
@@ -128,7 +128,7 @@ fun BookingDetailsScreen(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
                             Text(
-                                text = booking.status.name,
+                                text = booking.status.displayName,
                                 style = MaterialTheme.typography.headlineSmall,
                                 color = when (booking.status) {
                                     BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
@@ -138,20 +138,6 @@ fun BookingDetailsScreen(
                                     BookingStatus.CANCELLED -> MaterialTheme.colorScheme.onErrorContainer
                                 }
                             )
-                            if (queuePosition > 0) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Queue Position: #$queuePosition (${queuePosition - 1} ahead)",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                    color = when (booking.status) {
-                                        BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
-                                        BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.onPrimaryContainer
-                                        BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.onTertiaryContainer
-                                        else -> MaterialTheme.colorScheme.primary
-                                    }
-                                )
-                            }
                         }
                         Icon(
                             imageVector = when (booking.status) {
@@ -176,6 +162,14 @@ fun BookingDetailsScreen(
             }
             item {
                 ServiceProgressStepper(status = booking.status)
+            }
+            // Queue Position Card — only for active bookings
+            if (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS) {
+                if (queueInfo.position > 0) {
+                    item {
+                        QueuePositionCard(queueInfo = queueInfo, status = booking.status)
+                    }
+                }
             }
             item {
                 // Service Details Card
@@ -287,7 +281,53 @@ fun BookingDetailsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         DetailRow("Date", DateUtils.formatDate(booking.bookingDate))
                         DetailRow("Time", booking.timeSlot)
-                        DetailRow("Booked on", DateUtils.formatDate(booking.createdAt))
+                    }
+                }
+            }
+            item {
+                // Timeline Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.cardElevation(2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Timeline,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Timeline",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Divider()
+                        Spacer(modifier = Modifier.height(8.dp))
+                        if (booking.createdAt > 0) {
+                            DetailRow("Created", DateUtils.formatDateTime(booking.createdAt))
+                        }
+                        booking.confirmedAt?.let {
+                            DetailRow("Confirmed", DateUtils.formatDateTime(it))
+                        }
+                        booking.inProgressAt?.let {
+                            DetailRow("In Progress", DateUtils.formatDateTime(it))
+                        }
+                        booking.completedAt?.let {
+                            DetailRow("Completed", DateUtils.formatDateTime(it))
+                        }
+                        booking.cancelledAt?.let {
+                            DetailRow("Cancelled", DateUtils.formatDateTime(it))
+                        }
                     }
                 }
             }
@@ -446,6 +486,107 @@ fun ServiceProgressStepper(status: BookingStatus) {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun QueuePositionCard(queueInfo: QueueInfo, status: BookingStatus) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        ),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Icon(
+                    Icons.Default.People,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Queue Position",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+
+            // Large position number
+            Text(
+                text = "#${queueInfo.position}",
+                style = MaterialTheme.typography.displayMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Cars ahead
+            val carsAhead = queueInfo.position - 1
+            Text(
+                text = if (carsAhead == 0) "You're next!" else "$carsAhead car${if (carsAhead > 1) "s" else ""} ahead of you",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+
+            // Estimated wait time
+            if (carsAhead > 0 && queueInfo.estimatedWaitMinutes > 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Schedule,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        val waitText = if (queueInfo.estimatedWaitMinutes >= 60) {
+                            val hours = queueInfo.estimatedWaitMinutes / 60
+                            val mins = queueInfo.estimatedWaitMinutes % 60
+                            if (mins > 0) "${hours}h ${mins}m" else "${hours}h"
+                        } else {
+                            "${queueInfo.estimatedWaitMinutes} min"
+                        }
+                        Text(
+                            text = "Est. wait: ~$waitText",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Status message
+            Text(
+                text = when (status) {
+                    BookingStatus.PENDING -> "Waiting for shop to confirm your booking"
+                    BookingStatus.CONFIRMED -> "Your booking is confirmed, hang tight!"
+                    BookingStatus.IN_PROGRESS -> "Your car is being serviced right now"
+                    else -> ""
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+            )
         }
     }
 }
