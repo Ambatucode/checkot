@@ -4,7 +4,6 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
-import com.app.checkot.ui.screens.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,7 +27,17 @@ fun OwnerDashboard(
 ) {
     var selectedTab by remember { mutableStateOf(0) }
     var showLogoutDialog by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val saveResult by adminViewModel.saveResult.collectAsState()
+
+    LaunchedEffect(saveResult) {
+        saveResult?.let {
+            snackbarHostState.showSnackbar(it, duration = SnackbarDuration.Short)
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             val userData by authViewModel.currentUserData.collectAsState()
             TopAppBar(
@@ -86,7 +95,7 @@ fun OwnerDashboard(
             0 -> OwnerBookingsTab(navController, adminViewModel, paddingValues)
             1 -> OwnerCustomersTab(adminViewModel, paddingValues)
             2 -> OwnerRevenueTab(adminViewModel, paddingValues)
-            3 -> Text("Services Tab - Coming Soon", modifier = Modifier.padding(paddingValues))
+            3 -> OwnerServicesTab(adminViewModel, paddingValues)
         }
     }
     // Logout Confirmation Dialog
@@ -145,6 +154,36 @@ fun OwnerBookingsTab(
             .fillMaxSize()
             .padding(paddingValues)
     ) {
+        // Stats summary card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                val pendingCount = allBookings.count { it.status == BookingStatus.PENDING }
+                val confirmedCount = allBookings.count { it.status == BookingStatus.CONFIRMED }
+                val inProgressCount = allBookings.count { it.status == BookingStatus.IN_PROGRESS }
+                val todayCompleted = allBookings.count {
+                    it.status == BookingStatus.COMPLETED &&
+                    it.completedAt?.let { completed ->
+                        val cal = java.util.Calendar.getInstance()
+                        completed > cal.timeInMillis - 86400000
+                    } ?: false
+                }
+                StatsBadge(label = "Pending", count = pendingCount, color = MaterialTheme.colorScheme.secondary)
+                StatsBadge(label = "Active", count = confirmedCount + inProgressCount, color = MaterialTheme.colorScheme.primary)
+                StatsBadge(label = "Done Today", count = todayCompleted, color = MaterialTheme.colorScheme.tertiary)
+            }
+        }
         // Filter Chips
         ScrollableTabRow(
             selectedTabIndex = when (filter) {
@@ -156,18 +195,28 @@ fun OwnerBookingsTab(
                 else -> 0
             },
             modifier = Modifier.fillMaxWidth(),
-            edgePadding = 16.dp
+            edgePadding = 16.dp,
+            divider = {}
         ) {
-            listOf("All", "Pending", "Confirmed", "In Progress", "Completed").forEachIndexed { index, label ->
+            val filterLabels = listOf("All", "Pending", "Confirmed", "In Progress", "Completed")
+            val filterIcons = listOf(
+                Icons.Default.AllInclusive,
+                Icons.Default.HourglassEmpty,
+                Icons.Default.CheckCircle,
+                Icons.Default.Build,
+                Icons.Default.DoneAll
+            )
+            filterLabels.forEachIndexed { index, label ->
+                val isSelected = when (filter) {
+                    "all" -> index == 0
+                    "pending" -> index == 1
+                    "confirmed" -> index == 2
+                    "in_progress" -> index == 3
+                    "completed" -> index == 4
+                    else -> false
+                }
                 FilterChip(
-                    selected = when (filter) {
-                        "all" -> index == 0
-                        "pending" -> index == 1
-                        "confirmed" -> index == 2
-                        "in_progress" -> index == 3
-                        "completed" -> index == 4
-                        else -> false
-                    },
+                    selected = isSelected,
                     onClick = {
                         filter = when (index) {
                             0 -> "all"
@@ -178,7 +227,17 @@ fun OwnerBookingsTab(
                             else -> "all"
                         }
                     },
-                    label = { Text(label) },
+                    label = { 
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = filterIcons[index],
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(label)
+                        }
+                    },
                     modifier = Modifier.padding(horizontal = 4.dp)
                 )
             }
@@ -194,10 +253,29 @@ fun OwnerBookingsTab(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(32.dp),
+                            .padding(48.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("No bookings found")
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.BookmarkBorder,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                "No bookings found",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "Bookings in this category will appear here",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                            )
+                        }
                     }
                 }
             } else {
@@ -410,7 +488,7 @@ fun TransactionItem(booking: Booking) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = booking.services.joinToString(", ") { it.displayName }, style = MaterialTheme.typography.titleMedium)
+                Text(text = booking.services.joinToString(", ") { it.displayName }, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 Text(text = DateUtils.formatDate(booking.createdAt), style = MaterialTheme.typography.bodySmall)
             }
             Text(text = "₱${booking.price}", style = MaterialTheme.typography.titleLarge)
@@ -581,6 +659,8 @@ fun OwnerBookingCard(
                         text = booking.status.displayName,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                     )
                 }
@@ -707,6 +787,430 @@ fun OwnerBookingCard(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Mark as Completed")
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StatsBadge(label: String, count: Int, color: androidx.compose.ui.graphics.Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = count.toString(),
+            style = MaterialTheme.typography.titleLarge,
+            color = color,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun OwnerServicesTab(
+    adminViewModel: AdminViewModel,
+    paddingValues: PaddingValues
+) {
+    val customization by adminViewModel.shopCustomization.collectAsState()
+    var editedServices by remember { mutableStateOf<List<CustomServiceConfig>>(customization.services) }
+    var showAddDropdown by remember { mutableStateOf(false) }
+    var showCustomNameDialog by remember { mutableStateOf(false) }
+    var customServiceNameInput by remember { mutableStateOf("") }
+    val maxServices = 15
+
+    // A price is invalid if it's below 150 or above 5000
+    val hasInvalidPrice = editedServices.any { config ->
+        (config.customPrice > 0.0 && config.customPrice < 150) || config.customPrice > 5000
+    }
+    val canSave = editedServices != customization.services && !hasInvalidPrice
+
+    LaunchedEffect(customization) {
+        editedServices = customization.services
+    }
+
+    val atMaxLimit = editedServices.size >= maxServices
+    val availableTypesToAdd = ServiceType.values().filter { type ->
+        type != ServiceType.CUSTOM && editedServices.none { it.serviceName == type.name }
+    }
+
+    if (showCustomNameDialog) {
+        AlertDialog(
+            onDismissRequest = { showCustomNameDialog = false },
+            title = { Text("Custom Service Name") },
+            text = {
+                OutlinedTextField(
+                    value = customServiceNameInput,
+                    onValueChange = { if (it.length <= 30) customServiceNameInput = it },
+                    label = { Text("Service name") },
+                    placeholder = { Text("e.g. Headlight Polish") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val name = customServiceNameInput.trim()
+                        if (name.isNotEmpty()) {
+                            val id = "custom_${System.currentTimeMillis()}"
+                            editedServices = editedServices + CustomServiceConfig(
+                                serviceName = id,
+                                displayName = name,
+                                customName = name,
+                                customPrice = 0.0,
+                                isCustom = true
+                            )
+                            customServiceNameInput = ""
+                            showCustomNameDialog = false
+                        }
+                    },
+                    enabled = customServiceNameInput.trim().isNotEmpty()
+                ) { Text("Add") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCustomNameDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Manage Services", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "${editedServices.size}/$maxServices services",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (atMaxLimit) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+            Box {
+                OutlinedButton(
+                    onClick = { showAddDropdown = true },
+                    enabled = !atMaxLimit,
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add Service", style = MaterialTheme.typography.labelMedium)
+                }
+                DropdownMenu(
+                    expanded = showAddDropdown,
+                    onDismissRequest = { showAddDropdown = false }
+                ) {
+                    availableTypesToAdd.forEach { type ->
+                        DropdownMenuItem(
+                            text = { Text(type.displayName) },
+                            onClick = {
+                                editedServices = editedServices + CustomServiceConfig(
+                                    serviceName = type.name,
+                                    displayName = type.displayName,
+                                    customPrice = type.price
+                                )
+                                showAddDropdown = false
+                            }
+                        )
+                    }
+                    if (availableTypesToAdd.isNotEmpty()) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    }
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AddCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Others (Custom Service)")
+                            }
+                        },
+                        onClick = {
+                            showAddDropdown = false
+                            customServiceNameInput = ""
+                            showCustomNameDialog = true
+                        }
+                    )
+                }
+            }
+        }
+
+        if (editedServices.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(48.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.Build,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        "No services configured",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Tap \"Add Service\" to get started",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(
+                    items = editedServices,
+                    key = { it.serviceName }
+                ) { config ->
+                    val isInUse = adminViewModel.allBookings.value.any { booking ->
+                        val status = booking.status
+                        val isActive = status == BookingStatus.PENDING
+                            || status == BookingStatus.CONFIRMED
+                            || status == BookingStatus.IN_PROGRESS
+                        if (!isActive) return@any false
+                        // Check if this booking uses the service being deleted
+                        if (config.isCustom) {
+                            // Custom service: check customServiceNames
+                            config.customName.isNotEmpty() && booking.customServiceNames.contains(config.customName)
+                        } else {
+                            // Predefined service: check ServiceType list
+                            booking.services.any { it.name == config.serviceName }
+                        }
+                    }
+                    ServiceConfigCard(
+                        config = config,
+                        canDelete = !isInUse,
+                        deleteReason = if (isInUse) "Cannot delete — service has active bookings" else null,
+                        onPriceChange = { newPrice ->
+                            editedServices = editedServices.map {
+                                if (it.serviceName == config.serviceName) it.copy(customPrice = newPrice) else it
+                            }
+                        },
+                        onNameChange = { newName ->
+                            editedServices = editedServices.map {
+                                if (it.serviceName == config.serviceName) it.copy(customName = newName, displayName = newName) else it
+                            }
+                        },
+                        onDelete = {
+                            editedServices = editedServices.filter { it.serviceName != config.serviceName }
+                        }
+                    )
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(
+                onClick = {
+                    editedServices = customization.services
+                },
+                modifier = Modifier.weight(1f),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Text("Reset")
+            }
+            Button(
+                onClick = {
+                    val updated = customization.copy(services = editedServices)
+                    adminViewModel.saveShopCustomization(updated)
+                },
+                modifier = Modifier.weight(1f),
+                shape = MaterialTheme.shapes.medium,
+                enabled = canSave
+            ) {
+                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Save Changes")
+            }
+        }
+    }
+}
+
+@Composable
+fun ServiceConfigCard(
+    config: CustomServiceConfig,
+    canDelete: Boolean = true,
+    deleteReason: String? = null,
+    onPriceChange: (Double) -> Unit,
+    onNameChange: (String) -> Unit = {},
+    onDelete: () -> Unit
+) {
+    val defaultPrice = ServiceType.values().find { it.name == config.serviceName }?.price ?: 0.0
+    var priceText by remember(config.customPrice) {
+        mutableStateOf(if (config.customPrice > 0) config.customPrice.toString() else "")
+    }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Remove Service") },
+            text = {
+                Text("Removing \"${config.displayName}\" will delete this service from your shop's service list. Clients will no longer see it.\n\nAre you sure you want to proceed?")
+            },
+            confirmButton = {
+                TextButton(onClick = { showDeleteConfirm = false; onDelete() }) {
+                    Text("Yes, Remove", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    if (config.isCustom) {
+                        OutlinedTextField(
+                            value = config.customName,
+                            onValueChange = { if (it.length <= 30) onNameChange(it) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.titleMedium,
+                            placeholder = { Text("Service name") },
+                            shape = MaterialTheme.shapes.small
+                        )
+                    } else {
+                        Text(
+                            text = config.displayName,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                    Text(
+                        text = if (config.isCustom) "Custom service" else "Default: ₱${defaultPrice}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
+                IconButton(
+                    onClick = { if (canDelete) showDeleteConfirm = true },
+                    enabled = canDelete
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = if (canDelete) MaterialTheme.colorScheme.error
+                               else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                    )
+                }
+            }
+
+            if (!canDelete && deleteReason != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = deleteReason,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Your Price: ₱",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                OutlinedTextField(
+                    value = priceText,
+                    onValueChange = { input ->
+                        val filtered = input.filter { it.isDigit() || it == '.' }
+                        if (filtered.count { it == '.' } <= 1) {
+                            val parts = filtered.split(".")
+                            val limited = if (parts.size == 2 && parts[1].length > 2) {
+                                "${parts[0]}.${parts[1].take(2)}"
+                            } else filtered
+                            priceText = limited
+                            val parsed = limited.toDoubleOrNull()
+                            if (parsed != null && parsed >= 150 && parsed <= 5000) {
+                                onPriceChange(parsed)
+                            }
+                            // When empty or invalid: don't call onPriceChange,
+                            // keep the previous valid customPrice.
+                            // The red error state will show below.
+                        }
+                    },
+                    modifier = Modifier.weight(1f).padding(start = 8.dp),
+                    singleLine = true,
+                    isError = priceText.isNotEmpty() && (priceText.toDoubleOrNull() == null
+                        || priceText.toDoubleOrNull()!! < 150
+                        || priceText.toDoubleOrNull()!! > 5000),
+                    placeholder = { Text("${defaultPrice}") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                    ),
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    shape = MaterialTheme.shapes.small
+                )
+            }
+            val price = priceText.toDoubleOrNull()
+            if (priceText.isNotEmpty()) {
+                when {
+                    price == null || price < 150 -> Text(
+                        "Minimum price is ₱150.00",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                    )
+                    price > 5000 -> Text(
+                        "Maximum price is ₱5,000.00",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                    )
                 }
             }
         }

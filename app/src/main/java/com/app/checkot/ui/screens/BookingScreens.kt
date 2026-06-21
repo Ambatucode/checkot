@@ -4,7 +4,6 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
-import com.app.checkot.ui.screens.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -125,7 +124,8 @@ fun BookingItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        onClick = onClick
+        onClick = onClick,
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
@@ -135,7 +135,6 @@ fun BookingItem(
             // Header with service and status
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -147,54 +146,64 @@ fun BookingItem(
                 BookingStatusBadge(status = booking.status)
             }
             Spacer(modifier = Modifier.height(8.dp))
-            // Car details
+            // Car details + Date/time in a cleaner layout
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     Icons.Default.DirectionsCar,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = booking.carDetails,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    modifier = Modifier.weight(1f)
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
-            // Date and time
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Icon(
                     Icons.Default.CalendarToday,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "${DateUtils.formatDate(booking.bookingDate)} at ${booking.timeSlot}",  // Fixed
+                    text = "${DateUtils.formatDate(booking.bookingDate)} at ${booking.timeSlot}",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                // Price and booking ID
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "₱${booking.price}",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "ID: ${booking.bookingId.takeLast(6)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    )
-                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            // Price and booking ID
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "₱${booking.price}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+                Text(
+                    text = "ID: ${booking.bookingId.takeLast(6)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                )
             }
         }
     }

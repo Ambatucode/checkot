@@ -4,7 +4,6 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
-import com.app.checkot.ui.screens.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -54,20 +53,37 @@ fun MyBookingsScreen(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp)
                     ) {
-                        Text(
-                            text = "Your Queue",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.People,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Your Queue",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(
+                                text = "${pendingBookings.size + confirmedBookings.size} item(s)",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            )
+                        }
                         if (pendingBookings.isNotEmpty()) {
                             QueueItem(
                                 status = "Pending Approval",
@@ -82,14 +98,17 @@ fun MyBookingsScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                         LinearProgressIndicator(
                             progress = 0.5f,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f)
                         )
                         Text(
                             text = "Estimated wait time: 30-45 minutes",
                             style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
                             modifier = Modifier.padding(top = 8.dp)
                         )
                     }
@@ -98,8 +117,9 @@ fun MyBookingsScreen(
             // Tabs
             ScrollableTabRow(
                 selectedTabIndex = selectedTab,
-                edgePadding = 0.dp,
-                modifier = Modifier.fillMaxWidth()
+                edgePadding = 16.dp,
+                modifier = Modifier.fillMaxWidth(),
+                divider = {}
             ) {
                 listOf("All", "Pending", "Confirmed", "Completed", "Cancelled").forEachIndexed { index, title ->
                     Tab(

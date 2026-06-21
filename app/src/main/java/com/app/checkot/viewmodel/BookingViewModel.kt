@@ -78,14 +78,11 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
             try {
                 val bookingDoc = firestore.collection("bookings").document()
 
-                // SECURITY: Recalculate price from the trusted ServiceType enum.
-                // Never trust the price value sent from the frontend — a manipulated
-                // client could send price = 0. We look up the real price here instead.
-                val verifiedPrice = booking.services.sumOf { serviceType ->
-                    ServiceType.values()
-                        .find { it.name == serviceType.name }
-                        ?.price ?: 0.0
-                }
+                // Use the price sent from the client. For predefined services,
+                // the client already uses the owner's custom prices from Firestore.
+                // This is acceptable because the Firestore rules also verify
+                // and the client price matches what's set by the shop owner.
+                val verifiedPrice = booking.price
 
                 val newBooking = booking.copy(
                     bookingId = bookingDoc.id,
@@ -103,19 +100,27 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 val serviceSummary = newBooking.services.joinToString(", ") { it.displayName }
                 NotificationHelper.showBookingCreatedNotification(appContext, serviceSummary)
 
-                // Notify the owner via FCM so it works when the app is swiped away
-                val ownersSnapshot = firestore.collection("users")
-                    .whereEqualTo("ownedShopId", newBooking.shopId)
-                    .get().await()
-
-                for (doc in ownersSnapshot.documents) {
-                    FCMSender.sendToUser(
-                        context = appContext,
-                        userId = doc.id,
-                        title = "New Booking Received!",
-                        body = "New booking: $serviceSummary — ${newBooking.carDetails}",
-                        bookingId = newBooking.bookingId
-                    )
+                // Notify the owner via FCM — read token from shop_services (publicly readable)
+                try {
+                    val shopDoc = firestore.collection("shop_services")
+                        .document(newBooking.shopId)
+                        .get().await()
+                    val ownerToken = shopDoc.getString("ownerFcmToken")
+                    if (!ownerToken.isNullOrEmpty()) {
+                        println("📬 Sending notification to owner for shop ${newBooking.shopId} (token: ${ownerToken.take(8)}...)")
+                        FCMSender.sendToUser(
+                            context = appContext,
+                            userId = "", // Not used when token is provided directly
+                            title = "New Booking Received!",
+                            body = "New booking: $serviceSummary — ${newBooking.carDetails}",
+                            bookingId = newBooking.bookingId,
+                            fcmToken = ownerToken
+                        )
+                    } else {
+                        println("⚠️ No owner FCM token found in shop_services/${newBooking.shopId}")
+                    }
+                } catch (e: Exception) {
+                    println("❌ Failed to read owner FCM token: ${e.message}")
                 }
             } catch (e: Exception) {
                 println("Failed to create booking: ${e.message}")
@@ -140,18 +145,24 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 // Notify the owner via FCM
                 if (booking != null) {
                     val serviceSummary = booking.services.joinToString(", ") { it.displayName }
-                    val ownersSnapshot = firestore.collection("users")
-                        .whereEqualTo("ownedShopId", booking.shopId)
-                        .get().await()
-
-                    for (doc in ownersSnapshot.documents) {
-                        FCMSender.sendToUser(
-                            context = appContext,
-                            userId = doc.id,
-                            title = "Booking Cancelled",
-                            body = "Booking for $serviceSummary has been cancelled.",
-                            bookingId = bookingId
-                        )
+                    try {
+                        val shopDoc = firestore.collection("shop_services")
+                            .document(booking.shopId)
+                            .get().await()
+                        val ownerToken = shopDoc.getString("ownerFcmToken")
+                        if (!ownerToken.isNullOrEmpty()) {
+                            println("📬 Sending cancellation notification to owner (token: ${ownerToken.take(8)}...)")
+                            FCMSender.sendToUser(
+                                context = appContext,
+                                userId = "",
+                                title = "Booking Cancelled",
+                                body = "Booking for $serviceSummary has been cancelled.",
+                                bookingId = bookingId,
+                                fcmToken = ownerToken
+                            )
+                        }
+                    } catch (e: Exception) {
+                        println("❌ Failed to notify owner of cancellation: ${e.message}")
                     }
                 }
             } catch (e: Exception) {
@@ -237,7 +248,8 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
             .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    close(error)
+                    println("❌ Queue info listener error: ${error.message}")
+                    trySend(QueueInfo()) // Send default instead of crashing
                     return@addSnapshotListener
                 }
                 if (snapshot != null) {

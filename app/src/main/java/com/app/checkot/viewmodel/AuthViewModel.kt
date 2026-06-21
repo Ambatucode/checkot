@@ -61,6 +61,15 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         if (auth.currentUser != null) {
             _authState.value = AuthState.Authenticated
             loadUserData()
+            // Upload FCM token directly — ensures token is always saved
+            // even if loadUserData hasn't completed yet
+            FirebaseMessaging.getInstance().token
+                .addOnSuccessListener { token ->
+                    firestore.collection("users").document(auth.currentUser!!.uid)
+                        .update("fcmToken", token)
+                        .addOnSuccessListener { println("✅ AuthVM: FCM token saved on init") }
+                        .addOnFailureListener { e -> println("❌ AuthVM: Failed to save token: ${e.message}") }
+                }
         }
     }
 
@@ -141,5 +150,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getCurrentUser(): FirebaseUser? {
         return auth.currentUser
+    }
+
+    fun clearError() {
+        if (_authState.value is AuthState.Error) {
+            _authState.value = AuthState.Unauthenticated
+        }
     }
 }

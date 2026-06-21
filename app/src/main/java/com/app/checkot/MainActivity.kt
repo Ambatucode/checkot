@@ -27,6 +27,7 @@ import com.app.checkot.viewmodel.AuthViewModel
 class MainActivity : ComponentActivity() {
 
     private var pendingBookingId by mutableStateOf<String?>(null)
+    private var navReady by mutableStateOf(false)
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -60,16 +61,31 @@ class MainActivity : ComponentActivity() {
                     val authViewModel: AuthViewModel = viewModel()
                     val currentUser by authViewModel.currentUserData.collectAsState()
                     
-                    LaunchedEffect(pendingBookingId, currentUser) {
+                    // Mark NavHost as ready after first composition
+                    LaunchedEffect(Unit) {
+                        navReady = true
+                    }
+                    
+                    LaunchedEffect(pendingBookingId, currentUser, navReady) {
+                        if (!navReady) return@LaunchedEffect
                         val role = currentUser?.role
                         val bookingId = pendingBookingId
                         if (bookingId != null && role != null) {
-                            if (role == "owner") {
-                                navController.navigate("owner_dashboard")
-                            } else {
-                                navController.navigate("booking_details/$bookingId")
+                            try {
+                                if (role == "owner") {
+                                    navController.navigate("owner_dashboard") {
+                                        launchSingleTop = true
+                                    }
+                                } else {
+                                    navController.navigate("booking_details/$bookingId") {
+                                        launchSingleTop = true
+                                    }
+                                }
+                                pendingBookingId = null
+                            } catch (e: Exception) {
+                                println("❌ Navigation from notification failed: ${e.message}")
+                                pendingBookingId = null
                             }
-                            pendingBookingId = null
                         }
                     }
 

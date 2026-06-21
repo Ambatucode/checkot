@@ -4,7 +4,6 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
-import com.app.checkot.ui.screens.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
@@ -129,7 +128,9 @@ fun BookingDetailsScreen(
                             )
                             Text(
                                 text = booking.status.displayName,
-                                style = MaterialTheme.typography.headlineSmall,
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                 color = when (booking.status) {
                                     BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
                                     BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.onPrimaryContainer
@@ -198,7 +199,9 @@ fun BookingDetailsScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        Divider()
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                         val shopName = partnerShops.find { it.shopId == booking.shopId }?.name ?: "Unknown Shop"
                         DetailRow("Shop", shopName)
@@ -238,7 +241,9 @@ fun BookingDetailsScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        Divider()
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                         val carDetails = booking.carDetails.split(" - ")
                         if (carDetails.size == 2) {
@@ -277,7 +282,9 @@ fun BookingDetailsScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        Divider()
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                         DetailRow("Date", DateUtils.formatDate(booking.bookingDate))
                         DetailRow("Time", booking.timeSlot)
@@ -311,7 +318,9 @@ fun BookingDetailsScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        Divider()
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                         if (booking.createdAt > 0) {
                             DetailRow("Created", DateUtils.formatDateTime(booking.createdAt))
@@ -371,12 +380,15 @@ fun DetailRow(label: String, value: String) {
             text = "$label:",
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            maxLines = 1
         )
         Text(
             text = value,
             modifier = Modifier.weight(2f),
-            style = MaterialTheme.typography.bodyMedium
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
     }
 }
@@ -426,28 +438,54 @@ fun ServiceProgressStepper(status: BookingStatus) {
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly
+            // Line with circles
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp)
             ) {
-                steps.forEachIndexed { index, label ->
-                    val isCompleted = index < currentStepIndex
-                    val isActive = index == currentStepIndex
-                    val color = when {
-                        isCompleted -> MaterialTheme.colorScheme.primary
-                        isActive -> MaterialTheme.colorScheme.tertiary
-                        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                    }
-
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f)
-                    ) {
+                // Full background line
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .align(Alignment.CenterStart)
+                        .background(
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                            MaterialTheme.shapes.small
+                        )
+                )
+                // Completed portion of line
+                if (currentStepIndex > 0) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(currentStepIndex.toFloat() / (steps.size - 1).toFloat())
+                            .height(4.dp)
+                            .align(Alignment.CenterStart)
+                            .background(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.shapes.small
+                            )
+                    )
+                }
+                // Circles
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    steps.forEachIndexed { index, label ->
+                        val isCompleted = index < currentStepIndex
+                        val isActive = index == currentStepIndex
+                        val circleColor = when {
+                            isCompleted -> MaterialTheme.colorScheme.primary
+                            isActive -> MaterialTheme.colorScheme.tertiary
+                            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                        }
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
-                                .background(color, shape = CircleShape),
+                                .size(28.dp)
+                                .background(circleColor, shape = CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             if (isCompleted) {
@@ -460,30 +498,31 @@ fun ServiceProgressStepper(status: BookingStatus) {
                             } else {
                                 Text(
                                     text = (index + 1).toString(),
-                                    color = if (isActive) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                    style = MaterialTheme.typography.labelMedium
+                                    color = if (isActive) MaterialTheme.colorScheme.onTertiary
+                                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    style = MaterialTheme.typography.labelSmall
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isActive) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                            fontWeight = if (isActive) androidx.compose.ui.text.font.FontWeight.Bold else null
-                        )
                     }
-
-                    if (index < steps.lastIndex) {
-                        val lineColor = if (index < currentStepIndex) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                        Divider(
-                            modifier = Modifier
-                                .weight(0.5f)
-                                .padding(bottom = 16.dp),
-                            color = lineColor,
-                            thickness = 2.dp
-                        )
-                    }
+                }
+            }
+            // Labels below circles
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                steps.forEachIndexed { index, label ->
+                    val isActive = index == currentStepIndex
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isActive) MaterialTheme.colorScheme.tertiary
+                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        fontWeight = if (isActive) androidx.compose.ui.text.font.FontWeight.Bold else null
+                    )
                 }
             }
         }

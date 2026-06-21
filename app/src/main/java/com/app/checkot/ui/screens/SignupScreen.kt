@@ -4,8 +4,9 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
-import com.app.checkot.ui.screens.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -30,15 +31,23 @@ fun SignupScreen(
     onSignupSuccess: () -> Unit,
     authViewModel: AuthViewModel = viewModel()
 ) {
-    var fullName by remember { mutableStateOf("") }
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
-    var phoneNumber by remember { mutableStateOf("") }  // ADD THIS
+    var phoneNumber by remember { mutableStateOf("") }  // stores only the 10-digit local part
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
+    var firstNameError by remember { mutableStateOf<String?>(null) }
+    var lastNameError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var phoneError by remember { mutableStateOf<String?>(null) }
     val authState by authViewModel.authState.collectAsState()
+    LaunchedEffect(Unit) {
+        authViewModel.clearError()
+    }
     LaunchedEffect(authState) {
         when (authState) {
             is AuthState.Authenticated -> {
@@ -47,13 +56,21 @@ fun SignupScreen(
             else -> {}
         }
     }
-    Column(
+    val scrollState = rememberScrollState()
+    Box(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(scrollState)
             .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        contentAlignment = Alignment.Center
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
         // Header
         Text(
             text = "Create Account",
@@ -68,11 +85,23 @@ fun SignupScreen(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )
         Spacer(modifier = Modifier.height(32.dp))
-        // Full Name Field
+        // Validation regex: Only letters, spaces, Ññ, and Filipino/Spanish accents
+        val nameAllowedPattern = "^[a-zA-Z\u00D1\u00F1\u00C0-\u00FF ]*$".toRegex()
+
+        // First Name Field
         OutlinedTextField(
-            value = fullName,
-            onValueChange = { fullName = it },
-            label = { Text("Full Name") },
+            value = firstName,
+            onValueChange = { input ->
+                if (input.length <= 50) {
+                    firstName = input
+                    firstNameError = when {
+                        input.trim().isEmpty() -> "First name is required"
+                        !input.matches(nameAllowedPattern) -> "Only letters, spaces, ñ, and accents are allowed (no special characters/numbers)"
+                        else -> null
+                    }
+                }
+            },
+            label = { Text("First Name") },
             leadingIcon = {
                 Icon(
                     Icons.Default.Person,
@@ -84,6 +113,7 @@ fun SignupScreen(
             shape = RoundedCornerShape(16.dp),
             singleLine = true,
             enabled = authState != AuthState.Loading,
+            isError = firstNameError != null,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Text,
                 imeAction = ImeAction.Next
@@ -93,11 +123,74 @@ fun SignupScreen(
                 unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
             )
         )
+        if (firstNameError != null) {
+            Text(
+                text = firstNameError!!,
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 12.sp,
+                modifier = Modifier.align(Alignment.Start).padding(start = 16.dp, top = 4.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Last Name Field
+        OutlinedTextField(
+            value = lastName,
+            onValueChange = { input ->
+                if (input.length <= 50) {
+                    lastName = input
+                    lastNameError = when {
+                        input.trim().isEmpty() -> "Last name is required"
+                        !input.matches(nameAllowedPattern) -> "Only letters, spaces, ñ, and accents are allowed (no special characters/numbers)"
+                        else -> null
+                    }
+                }
+            },
+            label = { Text("Last Name") },
+            leadingIcon = {
+                Icon(
+                    Icons.Default.Person,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            singleLine = true,
+            enabled = authState != AuthState.Loading,
+            isError = lastNameError != null,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Text,
+                imeAction = ImeAction.Next
+            ),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+            )
+        )
+        if (lastNameError != null) {
+            Text(
+                text = lastNameError!!,
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 12.sp,
+                modifier = Modifier.align(Alignment.Start).padding(start = 16.dp, top = 4.dp)
+            )
+        }
         Spacer(modifier = Modifier.height(16.dp))
         // Email Field
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = { 
+                email = it
+                val emailPattern = "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\$".toRegex()
+                emailError = if (it.isEmpty()) {
+                    "Email cannot be empty"
+                } else if (!it.matches(emailPattern)) {
+                    "Please enter a valid email address"
+                } else {
+                    null
+                }
+            },
             label = { Text("Email") },
             leadingIcon = {
                 Icon(
@@ -110,6 +203,7 @@ fun SignupScreen(
             shape = RoundedCornerShape(16.dp),
             singleLine = true,
             enabled = authState != AuthState.Loading,
+            isError = emailError != null,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Email,
                 imeAction = ImeAction.Next
@@ -119,11 +213,29 @@ fun SignupScreen(
                 unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
             )
         )
+        if (emailError != null) {
+            Text(
+                text = emailError!!,
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 12.sp,
+                modifier = Modifier.align(Alignment.Start).padding(start = 16.dp, top = 4.dp)
+            )
+        }
         Spacer(modifier = Modifier.height(16.dp))
-        // Phone Number Field - ADD THIS
+        // Phone Number Field - fixed +63 prefix
         OutlinedTextField(
             value = phoneNumber,
-            onValueChange = { phoneNumber = it },
+            onValueChange = { input ->
+                // Only accept digits, max 10
+                val digits = input.filter { it.isDigit() }.take(10)
+                phoneNumber = digits
+                phoneError = when {
+                    digits.isEmpty() -> "Phone number cannot be empty"
+                    digits.length != 10 -> "Enter 10 digits after +63 (e.g. 9123456789)"
+                    !digits.startsWith("9") -> "Number must start with 9"
+                    else -> null
+                }
+            },
             label = { Text("Phone Number") },
             leadingIcon = {
                 Icon(
@@ -132,12 +244,15 @@ fun SignupScreen(
                     tint = MaterialTheme.colorScheme.primary
                 )
             },
+            prefix = { Text("+63 ") },
+            placeholder = { Text("9XXXXXXXXX") },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
             singleLine = true,
             enabled = authState != AuthState.Loading,
+            isError = phoneError != null,
             keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Phone,
+                keyboardType = KeyboardType.Number,
                 imeAction = ImeAction.Next
             ),
             colors = OutlinedTextFieldDefaults.colors(
@@ -145,6 +260,14 @@ fun SignupScreen(
                 unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
             )
         )
+        if (phoneError != null) {
+            Text(
+                text = phoneError!!,
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 12.sp,
+                modifier = Modifier.align(Alignment.Start).padding(start = 16.dp, top = 4.dp)
+            )
+        }
         Spacer(modifier = Modifier.height(16.dp))
         // Password Field
         OutlinedTextField(
@@ -290,13 +413,21 @@ fun SignupScreen(
         Button(
             onClick = {
                 // Make sure all fields are valid before calling signUp
-                if (fullName.isNotEmpty() &&
+                val trimmedFirst = firstName.trim()
+                val trimmedLast = lastName.trim()
+                if (trimmedFirst.isNotEmpty() &&
+                    trimmedLast.isNotEmpty() &&
                     email.isNotEmpty() &&
                     phoneNumber.isNotEmpty() &&
                     password.isNotEmpty() &&
                     password == confirmPassword &&
-                    passwordError == null) {
-                    authViewModel.signUp(email, password, fullName, phoneNumber)
+                    firstNameError == null &&
+                    lastNameError == null &&
+                    passwordError == null &&
+                    emailError == null &&
+                    phoneError == null) {
+                    val fullMergedName = "$trimmedFirst $trimmedLast"
+                    authViewModel.signUp(email.trim(), password, fullMergedName, "+63${phoneNumber.trim()}")
                 }
             },
             modifier = Modifier
@@ -304,12 +435,17 @@ fun SignupScreen(
                 .height(56.dp),
             shape = RoundedCornerShape(16.dp),
             enabled = authState != AuthState.Loading &&
-                    fullName.isNotEmpty() &&
+                    firstName.trim().isNotEmpty() &&
+                    lastName.trim().isNotEmpty() &&
                     email.isNotEmpty() &&
                     phoneNumber.isNotEmpty() &&
                     password.isNotEmpty() &&
                     password == confirmPassword &&
-                    passwordError == null
+                    firstNameError == null &&
+                    lastNameError == null &&
+                    passwordError == null &&
+                    emailError == null &&
+                    phoneError == null
         ) {
             if (authState is AuthState.Loading) {
                 CircularProgressIndicator(
@@ -344,6 +480,7 @@ fun SignupScreen(
                     }
                 }
             )
+        }
         }
     }
 }

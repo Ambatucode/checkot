@@ -4,7 +4,6 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
-import com.app.checkot.ui.screens.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -125,7 +124,8 @@ fun CarCard(
             )
         } else {
             CardDefaults.cardColors()
-        }
+        },
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
@@ -134,60 +134,89 @@ fun CarCard(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                // Car avatar icon
+                Surface(
+                    modifier = Modifier.size(44.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    color = if (car.isDefault) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                            else MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.DirectionsCar,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = if (car.isDefault) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "${car.brand} ${car.model}",
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        text = "Plate: ${car.plateNumber}",
+                        text = car.plateNumber,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
-                    if (car.color.isNotEmpty()) {
-                        Text(
-                            text = "Color: ${car.color}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                        )
-                    }
                 }
-                if (car.isDefault || isActive) {
-                    Column(horizontalAlignment = Alignment.End) {
-                        if (car.isDefault) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.primary,
-                                shape = MaterialTheme.shapes.small,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            ) {
-                                Text(
-                                    text = "DEFAULT",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                )
-                            }
+                // Badges
+                Column(horizontalAlignment = Alignment.End) {
+                    if (car.isDefault) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                text = "DEFAULT",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
                         }
-                        if (isActive) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.tertiary,
-                                shape = MaterialTheme.shapes.small
-                            ) {
-                                Text(
-                                    text = "IN SERVICE",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onTertiary,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                )
-                            }
+                    }
+                    if (isActive) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiary,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                text = "IN SERVICE",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onTertiary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
                         }
                     }
                 }
             }
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
+            if (car.color.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Palette,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = car.color,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
+            }
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                modifier = Modifier.padding(vertical = 10.dp)
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
@@ -202,7 +231,7 @@ fun CarCard(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Edit")
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 TextButton(
                     onClick = onDelete,
                     enabled = !isActive,
@@ -215,10 +244,11 @@ fun CarCard(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Delete")
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Button(
                     onClick = onSelect,
-                    modifier = Modifier.height(36.dp)
+                    modifier = Modifier.height(36.dp),
+                    shape = MaterialTheme.shapes.small
                 ) {
                     Text("Select")
                 }

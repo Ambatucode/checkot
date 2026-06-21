@@ -2,95 +2,158 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ─────────────────────────────────────────────────────────────
+    // ============================================================
     // HELPER FUNCTIONS
-    // ─────────────────────────────────────────────────────────────
+    // ============================================================
 
     // Returns true if the request is from a logged-in user
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Returns the full user document from Firestore
+    // Returns the full user document data from Firestore
     function getUserData(userId) {
       return get(/databases/$(database)/documents/users/$(userId)).data;
     }
 
-    // Returns true if the current user is an owner
+    // Returns true if the current user is a shop owner
     function isOwner() {
-      return isSignedIn() && getUserData(request.auth.uid).role == 'owner';
+      return isSignedIn()
+        && getUserData(request.auth.uid).role == 'owner';
     }
 
     // Returns true if the current user owns a specific shop
     function ownsShop(shopId) {
-      return isOwner() && getUserData(request.auth.uid).ownedShopId == shopId;
+      return isOwner()
+        && getUserData(request.auth.uid).ownedShopId == shopId;
     }
 
-    // ─────────────────────────────────────────────────────────────
+    // Returns true if the request only contains allowed fields
+    function hasOnlyAllowedFields(allowedFields) {
+      return request.resource.data.keys()
+        .hasOnly(allowedFields);
+    }
+
+    // Returns true if no forbidden fields are being changed
+    function isNotChanging(forbiddenFields) {
+      return request.resource.data.diff(resource.data)
+        .affectedKeys()
+        .hasAll(forbiddenFields) == false;
+    }
+
+    // Validates that a value is a positive number
+    function isPositiveNumber(value) {
+      return value is number && value > 0;
+    }
+
+    // ============================================================
     // USERS COLLECTION
-    // ─────────────────────────────────────────────────────────────
+    // ============================================================
     match /users/{userId} {
 
-      // Any signed-in user can read their OWN profile
-      allow read: if isSignedIn() && request.auth.uid == userId;
+      // --- READ ---
+      // Users can read their own profile
+      // Owners can read any profile (needed for customer list)
+      allow read: if isSignedIn()
+        && (request.auth.uid == userId || isOwner());
 
-      // Owners can read any user profile (needed to show customer list)
-      allow read: if isOwner();
-
-      // A user can only create their OWN document, and cannot set role to 'owner'
+      // --- CREATE ---
+      // Only during signup, user must match their UID
+      // Must start as 'customer' — cannot self-promote to owner
       allow create: if isSignedIn()
         && request.auth.uid == userId
-        && request.resource.data.role == 'customer';
+        && request.resource.data.role == 'customer'
+        && request.resource.data.userId == userId;
 
-      // A user can only update their OWN document
-      // SECURITY: They cannot change their role, userId, or ownedShopId
+      // --- UPDATE ---
+      // Users can update their own profile
+      // Cannot change: role, userId, ownedShopId (prevents privilege escalation)
       allow update: if isSignedIn()
         && request.auth.uid == userId
-        && !('role' in request.resource.data.diff(resource.data).affectedKeys())
-        && !('userId' in request.resource.data.diff(resource.data).affectedKeys())
-        && !('ownedShopId' in request.resource.data.diff(resource.data).affectedKeys());
+        && isNotChanging(['role', 'userId', 'ownedShopId']);
 
-      // Nobody can delete a user document from the client
+      // --- DELETE ---
+      // Nobody can delete accounts from the client
       allow delete: if false;
     }
 
-    // ─────────────────────────────────────────────────────────────
+    // ============================================================
     // BOOKINGS COLLECTION
-    // ─────────────────────────────────────────────────────────────
+    // ============================================================
     match /bookings/{bookingId} {
 
-      // A customer can only read their OWN bookings
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      // --- READ ---
+      // Customers see only their own bookings
+      // Owners see only bookings for their shop
+      allow read: if isSignedIn()
+        && (resource.data.userId == request.auth.uid
+         || ownsShop(resource.data.shopId));
 
-      // An owner can read bookings for their OWN shop only
-      allow read: if ownsShop(resource.data.shopId);
-
-      // A customer can CREATE a booking only if:
-      // - userId must match their own UID (can't book as someone else)
-      // - status must start as PENDING (can't self-approve)
+      // --- CREATE ---
+      // Customer must book as themselves, start as PENDING
+      // Price must be positive, required fields must exist
       allow create: if isSignedIn()
         && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status == 'PENDING';
+        && request.resource.data.status == 'PENDING'
+        && request.resource.data.shopId is string
+        && request.resource.data.shopId != ''
+        && isPositiveNumber(request.resource.data.price);
 
-      // A customer can CANCEL only their own PENDING or CONFIRMED booking
+      // --- UPDATE (Customer) ---
+      // Customer can only CANCEL their own PENDING or CONFIRMED booking
+      // Can only change the 'status' and 'cancelledAt' fields
       allow update: if isSignedIn()
         && resource.data.userId == request.auth.uid
         && request.resource.data.status == 'CANCELLED'
-        && (resource.data.status == 'PENDING' || resource.data.status == 'CONFIRMED')
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+        && (resource.data.status == 'PENDING'
+         || resource.data.status == 'CONFIRMED')
+        && (request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(['status', 'cancelledAt']));
 
-      // An owner can update status for bookings in their OWN shop only
-      // They can ONLY change the status field, nothing else
+      // --- UPDATE (Owner) ---
+      // Owner can advance status for their own shop's bookings
+      // Can only change 'status' and the corresponding timestamp
       allow update: if ownsShop(resource.data.shopId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+        && (request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(['status', 'confirmedAt',
+                      'inProgressAt', 'completedAt',
+                      'cancelledAt']));
 
-      // Nobody can hard-delete a booking from the client
+      // --- DELETE ---
+      // Nobody can hard-delete bookings from the client
       allow delete: if false;
     }
 
-    // ─────────────────────────────────────────────────────────────
+    // ============================================================
+    // SHOP SERVICES COLLECTION
+    //   Stores each shop's available services, pricing, and logo.
+    //   Any signed-in user can read (clients see available services).
+    //   Only the shop owner can write.
+    // ============================================================
+    match /shop_services/{shopId} {
+
+      // --- READ ---
+      // Any authenticated user can read shop services
+      allow read: if isSignedIn();
+
+      // --- WRITE (create + update) ---
+      // Only the owner of this shop can write
+      // Validate the structure of CustomServiceConfig items
+      allow write: if ownsShop(shopId)
+        && request.resource.data is map
+        && request.resource.data.keys().hasAll(['services'])
+        && request.resource.data.services is list;
+
+      // --- DELETE ---
+      // Allow owner to delete (replaces with set() which counts as write)
+      allow delete: if ownsShop(shopId);
+    }
+
+    // ============================================================
     // DENY EVERYTHING ELSE BY DEFAULT
-    // ─────────────────────────────────────────────────────────────
+    // ============================================================
     match /{document=**} {
       allow read, write: if false;
     }

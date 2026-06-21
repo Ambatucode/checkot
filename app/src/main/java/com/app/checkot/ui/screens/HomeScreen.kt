@@ -16,12 +16,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 
-val partnerShops = listOf(
-    CarWashShop("shop_1", "General T. Cleaners", "123 Ugong Street"),
-    CarWashShop("shop_2", "Sparkle Wash De Leon", "456 De Leon Ave"),
-    CarWashShop("shop_3", "Premium Detailing Hub", "789 Main Rd")
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -85,23 +79,67 @@ fun HomeScreen(
                     ) {
                         Text(
                             text = "Welcome back,",
-                            style = MaterialTheme.typography.bodyLarge
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                         )
                         Text(
                             text = userData?.fullName ?: "Guest",
                             style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Ready to get your car sparkling clean?",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        // Quick action buttons
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { navController.navigate("my_bookings") },
+                                modifier = Modifier.weight(1f),
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                Icon(Icons.Default.Bookmark, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("My Bookings", style = MaterialTheme.typography.labelMedium)
+                            }
+                            OutlinedButton(
+                                onClick = { navController.navigate("cars") },
+                                modifier = Modifier.weight(1f),
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                Icon(Icons.Default.DirectionsCar, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("My Cars", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
                     }
                 }
             }
 
             item {
-                Text(
-                    text = "Select a Partner Car Wash",
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Select a Partner Car Wash",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "${partnerShops.size} shops",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
             }
 
             items(partnerShops) { shop ->
@@ -142,27 +180,46 @@ fun ShopCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        onClick = onClick
+        onClick = onClick,
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Surface(
+                modifier = Modifier.size(48.dp),
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.LocalCarWash,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = shop.name,
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
                     text = shop.address,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
-            Icon(Icons.Default.ChevronRight, contentDescription = "Book")
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = "Book",
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+            )
         }
     }
 }
@@ -182,52 +239,111 @@ fun BookingCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        onClick = onClick
+        onClick = onClick,
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(16.dp)
         ) {
-            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+            // Top row: shop name + status badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 val shopName = partnerShops.find { it.shopId == booking.shopId }?.name ?: "Unknown Shop"
                 Text(
                     text = shopName,
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f)
                 )
-                Text(
-                    text = booking.services.joinToString(", ") { it.displayName },
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 2,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                BookingStatusBadge(status = booking.status)
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            // Service name
+            Text(
+                text = booking.services.joinToString(", ") { it.displayName },
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            // Car + Time row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.DirectionsCar,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = booking.carDetails,
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
-                if (queueInfo.position > 0 && (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS)) {
-                    val carsAhead = queueInfo.position - 1
-                    Text(
-                        text = if (carsAhead == 0) "Queue: #${queueInfo.position} — You're next!" else "Queue: #${queueInfo.position} — $carsAhead ahead",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                    )
-                }
-                Text(
-                    text = "₱${booking.price}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.primary
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    Icons.Default.Schedule,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                BookingStatusBadge(status = booking.status)
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = booking.timeSlot,
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    maxLines = 1
+                )
+            }
+            // Queue info
+            if (queueInfo.position > 0 && (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS)) {
+                val carsAhead = queueInfo.position - 1
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.People,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (carsAhead == 0) "Queue: #${queueInfo.position} — You're next!" else "Queue: #${queueInfo.position} — $carsAhead ahead",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+            // Price row
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Text(
+                    text = "₱${booking.price}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                 )
             }
         }
@@ -252,6 +368,8 @@ fun BookingStatusBadge(status: BookingStatus) {
             text = status.displayName,
             style = MaterialTheme.typography.labelSmall,
             color = textColor,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
         )
     }
