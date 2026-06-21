@@ -430,7 +430,7 @@ fun BookServiceScreen(
                             scope.launch {
                                 isCreating = true
                                 val selectedAvails = availableServices.filter { selectedServiceConfigs.contains(it.config.serviceName) }
-                                val serviceTypes = selectedAvails.mapNotNull { it.serviceType }
+                                val serviceTypes = selectedAvails.map { it.serviceType ?: ServiceType.CUSTOM }
                                 val customNames = selectedAvails.filter { it.config.isCustom }.map { it.config.customName }
                                 val totalPrice = selectedAvails.sumOf {
                                     if (it.config.customPrice > 0) it.config.customPrice
