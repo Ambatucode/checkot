@@ -88,11 +88,12 @@ data class CustomServiceConfig(
 
 /** Returns the formatted service names, replacing "Custom Service" with actual custom names */
 fun Booking.displayServiceNames(): String {
-    val customIndices = services.mapIndexedNotNull { index, s -> if (s == ServiceType.CUSTOM) index else null }
+    var customCounter = 0
     return services.joinToString(", ") { service ->
         if (service == ServiceType.CUSTOM) {
-            val pos = customIndices.indexOf(services.indexOf(service))
-            customServiceNames.getOrElse(pos) { service.displayName }
+            val name = customServiceNames.getOrElse(customCounter) { service.displayName }
+            customCounter++
+            name
         } else {
             service.displayName
         }
