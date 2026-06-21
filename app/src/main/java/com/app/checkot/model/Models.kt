@@ -86,6 +86,19 @@ data class CustomServiceConfig(
     val customName: String = "" // Custom name for "Others" services
 )
 
+/** Returns the formatted service names, replacing "Custom Service" with actual custom names */
+fun Booking.displayServiceNames(): String {
+    val customIndices = services.mapIndexedNotNull { index, s -> if (s == ServiceType.CUSTOM) index else null }
+    return services.joinToString(", ") { service ->
+        if (service == ServiceType.CUSTOM) {
+            val pos = customIndices.indexOf(services.indexOf(service))
+            customServiceNames.getOrElse(pos) { service.displayName }
+        } else {
+            service.displayName
+        }
+    }
+}
+
 val partnerShops = listOf(
     CarWashShop("shop_1", "General T. Cleaners", "123 Ugong Street"),
     CarWashShop("shop_2", "Sparkle Wash De Leon", "456 De Leon Ave"),

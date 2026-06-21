@@ -264,7 +264,7 @@ fun BookingCard(
             Spacer(modifier = Modifier.height(6.dp))
             // Service name
             Text(
-                text = booking.services.joinToString(", ") { it.displayName },
+                text = booking.displayServiceNames(),
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 2,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis

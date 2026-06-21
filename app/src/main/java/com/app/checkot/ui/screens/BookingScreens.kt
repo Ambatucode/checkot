@@ -138,7 +138,7 @@ fun BookingItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = booking.services.joinToString(", ") { it.displayName },
+                    text = booking.displayServiceNames(),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f)

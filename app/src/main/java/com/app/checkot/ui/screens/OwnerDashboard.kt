@@ -488,7 +488,7 @@ fun TransactionItem(booking: Booking) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = booking.services.joinToString(", ") { it.displayName }, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(text = booking.displayServiceNames(), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 Text(text = DateUtils.formatDate(booking.createdAt), style = MaterialTheme.typography.bodySmall)
             }
             Text(text = "₱${booking.price}", style = MaterialTheme.typography.titleLarge)
@@ -632,7 +632,7 @@ fun OwnerBookingCard(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                     Text(
-                        text = booking.services.joinToString(", ") { it.displayName },
+                        text = booking.displayServiceNames(),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
@@ -823,9 +823,11 @@ fun OwnerServicesTab(
     var customServiceNameInput by remember { mutableStateOf("") }
     val maxServices = 15
 
-    // A price is invalid if it's below 150 or above 5000
+    // A price is invalid if below 150, above 5000, or 0.0 for custom services (no default)
     val hasInvalidPrice = editedServices.any { config ->
-        (config.customPrice > 0.0 && config.customPrice < 150) || config.customPrice > 5000
+        (config.customPrice > 0.0 && config.customPrice < 150) || 
+        config.customPrice > 5000 ||
+        (config.isCustom && config.customPrice == 0.0)
     }
     val canSave = editedServices != customization.services && !hasInvalidPrice
 
@@ -1197,7 +1199,10 @@ fun ServiceConfigCard(
                 )
             }
             val price = priceText.toDoubleOrNull()
-            if (priceText.isNotEmpty()) {
+            // Show error when: field is non-empty with invalid value,
+            // or custom service with empty/0 price
+            val showError = priceText.isNotEmpty() || (config.isCustom && priceText.isEmpty())
+            if (showError) {
                 when {
                     price == null || price < 150 -> Text(
                         "Minimum price is ₱150.00",

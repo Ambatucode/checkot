@@ -205,7 +205,7 @@ fun BookingDetailsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         val shopName = partnerShops.find { it.shopId == booking.shopId }?.name ?: "Unknown Shop"
                         DetailRow("Shop", shopName)
-                        DetailRow("Services", booking.services.joinToString(", ") { it.displayName })
+                        DetailRow("Services", booking.displayServiceNames())
                         DetailRow("Duration", booking.services.map { it.duration }.distinct().joinToString(" + "))
                         DetailRow("Price", "₱${booking.price}")
                         if (booking.notes.isNotBlank()) {
