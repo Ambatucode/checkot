@@ -89,7 +89,7 @@ data class CustomServiceConfig(
 /** Returns the formatted service names, replacing "Custom Service" with actual custom names */
 fun Booking.displayServiceNames(): String {
     var customCounter = 0
-    return services.joinToString(", ") { service ->
+    val result = services.joinToString(", ") { service ->
         if (service == ServiceType.CUSTOM) {
             val name = customServiceNames.getOrElse(customCounter) { service.displayName }
             customCounter++
@@ -98,6 +98,12 @@ fun Booking.displayServiceNames(): String {
             service.displayName
         }
     }
+    // Append unmatched custom names (for old bookings)
+    if (customCounter < customServiceNames.size) {
+        val extra = customServiceNames.drop(customCounter).joinToString(", ")
+        return "$result, $extra"
+    }
+    return result
 }
 
 val partnerShops = listOf(
