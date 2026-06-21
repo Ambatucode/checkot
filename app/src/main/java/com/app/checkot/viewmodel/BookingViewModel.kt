@@ -92,6 +92,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     status = BookingStatus.PENDING      // Always start as PENDING
                 )
                 bookingDoc.set(newBooking).await()
+                println("✅ Booking created: ${newBooking.bookingId}")
 
                 // Track the new booking's status
                 previousBookingStatuses[bookingDoc.id] = BookingStatus.PENDING
@@ -100,27 +101,32 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 val serviceSummary = newBooking.services.joinToString(", ") { it.displayName }
                 NotificationHelper.showBookingCreatedNotification(appContext, serviceSummary)
 
-                // Notify the owner via FCM — read token from shop_services (publicly readable)
-                try {
-                    val shopDoc = firestore.collection("shop_services")
-                        .document(newBooking.shopId)
-                        .get().await()
-                    val ownerToken = shopDoc.getString("ownerFcmToken")
-                    if (!ownerToken.isNullOrEmpty()) {
-                        println("📬 Sending notification to owner for shop ${newBooking.shopId} (token: ${ownerToken.take(8)}...)")
-                        FCMSender.sendToUser(
-                            context = appContext,
-                            userId = "", // Not used when token is provided directly
-                            title = "New Booking Received!",
-                            body = "New booking: $serviceSummary — ${newBooking.carDetails}",
-                            bookingId = newBooking.bookingId,
-                            fcmToken = ownerToken
-                        )
-                    } else {
-                        println("⚠️ No owner FCM token found in shop_services/${newBooking.shopId}")
+                // Reset loading early so the UI updates immediately
+                _isLoading.value = false
+
+                // Notify the owner in the background (after UI updates)
+                viewModelScope.launch {
+                    try {
+                        val shopDoc = firestore.collection("shop_services")
+                            .document(newBooking.shopId)
+                            .get().await()
+                        val ownerToken = shopDoc.getString("ownerFcmToken")
+                        if (!ownerToken.isNullOrEmpty()) {
+                            println("📬 Notifying owner for shop ${newBooking.shopId}...")
+                            FCMSender.sendToUser(
+                                context = appContext,
+                                userId = "",
+                                title = "New Booking Received!",
+                                body = "New booking: $serviceSummary — ${newBooking.carDetails}",
+                                bookingId = newBooking.bookingId,
+                                fcmToken = ownerToken
+                            )
+                        } else {
+                            println("⚠️ No owner FCM token in shop_services/${newBooking.shopId}")
+                        }
+                    } catch (e: Exception) {
+                        println("❌ Owner notification failed: ${e.message}")
                     }
-                } catch (e: Exception) {
-                    println("❌ Failed to read owner FCM token: ${e.message}")
                 }
             } catch (e: Exception) {
                 println("Failed to create booking: ${e.message}")
