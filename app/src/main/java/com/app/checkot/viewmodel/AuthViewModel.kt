@@ -100,6 +100,69 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun signUpOwner(
+        email: String,
+        password: String,
+        fullName: String,
+        phoneNumber: String,
+        shopName: String,
+        shopAddress: String
+    ) {
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            try {
+                // 1. Create Firebase Auth user
+                val result = auth.createUserWithEmailAndPassword(email, password).await()
+                val user = result.user ?: throw Exception("Failed to create user")
+
+                // 2. Generate shop ID
+                val shopId = firestore.collection("shop_services").document().id
+
+                // 3. Create the user document with role="owner"
+                val userData = CarWashUser(
+                    userId = user.uid,
+                    fullName = fullName,
+                    email = email,
+                    phoneNumber = phoneNumber,
+                    createdAt = System.currentTimeMillis(),
+                    role = "owner",
+                    ownedShopId = shopId,
+                    savedCars = emptyList()
+                )
+                firestore.collection("users").document(user.uid).set(userData).await()
+
+                // 4. Get FCM token
+                val fcmToken = try {
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
+                } catch (e: Exception) {
+                    println("⚠️ Could not get FCM token: ${e.message}")
+                    ""
+                }
+
+                // 5. Create shop_services document with shop info — clean slate
+                val shopCustomization = ShopCustomization(
+                    shopName = shopName,
+                    shopAddress = shopAddress,
+                    status = "pending",
+                    ownerId = user.uid,
+                    ownerName = fullName,
+                    ownerEmail = email,
+                    services = emptyList(), // owner adds services from dashboard
+                    ownerFcmToken = fcmToken
+                )
+                firestore.collection("shop_services").document(shopId)
+                    .set(shopCustomization)
+                    .await()
+                println("✅ Owner signup complete: shop_services/$shopId created — clean slate")
+
+                _currentUserData.value = userData
+                _authState.value = AuthState.Authenticated
+            } catch (e: Exception) {
+                _authState.value = AuthState.Error(e.message ?: "Owner sign up failed")
+            }
+        }
+    }
+
     fun signIn(email: String, password: String) {
         viewModelScope.launch {
             _authState.value = AuthState.Loading

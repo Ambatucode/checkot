@@ -4,6 +4,12 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.tasks.await
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
@@ -40,6 +46,26 @@ fun BookingDetailsScreen(
             kotlinx.coroutines.flow.flowOf(QueueInfo())
         }
     }.collectAsState(initial = QueueInfo())
+
+    // Load the shop name from Firestore
+    var shopName by remember(booking) { mutableStateOf("") }
+    LaunchedEffect(booking?.shopId) {
+        val shopId = booking?.shopId ?: return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            try {
+                val doc = Firebase.firestore.collection("shop_services").document(shopId).get().await()
+                val name = doc.getString("shopName")
+                if (!name.isNullOrEmpty()) {
+                    withContext(Dispatchers.Main) { shopName = name }
+                } else {
+                    withContext(Dispatchers.Main) { shopName = shopId.takeLast(6).uppercase() }
+                }
+            } catch (e: Exception) {
+                println("❌ Failed to load shop name: ${e.message}")
+                withContext(Dispatchers.Main) { shopName = shopId.takeLast(6).uppercase() }
+            }
+        }
+    }
 
     if (booking == null) {
         Box(
@@ -203,8 +229,7 @@ fun BookingDetailsScreen(
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        val shopName = partnerShops.find { it.shopId == booking.shopId }?.name ?: "Unknown Shop"
-                        DetailRow("Shop", shopName)
+                        DetailRow("Shop", shopName.ifEmpty { booking.shopId.takeLast(6).uppercase() })
                         DetailRow("Services", booking.displayServiceNames())
                         DetailRow("Duration", booking.services.map { it.duration }.distinct().joinToString(" + "))
                         DetailRow("Price", "₱${booking.price}")

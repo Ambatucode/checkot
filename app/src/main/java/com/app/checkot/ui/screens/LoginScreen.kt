@@ -1,6 +1,7 @@
 package com.app.checkot.ui.screens
 
 import com.app.checkot.model.*
+import com.app.checkot.navigation.Screen
 import com.app.checkot.viewmodel.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -48,12 +49,14 @@ fun LoginScreen(
 
     LaunchedEffect(authState, currentUserData) {
         if (authState is AuthState.Authenticated && currentUserData != null) {
-            if (currentUserData?.role == "owner") {
-                navController.navigate("owner_dashboard") {
+            when (currentUserData?.role) {
+                "admin" -> navController.navigate("admin_dashboard") {
                     popUpTo("login") { inclusive = true }
                 }
-            } else {
-                onLoginSuccess() // goes to home
+                "owner" -> navController.navigate("owner_dashboard") {
+                    popUpTo("login") { inclusive = true }
+                }
+                else -> onLoginSuccess() // goes to home
             }
         }
     }
@@ -225,6 +228,30 @@ fun LoginScreen(
                 modifier = Modifier.clickable {
                     if (authState != AuthState.Loading) {
                         onNavigateToSignup()
+                    }
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Owner Registration Link
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "Own a car wash? ",
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+            Text(
+                text = "Register Your Shop",
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable {
+                    if (authState != AuthState.Loading) {
+                        navController.navigate(Screen.OwnerSignup.route)
                     }
                 }
             )

@@ -28,6 +28,12 @@ service cloud.firestore {
         && getUserData(request.auth.uid).ownedShopId == shopId;
     }
 
+    // Returns true if the current user is a super admin
+    function isAdmin() {
+      return isSignedIn()
+        && getUserData(request.auth.uid).role == 'admin';
+    }
+
     // Returns true if the request only contains allowed fields
     function hasOnlyAllowedFields(allowedFields) {
       return request.resource.data.keys()
@@ -54,16 +60,23 @@ service cloud.firestore {
       // --- READ ---
       // Users can read their own profile
       // Owners can read any profile (needed for customer list)
+      // Admins can read any profile (needed for approval dashboard)
       allow read: if isSignedIn()
-        && (request.auth.uid == userId || isOwner());
+        && (request.auth.uid == userId || isOwner() || isAdmin());
 
       // --- CREATE ---
       // Only during signup, user must match their UID
-      // Must start as 'customer' — cannot self-promote to owner
+      // Must start as 'customer' or as 'owner' with a valid ownedShopId
       allow create: if isSignedIn()
         && request.auth.uid == userId
-        && request.resource.data.role == 'customer'
-        && request.resource.data.userId == userId;
+        && request.resource.data.userId == userId
+        && (
+          request.resource.data.role == 'customer'
+          ||
+          (request.resource.data.role == 'owner'
+           && request.resource.data.ownedShopId is string
+           && request.resource.data.ownedShopId != '')
+        );
 
       // --- UPDATE ---
       // Users can update their own profile
@@ -138,17 +151,26 @@ service cloud.firestore {
       // Any authenticated user can read shop services
       allow read: if isSignedIn();
 
-      // --- WRITE (create + update) ---
-      // Only the owner of this shop can write
-      // Validate the structure of CustomServiceConfig items
-      allow write: if ownsShop(shopId)
+      // --- CREATE ---
+      // Only the owner of this shop can create
+      allow create: if ownsShop(shopId)
         && request.resource.data is map
         && request.resource.data.keys().hasAll(['services'])
         && request.resource.data.services is list;
 
+      // --- UPDATE ---
+      // Owner can update their shop (prices, services, logo, etc.)
+      // but CANNOT change the 'status' field
+      // Admin can ONLY change the 'status' field (approve/reject)
+      allow update: if (ownsShop(shopId)
+        && isNotChanging(['status']))
+        || (isAdmin()
+          && request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['status']));
+
       // --- DELETE ---
-      // Allow owner to delete (replaces with set() which counts as write)
-      allow delete: if ownsShop(shopId);
+      // Nobody deletes shops from the client
+      allow delete: if false;
     }
 
     // ============================================================

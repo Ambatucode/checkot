@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -44,9 +45,9 @@ fun OwnerDashboard(
                 title = { 
                     Column {
                         Text("Owner Dashboard", style = MaterialTheme.typography.titleMedium)
-                        val shopName = partnerShops.find { it.shopId == userData?.ownedShopId }?.name
-                        if (shopName != null) {
-                            Text(shopName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        val shopCust = adminViewModel.shopCustomization.collectAsState().value
+                        if (shopCust.shopName.isNotEmpty()) {
+                            Text(shopCust.shopName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 },
@@ -91,11 +92,53 @@ fun OwnerDashboard(
             }
         }
     ) { paddingValues ->
-        when (selectedTab) {
-            0 -> OwnerBookingsTab(navController, adminViewModel, paddingValues)
-            1 -> OwnerCustomersTab(adminViewModel, paddingValues)
-            2 -> OwnerRevenueTab(adminViewModel, paddingValues)
-            3 -> OwnerServicesTab(adminViewModel, paddingValues)
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            // Pending approval banner
+            val shopCust = adminViewModel.shopCustomization.collectAsState().value
+            if (shopCust.status == "pending") {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.HourglassEmpty,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Shop Pending Approval",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                "Your shop is not yet visible to customers. Wait for admin approval.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                            )
+                        }
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+            when (selectedTab) {
+                0 -> OwnerBookingsTab(navController, adminViewModel, PaddingValues(0.dp))
+                1 -> OwnerCustomersTab(adminViewModel, PaddingValues(0.dp))
+                2 -> OwnerRevenueTab(adminViewModel, PaddingValues(0.dp))
+                3 -> OwnerServicesTab(adminViewModel, PaddingValues(0.dp))
+            }
         }
     }
     // Logout Confirmation Dialog

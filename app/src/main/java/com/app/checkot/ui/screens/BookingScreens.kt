@@ -90,9 +90,9 @@ fun BookingsScreen(
                         )
                         Spacer(modifier = Modifier.height(24.dp))
                         Button(
-                            onClick = { navController.navigate("book_service") }
+                            onClick = { navController.navigate("home") }
                         ) {
-                            Text("Book Now")
+                            Text("Browse Shops")
                         }
                     }
                 }

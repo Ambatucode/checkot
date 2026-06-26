@@ -15,6 +15,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,6 +31,38 @@ fun HomeScreen(
 ) {
     val userData by authViewModel.currentUserData.collectAsState()
     val recentBookings by bookingViewModel.userBookings.collectAsState()
+
+    // Load shops from Firestore
+    var shopList by remember { mutableStateOf<List<CarWashShop>>(emptyList()) }
+    var loadingShops by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            try {
+                val snapshot = Firebase.firestore.collection("shop_services").get().await()
+                val shops = snapshot.documents.mapNotNull { doc ->
+                    val name = doc.getString("shopName") ?: return@mapNotNull null
+                    val address = doc.getString("shopAddress") ?: ""
+                    val status = doc.getString("status") ?: "active"
+                    // Only show active shops (pending/rejected are hidden from customers)
+                    if (status != "active") return@mapNotNull null
+                    CarWashShop(shopId = doc.id, name = name, address = address)
+                }
+                withContext(Dispatchers.Main) {
+                    shopList = shops
+                    loadingShops = false
+                }
+            } catch (e: Exception) {
+                println("❌ Failed to load shops: ${e.message}")
+                withContext(Dispatchers.Main) { loadingShops = false }
+            }
+        }
+    }
+
+    // Build a map of shopId -> shop name for quick lookup in BookingCard
+    val shopNameMap = remember(shopList) {
+        shopList.associate { it.shopId to it.name }
+    }
 
     Scaffold(
         topBar = {
@@ -130,25 +168,52 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Select a Partner Car Wash",
+                        text = "Select a Car Wash",
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.weight(1f)
                     )
                     Text(
-                        text = "${partnerShops.size} shops",
+                        text = "${shopList.size} shops",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        color = if (loadingShops) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
                 }
             }
 
-            items(partnerShops) { shop ->
+            if (loadingShops) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                }
+            }
+
+            items(shopList) { shop ->
                 ShopCard(
                     shop = shop,
                     onClick = {
                         navController.navigate("book_service/${shop.shopId}")
                     }
                 )
+            }
+
+            if (shopList.isEmpty() && !loadingShops) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No car wash shops available yet",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                }
             }
 
             if (recentBookings.isNotEmpty()) {
@@ -162,7 +227,8 @@ fun HomeScreen(
                 items(recentBookings.take(3)) { booking ->
                     BookingCard(
                         booking = booking,
-                        onClick = { navController.navigate("booking_details/${booking.bookingId}") }
+                        onClick = { navController.navigate("booking_details/${booking.bookingId}") },
+                        shopNameMap = shopNameMap
                     )
                 }
             }
@@ -229,6 +295,7 @@ fun ShopCard(
 fun BookingCard(
     booking: Booking,
     onClick: () -> Unit,
+    shopNameMap: Map<String, String> = emptyMap(),
     bookingViewModel: BookingViewModel = viewModel()
 ) {
     val queueInfo by remember(booking) {
@@ -252,7 +319,7 @@ fun BookingCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val shopName = partnerShops.find { it.shopId == booking.shopId }?.name ?: "Unknown Shop"
+                val shopName = shopNameMap[booking.shopId] ?: "Shop"
                 Text(
                     text = shopName,
                     style = MaterialTheme.typography.labelMedium,

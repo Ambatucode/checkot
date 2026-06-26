@@ -26,6 +26,8 @@ sealed class Screen(val route: String) {
     object MyBookings : Screen("my_bookings")
     object EditProfile : Screen("edit_profile")
     object OwnerDashboard : Screen("owner_dashboard")
+    object OwnerSignup : Screen("owner_signup")
+    object AdminDashboard : Screen("admin_dashboard")
 }
 @Composable
 fun NavigationGraph(
@@ -40,8 +42,11 @@ fun NavigationGraph(
 
     val startDest = remember(authState, currentUser) {
         if (authState is AuthState.Authenticated) {
-            if (currentUser?.role == "owner") Screen.OwnerDashboard.route
-            else Screen.Home.route
+            when (currentUser?.role) {
+                "admin" -> Screen.AdminDashboard.route
+                "owner" -> Screen.OwnerDashboard.route
+                else -> Screen.Home.route
+            }
         } else {
             Screen.Login.route
         }
@@ -62,6 +67,12 @@ fun NavigationGraph(
                 authViewModel = authViewModel
             )
         }
+        composable(Screen.AdminDashboard.route) {
+            AdminDashboard(
+                navController = navController,
+                authViewModel = authViewModel
+            )
+        }
         composable(Screen.OwnerDashboard.route) {
             OwnerDashboard(
                 navController = navController,
@@ -74,6 +85,20 @@ fun NavigationGraph(
                 onSignupSuccess = {
                     navController.popBackStack()
                     navController.navigate(Screen.Home.route)
+                },
+                authViewModel = authViewModel
+            )
+        }
+        composable(Screen.OwnerSignup.route) {
+            OwnerSignupScreen(
+                onNavigateToLogin = {
+                    navController.popBackStack()
+                },
+                onSignupSuccess = {
+                    navController.popBackStack()
+                    navController.navigate(Screen.OwnerDashboard.route) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
+                    }
                 },
                 authViewModel = authViewModel
             )

@@ -72,6 +72,12 @@ data class QueueInfo(
 )
 
 data class ShopCustomization(
+    val shopName: String = "",
+    val shopAddress: String = "",
+    val status: String = "active", // "pending", "active", "rejected"
+    val ownerId: String = "", // The admin-set owner UID (for admin dashboard)
+    val ownerName: String = "", // Owner's full name (admin only, not shown to customers)
+    val ownerEmail: String = "", // Owner's email (admin only, not shown to customers)
     val logoBase64: String = "",
     val logoMimeType: String = "image/png",
     val services: List<CustomServiceConfig> = emptyList(),
@@ -106,8 +112,4 @@ fun Booking.displayServiceNames(): String {
     return result
 }
 
-val partnerShops = listOf(
-    CarWashShop("shop_1", "General T. Cleaners", "123 Ugong Street"),
-    CarWashShop("shop_2", "Sparkle Wash De Leon", "456 De Leon Ave"),
-    CarWashShop("shop_3", "Premium Detailing Hub", "789 Main Rd")
-)
+
