@@ -87,6 +87,17 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
             _isLoading.value = true
             val user = auth.currentUser ?: return@launch
             try {
+                // Check if user already has an active booking
+                val activeSnapshot = firestore.collection("bookings")
+                    .whereEqualTo("userId", user.uid)
+                    .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
+                    .get().await()
+                if (activeSnapshot.documents.isNotEmpty()) {
+                    _isLoading.value = false
+                    println("❌ Cannot create booking — user has an active booking already")
+                    return@launch
+                }
+
                 val bookingDoc = firestore.collection("bookings").document()
 
                 // Use the price sent from the client. For predefined services,
