@@ -878,6 +878,75 @@ fun OwnerBookingCard(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
+            // Countdown for PENDING / CONFIRMED
+            val countdownText = remember { mutableStateOf("") }
+            val countdownEnd = remember(booking.bookingId, booking.status) {
+                when (booking.status) {
+                    BookingStatus.PENDING -> booking.createdAt + 2 * 60 * 60 * 1000L
+                    BookingStatus.CONFIRMED -> {
+                        try {
+                            val parts = booking.timeSlot.split(" ")
+                            val t = parts[0].split(":")
+                            var h = t[0].toInt()
+                            val m = t[1].toInt()
+                            if (parts[1] == "PM" && h != 12) h += 12
+                            if (parts[1] == "AM" && h == 12) h = 0
+                            val cal = java.util.Calendar.getInstance().apply {
+                                timeInMillis = booking.bookingDate
+                                set(java.util.Calendar.HOUR_OF_DAY, h)
+                                set(java.util.Calendar.MINUTE, m)
+                                add(java.util.Calendar.MINUTE, 30)
+                            }
+                            cal.timeInMillis
+                        } catch (e: Exception) { 0L }
+                    }
+                    else -> 0L
+                }
+            }
+            LaunchedEffect(countdownEnd) {
+                while (countdownEnd > 0 && countdownEnd > System.currentTimeMillis()) {
+                    val diff = countdownEnd - System.currentTimeMillis()
+                    val totalMin = (diff / 60000).toInt()
+                    if (totalMin > 0) {
+                        val h = totalMin / 60
+                        val m = totalMin % 60
+                        countdownText.value = when (booking.status) {
+                            BookingStatus.PENDING -> "Expires in ${h}h ${m}m"
+                            BookingStatus.CONFIRMED -> if (h > 0) "Arrival in ${h}h ${m}m" else "Arrival in ${m}m"
+                            else -> ""
+                        }
+                    } else {
+                        countdownText.value = when (booking.status) {
+                            BookingStatus.PENDING -> "Expiring soon..."
+                            BookingStatus.CONFIRMED -> "Expiring soon..."
+                            else -> ""
+                        }
+                    }
+                    kotlinx.coroutines.delay(1000)
+                }
+                if (countdownEnd > 0) {
+                    countdownText.value = when (booking.status) {
+                        BookingStatus.PENDING -> "Expired"
+                        BookingStatus.CONFIRMED -> "Expired"
+                        else -> ""
+                    }
+                }
+            }
+            if (countdownText.value.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = countdownText.value,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        color = when (booking.status) {
+                            BookingStatus.PENDING -> MaterialTheme.colorScheme.secondary
+                            BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        }
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Spacer(modifier = Modifier.height(12.dp))
