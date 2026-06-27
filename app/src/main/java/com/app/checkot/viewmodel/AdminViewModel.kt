@@ -170,8 +170,74 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun loadBookings() {
-        // Force refresh by re-setting up the listener
         setupRealTimeBookingsListener()
+        // Also auto-cancel stale pending bookings
+        autoCancelStaleBookings()
+    }
+
+    /** Cancel PENDING bookings older than 2 hours */
+    private fun autoCancelStaleBookings() {
+        viewModelScope.launch {
+            try {
+                val shopId = _currentOwnerShopId.value ?: return@launch
+                val cutoff = System.currentTimeMillis() - 2 * 60 * 60 * 1000L // 2 hours
+                val snapshot = firestore.collection("bookings")
+                    .whereEqualTo("shopId", shopId)
+                    .whereEqualTo("status", "PENDING")
+                    .get().await()
+                for (doc in snapshot.documents) {
+                    val createdAt = doc.getLong("createdAt") ?: continue
+                    if (createdAt < cutoff) {
+                        val bookingId = doc.id
+                        firestore.collection("bookings").document(bookingId)
+                            .update("status", "CANCELLED", "cancelledAt", System.currentTimeMillis())
+                            .await()
+                        // Notify customer
+                        val userId = doc.getString("userId") ?: ""
+                        val services = doc.getString("services") ?: "Service"
+                        FCMSender.sendToUser(
+                            context = appContext,
+                            userId = userId,
+                            title = "Booking Cancelled",
+                            body = "Your booking was cancelled because it wasn't approved in time.",
+                            bookingId = bookingId
+                        )
+                        println("📬 Auto-cancelled stale booking $bookingId")
+                    }
+                }
+            } catch (e: Exception) {
+                println("❌ Auto-cancel error: ${e.message}")
+            }
+        }
+    }
+
+    /** Mark a confirmed booking as no-show (past their time slot) */
+    fun markNoShow(bookingId: String) {
+        viewModelScope.launch {
+            try {
+                val doc = firestore.collection("bookings").document(bookingId).get().await()
+                val booking = doc.toObject(Booking::class.java)
+                if (booking == null || booking.shopId != _currentOwnerShopId.value) return@launch
+                if (booking.status != BookingStatus.CONFIRMED) return@launch
+
+                firestore.collection("bookings").document(bookingId)
+                    .update("status", "CANCELLED", "cancelledAt", System.currentTimeMillis())
+                    .await()
+
+                val services = booking.services.joinToString(", ") { it.displayName }
+                FCMSender.sendToUser(
+                    context = appContext,
+                    userId = booking.userId,
+                    title = "Booking Cancelled — No Show",
+                    body = "Your booking for $services was marked as no-show. Please book again when you're ready.",
+                    bookingId = bookingId
+                )
+                println("✅ Marked booking $bookingId as no-show")
+                loadBookings()
+            } catch (e: Exception) {
+                println("❌ No-show error: ${e.message}")
+            }
+        }
     }
 
     private suspend fun loadUsers(userIds: List<String>) {

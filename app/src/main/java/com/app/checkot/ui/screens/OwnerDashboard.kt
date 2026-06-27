@@ -425,6 +425,7 @@ fun OwnerBookingsTab(
                         booking = booking,
                         customerName = customerNames[booking.userId] ?: "",
                         queuePosition = queuePositions[booking.bookingId] ?: 0,
+                        onNoShow = { adminViewModel.markNoShow(booking.bookingId) },
                         onApprove = {
                             adminViewModel.updateBookingStatus(booking.bookingId, BookingStatus.CONFIRMED)
                         },
@@ -641,6 +642,7 @@ fun OwnerBookingCard(
     booking: Booking,
     customerName: String = "",
     queuePosition: Int = 0,
+    onNoShow: () -> Unit = {},
     onApprove: () -> Unit,
     onReject: () -> Unit,
     onStart: () -> Unit,
@@ -651,6 +653,7 @@ fun OwnerBookingCard(
     var showRejectDialog by remember { mutableStateOf(false) }
     var showStartDialog by remember { mutableStateOf(false) }
     var showCompleteDialog by remember { mutableStateOf(false) }
+    var showNoShowDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     if (showApproveDialog) {
@@ -737,6 +740,28 @@ fun OwnerBookingCard(
             },
             dismissButton = {
                 TextButton(onClick = { showCompleteDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showNoShowDialog) {
+        AlertDialog(
+            onDismissRequest = { showNoShowDialog = false },
+            title = { Text("Mark as No Show") },
+            text = { Text("The customer didn't arrive for their ${booking.timeSlot} slot. This will cancel the booking and notify the customer.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showNoShowDialog = false
+                    scope.launch {
+                        isProcessing = true
+                        onNoShow()
+                        kotlinx.coroutines.delay(2000)
+                        isProcessing = false
+                    }
+                }) { Text("Mark No Show", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNoShowDialog = false }) { Text("Go Back") }
             }
         )
     }
@@ -943,19 +968,33 @@ fun OwnerBookingCard(
             }
             if (booking.status == BookingStatus.CONFIRMED) {
                 Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = { showStartDialog = true }, 
-                    modifier = Modifier.fillMaxWidth(), 
-                    enabled = !isProcessing,
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                ) {
-                    if (isProcessing) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onSecondary)
-                    } else {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Start Service", modifier = Modifier.size(18.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { showStartDialog = true }, 
+                        modifier = Modifier.weight(1f),
+                        enabled = !isProcessing,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    ) {
+                        if (isProcessing) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onSecondary)
+                        } else {
+                            Icon(Icons.Default.PlayArrow, contentDescription = "Start Service", modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Start Service")
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = { showNoShowDialog = true },
+                        modifier = Modifier.weight(1f),
+                        enabled = !isProcessing,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(Icons.Default.PersonOff, contentDescription = "No Show", modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Start Service")
+                        Text("No Show")
                     }
                 }
             }
