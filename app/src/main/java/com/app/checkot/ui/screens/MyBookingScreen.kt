@@ -163,7 +163,7 @@ fun MyBookingsScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(displayBookings) { booking ->
+                    items(displayBookings, key = { it.bookingId }) { booking ->
                         BookingCard(
                             booking = booking,
                             onClick = {

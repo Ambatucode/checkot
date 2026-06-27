@@ -224,7 +224,7 @@ fun HomeScreen(
                         modifier = Modifier.padding(top = 16.dp)
                     )
                 }
-                items(recentBookings.take(3)) { booking ->
+                items(recentBookings.take(3), key = { it.bookingId }) { booking ->
                     BookingCard(
                         booking = booking,
                         onClick = { navController.navigate("booking_details/${booking.bookingId}") },
@@ -298,7 +298,7 @@ fun BookingCard(
     shopNameMap: Map<String, String> = emptyMap(),
     bookingViewModel: BookingViewModel = viewModel()
 ) {
-    val queueInfo by remember(booking) {
+    val queueInfo by remember(booking.bookingId, booking.shopId, booking.bookingDate) {
         bookingViewModel.getQueueInfoRealTime(booking)
     }.collectAsState(initial = QueueInfo())
 
