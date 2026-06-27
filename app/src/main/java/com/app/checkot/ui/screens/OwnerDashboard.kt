@@ -37,6 +37,9 @@ fun OwnerDashboard(
         }
     }
 
+    val shopCust by adminViewModel.shopCustomization.collectAsState()
+    val shopStatus = shopCust.status
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -64,35 +67,36 @@ fun OwnerDashboard(
             )
         },
         bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.Bookmark, contentDescription = "Bookings") },
-                    label = { Text("Bookings") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.People, contentDescription = "Customers") },
-                    label = { Text("Customers") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.AttachMoney, contentDescription = "Revenue") },
-                    label = { Text("Revenue") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
-                    icon = { Icon(Icons.Default.Build, contentDescription = "Services") },
-                    label = { Text("Services") }
-                )
+            if (shopStatus != "rejected") {
+                NavigationBar {
+                    NavigationBarItem(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        icon = { Icon(Icons.Default.Bookmark, contentDescription = "Bookings") },
+                        label = { Text("Bookings") }
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        icon = { Icon(Icons.Default.People, contentDescription = "Customers") },
+                        label = { Text("Customers") }
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        icon = { Icon(Icons.Default.AttachMoney, contentDescription = "Revenue") },
+                        label = { Text("Revenue") }
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 3,
+                        onClick = { selectedTab = 3 },
+                        icon = { Icon(Icons.Default.Build, contentDescription = "Services") },
+                        label = { Text("Services") }
+                    )
+                }
             }
         }
     ) { paddingValues ->
-        val shopCust = adminViewModel.shopCustomization.collectAsState().value
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             when (shopCust.status) {
                 "pending" -> {
