@@ -268,8 +268,8 @@ fun OwnerBookingsTab(
         adminViewModel.forceRefresh()
     }
     val filteredBookings = when (filter) {
-        "pending" -> allBookings.filter { it.status == BookingStatus.PENDING }
-        "confirmed" -> allBookings.filter { it.status == BookingStatus.CONFIRMED }
+        "pending" -> allBookings.filter { it.status == BookingStatus.PENDING }.sortedBy { it.createdAt }
+        "confirmed" -> allBookings.filter { it.status == BookingStatus.CONFIRMED }.sortedBy { it.createdAt }
         "in_progress" -> allBookings.filter { it.status == BookingStatus.IN_PROGRESS }
         "completed" -> allBookings.filter { it.status == BookingStatus.COMPLETED }
         else -> allBookings
