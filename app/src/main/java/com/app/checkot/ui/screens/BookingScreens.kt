@@ -102,7 +102,7 @@ fun BookingsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(16.dp)
                 ) {
-                    items(filteredBookings) { booking ->
+                    items(filteredBookings, key = { it.bookingId }) { booking ->
                         BookingItem(
                             booking = booking,
                             onClick = {

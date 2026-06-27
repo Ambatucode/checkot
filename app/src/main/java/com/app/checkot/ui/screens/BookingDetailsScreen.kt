@@ -5,11 +5,22 @@ import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
+private fun parseDuration(duration: String): Int = when {
+    duration.contains("hour") -> {
+        val hours = duration.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 1.0
+        (hours * 60).toInt()
+    }
+    duration.contains("min") -> {
+        duration.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 30
+    }
+    else -> 30
+}
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
@@ -38,14 +49,29 @@ fun BookingDetailsScreen(
     val scope = rememberCoroutineScope()
     var isCancelling by remember { mutableStateOf(false) }
     var showCancelDialog by remember { mutableStateOf(false) }
+    var queueInfo by remember { mutableStateOf(QueueInfo()) }
 
-    val queueInfo by remember(booking) {
-        if (booking != null) {
-            bookingViewModel.getQueueInfoRealTime(booking)
-        } else {
-            kotlinx.coroutines.flow.flowOf(QueueInfo())
-        }
-    }.collectAsState(initial = QueueInfo())
+    // Direct Firestore listener for queue info
+    DisposableEffect(booking?.bookingId, booking?.shopId, booking?.bookingDate) {
+        if (booking == null) return@DisposableEffect onDispose {}
+        val listener = Firebase.firestore.collection("bookings")
+            .whereEqualTo("shopId", booking.shopId)
+            .whereEqualTo("bookingDate", booking.bookingDate)
+            .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
+            .addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) return@addSnapshotListener
+                val bookings = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
+                val sorted = bookings.sortedBy { it.createdAt }
+                val index = sorted.indexOfFirst { it.bookingId == booking.bookingId }
+                val position = if (index != -1) index + 1 else -1
+                val ahead = if (index > 0) sorted.subList(0, index) else emptyList()
+                val estimated = ahead.sumOf { b ->
+                    b.services.sumOf { s -> parseDuration(s.duration) }
+                }
+                queueInfo = QueueInfo(position, estimated, sorted.size)
+            }
+        onDispose { listener.remove() }
+    }
 
     // Load the shop name from Firestore
     var shopName by remember(booking) { mutableStateOf("") }
