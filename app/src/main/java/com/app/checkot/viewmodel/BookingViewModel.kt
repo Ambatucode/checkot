@@ -265,19 +265,20 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
             return (h - 9) * 60 + m
         }
 
-        // Filter out past slots immediately (before any async work)
+        // Filter out slots too close to current time (30 min min advance)
         val cal = java.util.Calendar.getInstance()
-        val curH = cal.get(java.util.Calendar.HOUR_OF_DAY)
-        val curM = cal.get(java.util.Calendar.MINUTE)
+        val curTotalMin = cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE)
         val selCal = java.util.Calendar.getInstance().apply { timeInMillis = date }
         val isToday = cal.get(java.util.Calendar.YEAR) == selCal.get(java.util.Calendar.YEAR) &&
                       cal.get(java.util.Calendar.DAY_OF_YEAR) == selCal.get(java.util.Calendar.DAY_OF_YEAR)
+        val MIN_ADVANCE = 30 // minutes
         val initialSlots = rawSlots.map { slot ->
             if (isToday) {
                 val sm = slotToMinutes(slot.slot)
-                val sh = (sm / 60) + 9
-                val smin = sm % 60
-                if (sh < curH || (sh == curH && smin < curM)) slot.copy(available = false) else slot
+                val slotHour = (sm / 60) + 9
+                val slotMin = sm % 60
+                val slotTotalMin = slotHour * 60 + slotMin
+                if (slotTotalMin - curTotalMin < MIN_ADVANCE) slot.copy(available = false) else slot
             } else slot
         }
         _availableTimeSlots.value = initialSlots
@@ -327,9 +328,10 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     val sm = slotToMinutes(slot.slot)
 
                     if (isToday) {
-                        val sh = (sm / 60) + 9
-                        val smin = sm % 60
-                        if (sh < curH || (sh == curH && smin < curM)) avail = false
+                        val slotHour = (sm / 60) + 9
+                        val slotMin = sm % 60
+                        val slotTotalMin = slotHour * 60 + slotMin
+                        if (slotTotalMin - curTotalMin < 30) avail = false
                     }
 
                     if (avail) {
