@@ -241,25 +241,31 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun fetchAvailableTimeSlots(date: Long, shopId: String, durationMinutes: Int = 60) {
+        // First, always show default slots immediately so UI is never empty
+        val defaultSlots = listOf(
+            TimeSlot("09:00 AM", true), TimeSlot("09:30 AM", true),
+            TimeSlot("10:00 AM", true), TimeSlot("10:30 AM", true),
+            TimeSlot("11:00 AM", true), TimeSlot("11:30 AM", true),
+            TimeSlot("12:00 PM", true), TimeSlot("12:30 PM", true),
+            TimeSlot("01:00 PM", true), TimeSlot("01:30 PM", true),
+            TimeSlot("02:00 PM", true), TimeSlot("02:30 PM", true),
+            TimeSlot("03:00 PM", true), TimeSlot("03:30 PM", true),
+            TimeSlot("04:00 PM", true)
+        )
+        _availableTimeSlots.value = defaultSlots
+
         viewModelScope.launch {
             try {
                 if (shopId.isEmpty()) return@launch
+                println("📅 fetchAvailableTimeSlots: shop=$shopId duration=${durationMinutes}min")
 
                 // Load bay count from shop settings
                 val shopDoc = firestore.collection("shop_services").document(shopId).get().await()
-                val bayCount = shopDoc.getLong("bayCount")?.toInt() ?: 1
+                val bayCount = (shopDoc.getLong("bayCount")?.toInt() ?: 1).coerceAtLeast(1)
+                println("📅 Bay count: $bayCount")
 
-                // Generate 30-min slots from 9:00 to 16:30
-                val allSlots = mutableListOf<TimeSlot>()
-                for (hour in 9 until 17) {
-                    for (min in listOf(0, 30)) {
-                        if (hour == 16 && min == 30) continue
-                        val displayHour = if (hour <= 12) hour else hour - 12
-                        val amPm = if (hour < 12) "AM" else "PM"
-                        val display = "${String.format("%02d", displayHour)}:${String.format("%02d", min)} $amPm"
-                        allSlots.add(TimeSlot(display, true))
-                    }
-                }
+                // Generate 30-min slots
+                val allSlots = defaultSlots.toMutableList()
 
                 // Convert "09:00 AM" → minutes since 9:00
                 fun slotToMinutes(slot: String): Int {
@@ -281,6 +287,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
 
                 val existing = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
                     .filter { it.status != BookingStatus.CANCELLED }
+                println("📅 Existing bookings: ${existing.size}")
 
                 // Build busy ranges per bay
                 val busyRanges = mutableMapOf<Int, MutableList<Pair<Int, Int>>>()
@@ -327,9 +334,12 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     slot.copy(available = avail)
                 }
 
+                val availCount = updated.count { it.available }
+                println("📅 Slots updated: ${updated.size} total, $availCount available")
                 _availableTimeSlots.value = updated
             } catch (e: Exception) {
-                println("Failed to fetch time slots: ${e.message}")
+                println("❌ Failed to fetch time slots: ${e.message}")
+                // Keep default slots on error
             }
         }
     }
