@@ -467,7 +467,11 @@ fun BookServiceScreen(
                                 )
                                 bookingViewModel.createBooking(booking)
                                 kotlinx.coroutines.delay(1500)
-                                navController.popBackStack()
+                                if (bookingViewModel.error.value == null) {
+                                    navController.popBackStack()
+                                } else {
+                                    isCreating = false
+                                }
                             }
                         }
                     },
