@@ -984,17 +984,38 @@ fun OwnerBookingCard(
                             Text("Start Service")
                         }
                     }
-                    OutlinedButton(
-                        onClick = { showNoShowDialog = true },
-                        modifier = Modifier.weight(1f),
-                        enabled = !isProcessing,
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
-                    ) {
-                        Icon(Icons.Default.PersonOff, contentDescription = "No Show", modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("No Show")
+                    // Only show "No Show" if the time slot has passed (+ 30 min grace period)
+                    val slotPast = remember(booking) {
+                        try {
+                            val parts = booking.timeSlot.split(" ")
+                            val timeParts = parts[0].split(":")
+                            var h = timeParts[0].toInt()
+                            val m = timeParts[1].toInt()
+                            if (parts[1] == "PM" && h != 12) h += 12
+                            if (parts[1] == "AM" && h == 12) h = 0
+                            val cal = java.util.Calendar.getInstance().apply {
+                                timeInMillis = booking.bookingDate
+                                set(java.util.Calendar.HOUR_OF_DAY, h)
+                                set(java.util.Calendar.MINUTE, m)
+                                set(java.util.Calendar.SECOND, 0)
+                                add(java.util.Calendar.MINUTE, 30) // 30 min grace period
+                            }
+                            cal.timeInMillis < System.currentTimeMillis()
+                        } catch (e: Exception) { false }
+                    }
+                    if (slotPast) {
+                        OutlinedButton(
+                            onClick = { showNoShowDialog = true },
+                            modifier = Modifier.weight(1f),
+                            enabled = !isProcessing,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                        ) {
+                            Icon(Icons.Default.PersonOff, contentDescription = "No Show", modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("No Show")
+                        }
                     }
                 }
             }
