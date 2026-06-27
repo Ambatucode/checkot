@@ -213,6 +213,9 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                 for (doc in confirmedSnapshot.documents) {
                     val timeSlot = doc.getString("timeSlot") ?: continue
                     val bookingDate = doc.getLong("bookingDate") ?: continue
+                    val confirmedAt = doc.getLong("confirmedAt") ?: 0L
+                    // Skip if confirmed less than 30 min ago (prevents immediate cancel after approval)
+                    if (confirmedAt > 0 && System.currentTimeMillis() - confirmedAt < 30 * 60 * 1000L) continue
                     try {
                         val parts = timeSlot.split(" ")
                         val t = parts[0].split(":")
