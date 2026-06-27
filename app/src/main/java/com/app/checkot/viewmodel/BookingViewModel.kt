@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import kotlinx.coroutines.channels.awaitClose
+
 
 class BookingViewModel(application: Application) : AndroidViewModel(application) {
     private val auth = Firebase.auth
@@ -341,37 +341,6 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 println("❌ Failed to fetch time slots: ${e.message}")
                 // Keep default slots on error
             }
-        }
-    }
-
-    fun getQueueInfoRealTime(booking: Booking): kotlinx.coroutines.flow.Flow<QueueInfo> = kotlinx.coroutines.flow.callbackFlow {
-        val listener = firestore.collection("bookings")
-            .whereEqualTo("shopId", booking.shopId)
-            .whereEqualTo("bookingDate", booking.bookingDate)
-            .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    println("❌ Queue info listener error: ${error.message}")
-                    trySend(QueueInfo()) // Send default instead of crashing
-                    return@addSnapshotListener
-                }
-                if (snapshot != null) {
-                    val bookings = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
-                    val sorted = bookings.sortedBy { it.createdAt }
-                    val index = sorted.indexOfFirst { it.bookingId == booking.bookingId }
-                    val position = if (index != -1) index + 1 else -1
-
-                    // Calculate estimated wait from bookings ahead
-                    val aheadBookings = if (index > 0) sorted.subList(0, index) else emptyList()
-                    val estimatedWaitMinutes = aheadBookings.sumOf { b ->
-                        b.services.sumOf { service -> parseDurationMinutes(service.duration) }
-                    }
-
-                    trySend(QueueInfo(position, estimatedWaitMinutes, sorted.size))
-                }
-            }
-        awaitClose {
-            listener.remove()
         }
     }
 
