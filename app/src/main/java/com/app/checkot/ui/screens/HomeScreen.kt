@@ -372,9 +372,8 @@ fun BookingCard(
                     maxLines = 1
                 )
             }
-            // Queue info
-            if (queueInfo.position > 0 && (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS)) {
-                val carsAhead = queueInfo.position - 1
+            // Queue info — always show for active bookings
+            if (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Surface(
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
@@ -392,7 +391,13 @@ fun BookingCard(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = if (carsAhead == 0) "Queue: #${queueInfo.position} — You're next!" else "Queue: #${queueInfo.position} — $carsAhead ahead",
+                            text = if (queueInfo.position > 0) {
+                                val carsAhead = queueInfo.position - 1
+                                if (carsAhead == 0) "Queue: #${queueInfo.position} — You're next!"
+                                else "Queue: #${queueInfo.position} — $carsAhead ahead"
+                            } else {
+                                "Loading queue position..."
+                            },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
