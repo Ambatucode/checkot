@@ -901,72 +901,58 @@ fun OwnerBookingCard(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
-            // Countdown for PENDING / CONFIRMED
-            val countdownText = remember { mutableStateOf("") }
-            val countdownEnd = remember(booking.bookingId, booking.status) {
-                when (booking.status) {
-                    BookingStatus.PENDING -> booking.createdAt + 2 * 60 * 60 * 1000L
-                    BookingStatus.CONFIRMED -> {
-                        try {
-                            val parts = booking.timeSlot.split(" ")
-                            val t = parts[0].split(":")
-                            var h = t[0].toInt()
-                            val m = t[1].toInt()
-                            if (parts[1] == "PM" && h != 12) h += 12
-                            if (parts[1] == "AM" && h == 12) h = 0
-                            val cal = java.util.Calendar.getInstance().apply {
-                                timeInMillis = booking.bookingDate
-                                set(java.util.Calendar.HOUR_OF_DAY, h)
-                                set(java.util.Calendar.MINUTE, m)
-                                add(java.util.Calendar.MINUTE, 30)
-                            }
-                            cal.timeInMillis
-                        } catch (e: Exception) { 0L }
+            // Countdown for PENDING / No-show time for CONFIRMED
+            if (booking.status == BookingStatus.PENDING) {
+                val countdownText = remember { mutableStateOf("") }
+                val countdownEnd = booking.createdAt + 2 * 60 * 60 * 1000L
+                LaunchedEffect(countdownEnd) {
+                    while (countdownEnd > System.currentTimeMillis()) {
+                        val diff = countdownEnd - System.currentTimeMillis()
+                        val totalMin = (diff / 60000).toInt()
+                        countdownText.value = if (totalMin > 0) {
+                            val h = totalMin / 60
+                            val m = totalMin % 60
+                            "Expires in ${h}h ${m}m"
+                        } else "Expiring soon..."
+                        kotlinx.coroutines.delay(1000)
                     }
-                    else -> 0L
+                    countdownText.value = "Expired"
                 }
-            }
-            LaunchedEffect(countdownEnd) {
-                while (countdownEnd > 0 && countdownEnd > System.currentTimeMillis()) {
-                    val diff = countdownEnd - System.currentTimeMillis()
-                    val totalMin = (diff / 60000).toInt()
-                    if (totalMin > 0) {
-                        val h = totalMin / 60
-                        val m = totalMin % 60
-                        countdownText.value = when (booking.status) {
-                            BookingStatus.PENDING -> "Expires in ${h}h ${m}m"
-                            BookingStatus.CONFIRMED -> if (h > 0) "Arrival in ${h}h ${m}m" else "Arrival in ${m}m"
-                            else -> ""
-                        }
-                    } else {
-                        countdownText.value = when (booking.status) {
-                            BookingStatus.PENDING -> "Expiring soon..."
-                            BookingStatus.CONFIRMED -> "Expiring soon..."
-                            else -> ""
-                        }
-                    }
-                    kotlinx.coroutines.delay(1000)
-                }
-                if (countdownEnd > 0) {
-                    countdownText.value = when (booking.status) {
-                        BookingStatus.PENDING -> "Expired"
-                        BookingStatus.CONFIRMED -> "Expired"
-                        else -> ""
-                    }
-                }
-            }
-            if (countdownText.value.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                if (countdownText.value.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = countdownText.value,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        color = when (booking.status) {
-                            BookingStatus.PENDING -> MaterialTheme.colorScheme.secondary
-                            BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.error
-                            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+            } else if (booking.status == BookingStatus.CONFIRMED) {
+                // Show the no-show available time (slot + 30 min) as a static time
+                val noShowTime = remember(booking) {
+                    try {
+                        val parts = booking.timeSlot.split(" ")
+                        val t = parts[0].split(":")
+                        var h = t[0].toInt()
+                        val m = t[1].toInt()
+                        if (parts[1] == "PM" && h != 12) h += 12
+                        if (parts[1] == "AM" && h == 12) h = 0
+                        val cal = java.util.Calendar.getInstance().apply {
+                            timeInMillis = booking.bookingDate
+                            set(java.util.Calendar.HOUR_OF_DAY, h)
+                            set(java.util.Calendar.MINUTE, m)
+                            add(java.util.Calendar.MINUTE, 30)
                         }
+                        DateUtils.formatTime(cal.timeInMillis)
+                    } catch (e: Exception) { "" }
+                }
+                if (noShowTime.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "No-show available at $noShowTime",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
                     )
                 }
             }
