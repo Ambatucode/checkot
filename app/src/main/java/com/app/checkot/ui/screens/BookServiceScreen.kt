@@ -140,6 +140,22 @@ fun BookServiceScreen(
             DatePicker(state = datePickerState)
         }
     }
+
+    // Show error dialog when booking is rejected (e.g. active booking exists)
+    val bookingError by bookingViewModel.error.collectAsState()
+    if (bookingError != null) {
+        AlertDialog(
+            onDismissRequest = { bookingViewModel.clearError() },
+            title = { Text("Cannot Book") },
+            text = { Text(bookingError!!) },
+            confirmButton = {
+                TextButton(onClick = { bookingViewModel.clearError() }) {
+                    Text("Got it")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(

@@ -34,6 +34,9 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error
+
     private var bookingsListenerRegistration: ListenerRegistration? = null
     private var authStateListener: com.google.firebase.auth.FirebaseAuth.AuthStateListener? = null
 
@@ -94,6 +97,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     .get().await()
                 if (activeSnapshot.documents.isNotEmpty()) {
                     _isLoading.value = false
+                    _error.value = "You already have an active booking. Please cancel or wait for it to complete before booking again."
                     println("❌ Cannot create booking — user has an active booking already")
                     return@launch
                 }
@@ -197,6 +201,10 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 println("Failed to cancel booking: ${e.message}")
             }
         }
+    }
+
+    fun clearError() {
+        _error.value = null
     }
 
     fun sendBookingNotification(bookingId: String, message: String) {
