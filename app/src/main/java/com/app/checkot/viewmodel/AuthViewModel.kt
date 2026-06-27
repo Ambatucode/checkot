@@ -155,6 +155,30 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     .await()
                 println("✅ Owner signup complete: shop_services/$shopId created — clean slate")
 
+                // Notify admins about the new shop (background, don't block signup)
+                viewModelScope.launch {
+                    try {
+                        val adminSnapshot = firestore.collection("users")
+                            .whereEqualTo("role", "admin").get().await()
+                        for (adminDoc in adminSnapshot.documents) {
+                            val adminToken = adminDoc.getString("fcmToken")
+                            if (!adminToken.isNullOrEmpty()) {
+                                FCMSender.sendToUser(
+                                    context = appContext,
+                                    userId = "",
+                                    title = "New Shop Pending Approval",
+                                    body = "$fullName registered \"$shopName\" — review it in Admin Dashboard",
+                                    bookingId = "",
+                                    fcmToken = adminToken
+                                )
+                            }
+                        }
+                        println("📬 Notified ${adminSnapshot.documents.size} admin(s) about new shop")
+                    } catch (e: Exception) {
+                        println("⚠️ Failed to notify admins: ${e.message}")
+                    }
+                }
+
                 _currentUserData.value = userData
                 _authState.value = AuthState.Authenticated
             } catch (e: Exception) {

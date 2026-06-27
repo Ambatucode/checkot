@@ -2,6 +2,7 @@ package com.app.checkot.viewmodel
 
 import android.app.Application
 import com.app.checkot.model.*
+import com.app.checkot.service.FCMSender
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.EmailAuthProvider
@@ -96,6 +97,8 @@ class SuperAdminViewModel(application: Application) : AndroidViewModel(applicati
                 firestore.collection("shop_services").document(shopId)
                     .update("status", "active").await()
                 println("✅ SuperAdmin: Shop $shopId approved")
+                // Notify the owner
+                notifyOwner(shopId, "approved")
                 loadShops()
                 onResult(true)
             } catch (e: Exception) {
@@ -112,12 +115,43 @@ class SuperAdminViewModel(application: Application) : AndroidViewModel(applicati
                 firestore.collection("shop_services").document(shopId)
                     .update("status", "rejected").await()
                 println("✅ SuperAdmin: Shop $shopId rejected")
+                // Notify the owner
+                notifyOwner(shopId, "rejected")
                 loadShops()
                 onResult(true)
             } catch (e: Exception) {
                 println("❌ SuperAdmin: Failed to reject shop $shopId: ${e.message}")
                 onResult(false)
             }
+        }
+    }
+
+    /** Send a push notification to the shop owner about approval/rejection */
+    private suspend fun notifyOwner(shopId: String, action: String) {
+        try {
+            val doc = firestore.collection("shop_services").document(shopId).get().await()
+            val token = doc.getString("ownerFcmToken")
+            val shopName = doc.getString("shopName") ?: "Your shop"
+            if (!token.isNullOrEmpty()) {
+                val (title, body) = if (action == "approved") {
+                    Pair("Shop Approved! 🎉", "$shopName is now live. Customers can see you!")
+                } else {
+                    Pair("Shop Application Reviewed", "$shopName was not approved. Contact support for details.")
+                }
+                FCMSender.sendToUser(
+                    context = getApplication(),
+                    userId = "",
+                    title = title,
+                    body = body,
+                    bookingId = "",
+                    fcmToken = token
+                )
+                println("📬 SuperAdmin: Notified owner of shop $shopId about $action")
+            } else {
+                println("⚠️ SuperAdmin: No FCM token for shop $shopId owner")
+            }
+        } catch (e: Exception) {
+            println("❌ SuperAdmin: Failed to notify owner: ${e.message}")
         }
     }
 }
