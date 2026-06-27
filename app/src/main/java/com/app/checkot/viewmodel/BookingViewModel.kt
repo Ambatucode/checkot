@@ -25,8 +25,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
     // Track previous booking statuses to detect changes
     private var previousBookingStatuses = mutableMapOf<String, BookingStatus>()
 
-    // Cooldown: track when each user last cancelled to prevent rapid booking abuse
-    private val cancelCooldowns = mutableMapOf<String, Long>() // userId -> lastCancelledAt
+    // Cooldown: 5-minute wait after cancel stored in Firestore (survives app restart)
     private val COOLDOWN_MS = 5 * 60 * 1000L // 5 minutes
 
     private val _userBookings = MutableStateFlow<List<Booking>>(emptyList())
@@ -94,13 +93,13 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
             _isLoading.value = true
             val user = auth.currentUser ?: return@launch
             try {
-                // Check cooldown (rapid booking after cancel)
-                val lastCancelled = cancelCooldowns[user.uid]
-                if (lastCancelled != null) {
+                // Check cooldown (rapid booking after cancel) — stored in Firestore for persistence
+                val userDoc = firestore.collection("users").document(user.uid).get().await()
+                val lastCancelled = userDoc.getLong("lastCancelledAt") ?: 0L
+                if (lastCancelled > 0) {
                     val elapsed = System.currentTimeMillis() - lastCancelled
                     if (elapsed < COOLDOWN_MS) {
-                        val remainingMin = ((COOLDOWN_MS - elapsed) / 60000) + 1
-                        _error.value = "Please wait ${remainingMin} minute(s) before booking again."
+                        _error.value = "Please wait before booking again."
                         _isLoading.value = false
                         return@launch
                     }
@@ -190,8 +189,13 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     "status", BookingStatus.CANCELLED,
                     "cancelledAt", System.currentTimeMillis()
                 ).await()
-                // Record cancellation for cooldown timer
-                cancelCooldowns[auth.currentUser?.uid ?: ""] = System.currentTimeMillis()
+                // Store cancellation timestamp in Firestore (survives app restart)
+                val uid = auth.currentUser?.uid ?: ""
+                if (uid.isNotEmpty()) {
+                    firestore.collection("users").document(uid)
+                        .update("lastCancelledAt", System.currentTimeMillis())
+                        .await()
+                }
                 sendBookingNotification(bookingId, "Booking cancelled")
 
                 // Notify the owner via FCM
