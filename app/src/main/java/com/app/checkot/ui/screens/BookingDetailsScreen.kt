@@ -11,16 +11,6 @@ import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
-private fun parseDuration(duration: String): Int = when {
-    duration.contains("hour") -> {
-        val hours = duration.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 1.0
-        (hours * 60).toInt()
-    }
-    duration.contains("min") -> {
-        duration.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 30
-    }
-    else -> 30
-}
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
@@ -679,4 +669,15 @@ fun QueuePositionCard(queueInfo: QueueInfo, status: BookingStatus) {
             )
         }
     }
+}
+
+private fun parseDuration(duration: String): Int = when {
+    duration.contains("hour") -> {
+        val hours = duration.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 1.0
+        (hours * 60).toInt()
+    }
+    duration.contains("min") -> {
+        duration.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 30
+    }
+    else -> 30
 }

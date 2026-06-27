@@ -85,7 +85,7 @@ fun MyCarsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(16.dp)
             ) {
-                items(savedCars) { car ->
+                items(savedCars, key = { it.carId }) { car ->
                     val isActive = userBookings.any { 
                         it.carId == car.carId && 
                         it.status in listOf(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.IN_PROGRESS) 

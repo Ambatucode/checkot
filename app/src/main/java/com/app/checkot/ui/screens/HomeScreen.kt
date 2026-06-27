@@ -203,7 +203,7 @@ fun HomeScreen(
                 }
             }
 
-            items(shopList) { shop ->
+            items(shopList, key = { it.shopId }) { shop ->
                 ShopCard(
                     shop = shop,
                     onClick = {
