@@ -35,11 +35,22 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
     val isLoading: StateFlow<Boolean> = _isLoading
 
     private var bookingsListenerRegistration: ListenerRegistration? = null
+    private var authStateListener: com.google.firebase.auth.FirebaseAuth.AuthStateListener? = null
 
     init {
-        if (auth.currentUser != null) {
-            setupRealTimeBookingsListener()
+        authStateListener = com.google.firebase.auth.FirebaseAuth.AuthStateListener { firebaseAuth ->
+            val user = firebaseAuth.currentUser
+            bookingsListenerRegistration?.remove()
+            bookingsListenerRegistration = null
+            previousBookingStatuses.clear()
+            if (user != null) {
+                _userBookings.value = emptyList()
+                setupRealTimeBookingsListener()
+            } else {
+                _userBookings.value = emptyList()
+            }
         }
+        auth.addAuthStateListener(authStateListener!!)
     }
 
     fun setupRealTimeBookingsListener() {
@@ -294,5 +305,6 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
     override fun onCleared() {
         super.onCleared()
         bookingsListenerRegistration?.remove()
+        authStateListener?.let { auth.removeAuthStateListener(it) }
     }
 }
