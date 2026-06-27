@@ -205,6 +205,48 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                         println("📬 Auto-cancelled stale booking $bookingId")
                     }
                 }
+                // Also auto-cancel CONFIRMED bookings past their slot + 2 hours
+                val confirmedSnapshot = firestore.collection("bookings")
+                    .whereEqualTo("shopId", shopId)
+                    .whereEqualTo("status", "CONFIRMED")
+                    .get().await()
+                for (doc in confirmedSnapshot.documents) {
+                    val timeSlot = doc.getString("timeSlot") ?: continue
+                    val bookingDate = doc.getLong("bookingDate") ?: continue
+                    try {
+                        val parts = timeSlot.split(" ")
+                        val t = parts[0].split(":")
+                        var h = t[0].toInt()
+                        val m = t[1].toInt()
+                        if (parts[1] == "PM" && h != 12) h += 12
+                        if (parts[1] == "AM" && h == 12) h = 0
+                        val cal = java.util.Calendar.getInstance().apply {
+                            timeInMillis = bookingDate
+                            set(java.util.Calendar.HOUR_OF_DAY, h)
+                            set(java.util.Calendar.MINUTE, m)
+                            add(java.util.Calendar.MINUTE, 30) // grace period
+                            add(java.util.Calendar.HOUR_OF_DAY, 2) // 2 extra hours
+                        }
+                        if (cal.timeInMillis < System.currentTimeMillis()) {
+                            val bookingId = doc.id
+                            firestore.collection("bookings").document(bookingId)
+                                .update("status", "CANCELLED", "cancelledAt", System.currentTimeMillis())
+                                .await()
+                            val userId = doc.getString("userId") ?: ""
+                            val services = doc.getString("services") ?: "Service"
+                            FCMSender.sendToUser(
+                                context = appContext,
+                                userId = userId,
+                                title = "Booking Cancelled",
+                                body = "Your confirmed booking was cancelled because the service wasn't started in time.",
+                                bookingId = bookingId
+                            )
+                            println("📬 Auto-cancelled stale confirmed booking $bookingId")
+                        }
+                    } catch (e: Exception) {
+                        println("⚠️ Failed to parse slot for $timeSlot: ${e.message}")
+                    }
+                }
             } catch (e: Exception) {
                 println("❌ Auto-cancel error: ${e.message}")
             }
