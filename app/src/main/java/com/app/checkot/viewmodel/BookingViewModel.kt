@@ -241,8 +241,8 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun fetchAvailableTimeSlots(date: Long, shopId: String, durationMinutes: Int = 60) {
-        // First, always show default slots immediately so UI is never empty
-        val defaultSlots = listOf(
+        // Build raw slots
+        val rawSlots = listOf(
             TimeSlot("09:00 AM", true), TimeSlot("09:30 AM", true),
             TimeSlot("10:00 AM", true), TimeSlot("10:30 AM", true),
             TimeSlot("11:00 AM", true), TimeSlot("11:30 AM", true),
@@ -252,7 +252,35 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
             TimeSlot("03:00 PM", true), TimeSlot("03:30 PM", true),
             TimeSlot("04:00 PM", true)
         )
-        _availableTimeSlots.value = defaultSlots
+
+        // Convert "09:00 AM" → minutes since 9:00
+        fun slotToMinutes(slot: String): Int {
+            val parts = slot.split(" ")
+            val timeParts = parts[0].split(":")
+            var h = timeParts[0].toInt()
+            val m = timeParts[1].toInt()
+            val isPM = parts[1] == "PM"
+            if (isPM && h != 12) h += 12
+            if (!isPM && h == 12) h = 0
+            return (h - 9) * 60 + m
+        }
+
+        // Filter out past slots immediately (before any async work)
+        val cal = java.util.Calendar.getInstance()
+        val curH = cal.get(java.util.Calendar.HOUR_OF_DAY)
+        val curM = cal.get(java.util.Calendar.MINUTE)
+        val selCal = java.util.Calendar.getInstance().apply { timeInMillis = date }
+        val isToday = cal.get(java.util.Calendar.YEAR) == selCal.get(java.util.Calendar.YEAR) &&
+                      cal.get(java.util.Calendar.DAY_OF_YEAR) == selCal.get(java.util.Calendar.DAY_OF_YEAR)
+        val initialSlots = rawSlots.map { slot ->
+            if (isToday) {
+                val sm = slotToMinutes(slot.slot)
+                val sh = (sm / 60) + 9
+                val smin = sm % 60
+                if (sh < curH || (sh == curH && smin < curM)) slot.copy(available = false) else slot
+            } else slot
+        }
+        _availableTimeSlots.value = initialSlots
 
         viewModelScope.launch {
             try {
@@ -264,20 +292,8 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 val bayCount = (shopDoc.getLong("bayCount")?.toInt() ?: 1).coerceAtLeast(1)
                 println("📅 Bay count: $bayCount")
 
-                // Generate 30-min slots
-                val allSlots = defaultSlots.toMutableList()
-
-                // Convert "09:00 AM" → minutes since 9:00
-                fun slotToMinutes(slot: String): Int {
-                    val parts = slot.split(" ")
-                    val timeParts = parts[0].split(":")
-                    var h = timeParts[0].toInt()
-                    val m = timeParts[1].toInt()
-                    val isPM = parts[1] == "PM"
-                    if (isPM && h != 12) h += 12
-                    if (!isPM && h == 12) h = 0
-                    return (h - 9) * 60 + m
-                }
+                // Use raw slots (past-time filter already applied in initialSlots)
+                val allSlots = rawSlots.toMutableList()
 
                 // Get existing active bookings
                 val snapshot = firestore.collection("bookings")
@@ -305,14 +321,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     }
                 }
 
-                // Check each slot
-                val cal = java.util.Calendar.getInstance()
-                val curH = cal.get(java.util.Calendar.HOUR_OF_DAY)
-                val curM = cal.get(java.util.Calendar.MINUTE)
-                val selCal = java.util.Calendar.getInstance().apply { timeInMillis = date }
-                val isToday = cal.get(java.util.Calendar.YEAR) == selCal.get(java.util.Calendar.YEAR) &&
-                              cal.get(java.util.Calendar.DAY_OF_YEAR) == selCal.get(java.util.Calendar.DAY_OF_YEAR)
-
+                // Check each slot (curH/curM/isToday/slotToMinutes from outer scope)
                 val updated = allSlots.map { slot ->
                     var avail = true
                     val sm = slotToMinutes(slot.slot)
