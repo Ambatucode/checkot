@@ -955,7 +955,8 @@ fun OwnerServicesTab(
         config.customPrice > 5000 ||
         (config.isCustom && config.customPrice == 0.0)
     }
-    val canSave = editedServices != customization.services && !hasInvalidPrice
+    val bayCountChanged = bayCountText.toIntOrNull() != customization.bayCount
+    val canSave = (editedServices != customization.services || bayCountChanged) && !hasInvalidPrice
 
     LaunchedEffect(customization) {
         editedServices = customization.services
