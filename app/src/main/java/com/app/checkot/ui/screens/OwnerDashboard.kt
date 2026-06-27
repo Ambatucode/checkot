@@ -281,7 +281,7 @@ fun OwnerBookingsTab(
     }
     val activeSorted = remember(allBookings) {
         allBookings
-            .filter { it.status in listOf(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.IN_PROGRESS) }
+            .filter { it.status == BookingStatus.PENDING }
             .sortedBy { it.createdAt }
     }
     val queuePositions = remember(activeSorted) {
