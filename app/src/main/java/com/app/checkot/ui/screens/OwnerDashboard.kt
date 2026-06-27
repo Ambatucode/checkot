@@ -654,6 +654,7 @@ fun OwnerBookingCard(
     var showStartDialog by remember { mutableStateOf(false) }
     var showCompleteDialog by remember { mutableStateOf(false) }
     var showNoShowDialog by remember { mutableStateOf(false) }
+    var showCancelConfirmedDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     if (showApproveDialog) {
@@ -762,6 +763,28 @@ fun OwnerBookingCard(
             },
             dismissButton = {
                 TextButton(onClick = { showNoShowDialog = false }) { Text("Go Back") }
+            }
+        )
+    }
+
+    if (showCancelConfirmedDialog) {
+        AlertDialog(
+            onDismissRequest = { showCancelConfirmedDialog = false },
+            title = { Text("Cancel Booking") },
+            text = { Text("Cancel this confirmed booking? The customer will be notified.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showCancelConfirmedDialog = false
+                    scope.launch {
+                        isProcessing = true
+                        onReject()
+                        kotlinx.coroutines.delay(2000)
+                        isProcessing = false
+                    }
+                }) { Text("Cancel Booking", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCancelConfirmedDialog = false }) { Text("Go Back") }
             }
         )
     }
@@ -1052,6 +1075,18 @@ fun OwnerBookingCard(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Start Service")
                         }
+                    }
+                    OutlinedButton(
+                        onClick = { showCancelConfirmedDialog = true },
+                        modifier = Modifier.weight(1f),
+                        enabled = !isProcessing,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Cancel", modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Cancel")
                     }
                     // Only show "No Show" if the time slot has passed (+ 30 min grace period)
                     val slotPast = remember(booking) {
