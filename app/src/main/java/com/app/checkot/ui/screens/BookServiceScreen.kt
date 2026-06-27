@@ -141,13 +141,43 @@ fun BookServiceScreen(
         }
     }
 
-    // Show error dialog when booking is rejected (e.g. active booking exists)
+    // Show error dialog when booking is rejected
     val bookingError by bookingViewModel.error.collectAsState()
     if (bookingError != null) {
+        val isCooldown = bookingError?.startsWith("Please wait") == true
+        val cooldownEndTime = remember(bookingError) {
+            if (isCooldown) System.currentTimeMillis() + 5 * 60 * 1000 else 0L
+        }
+        var remainingSeconds by remember { mutableStateOf(0) }
+
+        // Live countdown ticker + auto-dismiss
+        LaunchedEffect(cooldownEndTime) {
+            if (cooldownEndTime > 0) {
+                while (true) {
+                    remainingSeconds = ((cooldownEndTime - System.currentTimeMillis()) / 1000).toInt().coerceAtLeast(0)
+                    if (remainingSeconds <= 0) break
+                    kotlinx.coroutines.delay(1000)
+                }
+                bookingViewModel.clearError()
+            }
+        }
+
         AlertDialog(
-            onDismissRequest = { bookingViewModel.clearError() },
-            title = { Text("Cannot Book") },
-            text = { Text(bookingError!!) },
+            onDismissRequest = {
+                if (!isCooldown || remainingSeconds <= 0) {
+                    bookingViewModel.clearError()
+                }
+            },
+            title = { Text(if (isCooldown) "Please Wait" else "Cannot Book") },
+            text = {
+                if (isCooldown) {
+                    val min = remainingSeconds / 60
+                    val sec = remainingSeconds % 60
+                    Text("You cancelled a booking recently. Please wait ${min}:${String.format("%02d", sec)} before booking again.")
+                } else {
+                    Text(bookingError!!)
+                }
+            },
             confirmButton = {
                 TextButton(onClick = { bookingViewModel.clearError() }) {
                     Text("Got it")
