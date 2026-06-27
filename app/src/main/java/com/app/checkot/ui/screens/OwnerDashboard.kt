@@ -404,12 +404,27 @@ fun OwnerBookingsTab(
                     }
                 }
             } else {
+                // Build customer name map
+                val users = adminViewModel.allUsers.collectAsState().value
+                val customerNames = remember(users) {
+                    users.associate { it.userId to it.fullName }
+                }
+                // Queue positions for active bookings (sorted by createdAt)
+                val activeSorted = allBookings
+                    .filter { it.status in listOf(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.IN_PROGRESS) }
+                    .sortedBy { it.createdAt }
+                val queuePositions = remember(activeSorted) {
+                    activeSorted.mapIndexed { i, b -> b.bookingId to (i + 1) }.toMap()
+                }
+
                 items(
                     items = filteredBookings,
                     key = { it.bookingId }
                 ) { booking ->
                     OwnerBookingCard(
                         booking = booking,
+                        customerName = customerNames[booking.userId] ?: "",
+                        queuePosition = queuePositions[booking.bookingId] ?: 0,
                         onApprove = {
                             adminViewModel.updateBookingStatus(booking.bookingId, BookingStatus.CONFIRMED)
                         },
@@ -624,6 +639,8 @@ fun TransactionItem(booking: Booking) {
 @Composable
 fun OwnerBookingCard(
     booking: Booking,
+    customerName: String = "",
+    queuePosition: Int = 0,
     onApprove: () -> Unit,
     onReject: () -> Unit,
     onStart: () -> Unit,
@@ -789,6 +806,52 @@ fun OwnerBookingCard(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                     )
                 }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            // Customer name + queue position
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Person,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = customerName.ifEmpty { "Unknown Customer" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                if (queuePosition > 0 && booking.status != BookingStatus.CANCELLED && booking.status != BookingStatus.COMPLETED) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            "#$queuePosition",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Schedule,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Booked at ${DateUtils.formatDateTime(booking.createdAt)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
             }
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
