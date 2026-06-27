@@ -468,22 +468,22 @@ fun BookingCard(
                         val h = totalMin / 60
                         val m = totalMin % 60
                         countdownText.value = when (booking.status) {
-                            BookingStatus.PENDING -> if (h > 0) "⏳ Auto-cancels in ${h}h ${m}m" else "⏳ Auto-cancels in ${m}m"
-                            BookingStatus.CONFIRMED -> if (h > 0) "⏰ Arrive within ${h}h ${m}m" else "⏰ Arrive within ${m}m"
+                            BookingStatus.PENDING -> if (h > 0) "Auto-cancels in ${h}h ${m}m" else "Auto-cancels in ${m}m"
+                            BookingStatus.CONFIRMED -> if (h > 0) "Arrive within ${h}h ${m}m" else "Arrive within ${m}m"
                             else -> ""
                         }
                     } else {
                         countdownText.value = when (booking.status) {
-                            BookingStatus.PENDING -> "⏳ Cancelling soon..."
-                            BookingStatus.CONFIRMED -> "⏰ Almost expired!"
+                            BookingStatus.PENDING -> "Cancelling soon..."
+                            BookingStatus.CONFIRMED -> "Almost expired!"
                             else -> ""
                         }
                     }
                     kotlinx.coroutines.delay(1000)
                 }
                 countdownText.value = when (booking.status) {
-                    BookingStatus.PENDING -> "⏳ Booking expired"
-                    BookingStatus.CONFIRMED -> "⏰ Time expired"
+                    BookingStatus.PENDING -> "Booking expired"
+                    BookingStatus.CONFIRMED -> "Time expired"
                     else -> ""
                 }
             }
