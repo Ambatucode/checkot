@@ -203,6 +203,93 @@ fun BookingDetailsScreen(
                     }
                 }
             }
+            // Countdown card
+            item {
+                val countdownEnd = remember(booking.bookingId) {
+                    when (booking.status) {
+                        BookingStatus.PENDING -> booking.createdAt + 2 * 60 * 60 * 1000L
+                        BookingStatus.CONFIRMED -> {
+                            try {
+                                val parts = booking.timeSlot.split(" ")
+                                val t = parts[0].split(":")
+                                var h = t[0].toInt()
+                                val m = t[1].toInt()
+                                if (parts[1] == "PM" && h != 12) h += 12
+                                if (parts[1] == "AM" && h == 12) h = 0
+                                val cal = java.util.Calendar.getInstance().apply {
+                                    timeInMillis = booking.bookingDate
+                                    set(java.util.Calendar.HOUR_OF_DAY, h)
+                                    set(java.util.Calendar.MINUTE, m)
+                                    add(java.util.Calendar.MINUTE, 30)
+                                }
+                                cal.timeInMillis
+                            } catch (e: Exception) { 0L }
+                        }
+                        else -> 0L
+                    }
+                }
+                var countdownText by remember { mutableStateOf("") }
+                LaunchedEffect(countdownEnd) {
+                    while (countdownEnd > 0 && countdownEnd > System.currentTimeMillis()) {
+                        val diff = countdownEnd - System.currentTimeMillis()
+                        val totalMin = (diff / 60000).toInt()
+                        countdownText = if (totalMin > 0) {
+                            val h = totalMin / 60
+                            val m = totalMin % 60
+                            when (booking.status) {
+                                BookingStatus.PENDING -> if (h > 0) "Auto-cancels in ${h}h ${m}m" else "Auto-cancels in ${m}m"
+                                BookingStatus.CONFIRMED -> if (h > 0) "Arrive within ${h}h ${m}m" else "Arrive within ${m}m"
+                                else -> ""
+                            }
+                        } else {
+                            when (booking.status) {
+                                BookingStatus.PENDING -> "Cancelling soon..."
+                                BookingStatus.CONFIRMED -> "Almost expired!"
+                                else -> ""
+                            }
+                        }
+                        kotlinx.coroutines.delay(1000)
+                    }
+                }
+                if (countdownText.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = when (booking.status) {
+                                BookingStatus.PENDING -> MaterialTheme.colorScheme.secondaryContainer
+                                BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.errorContainer
+                                else -> MaterialTheme.colorScheme.surfaceVariant
+                            }
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Timer,
+                                contentDescription = null,
+                                tint = when (booking.status) {
+                                    BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
+                                    BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.onErrorContainer
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = countdownText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                color = when (booking.status) {
+                                    BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
+                                    BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.onErrorContainer
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+                    }
+                }
+            }
             item {
                 ServiceProgressStepper(status = booking.status)
             }
