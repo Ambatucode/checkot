@@ -16,11 +16,22 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
+private fun parseDuration(duration: String): Int = when {
+    duration.contains("hour") -> {
+        val hours = duration.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 1.0
+        (hours * 60).toInt()
+    }
+    duration.contains("min") -> {
+        duration.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 30
+    }
+    else -> 30
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -298,9 +309,28 @@ fun BookingCard(
     shopNameMap: Map<String, String> = emptyMap(),
     bookingViewModel: BookingViewModel = viewModel()
 ) {
-    val queueInfo by remember(booking.bookingId, booking.shopId, booking.bookingDate) {
-        bookingViewModel.getQueueInfoRealTime(booking)
-    }.collectAsState(initial = QueueInfo())
+    var queueInfo by remember { mutableStateOf(QueueInfo()) }
+
+    // Direct Firestore listener — more reliable than callbackFlow
+    LaunchedEffect(booking.bookingId, booking.shopId, booking.bookingDate) {
+        val listener = Firebase.firestore.collection("bookings")
+            .whereEqualTo("shopId", booking.shopId)
+            .whereEqualTo("bookingDate", booking.bookingDate)
+            .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
+            .addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) return@addSnapshotListener
+                val bookings = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
+                val sorted = bookings.sortedBy { it.createdAt }
+                val index = sorted.indexOfFirst { it.bookingId == booking.bookingId }
+                val position = if (index != -1) index + 1 else -1
+                val ahead = if (index > 0) sorted.subList(0, index) else emptyList()
+                val estimated = ahead.sumOf { b ->
+                    b.services.sumOf { s -> parseDuration(s.duration) }
+                }
+                queueInfo = QueueInfo(position, estimated, sorted.size)
+            }
+        awaitDispose { listener.remove() }
+    }
 
     Card(
         modifier = Modifier
