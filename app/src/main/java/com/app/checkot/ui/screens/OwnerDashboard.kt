@@ -274,6 +274,19 @@ fun OwnerBookingsTab(
         "completed" -> allBookings.filter { it.status == BookingStatus.COMPLETED }
         else -> allBookings
     }
+    // Customer name lookup + queue positions (must be outside LazyColumn)
+    val users by adminViewModel.allUsers.collectAsState()
+    val customerNames = remember(users) {
+        users.associate { it.userId to it.fullName }
+    }
+    val activeSorted = remember(allBookings) {
+        allBookings
+            .filter { it.status in listOf(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.IN_PROGRESS) }
+            .sortedBy { it.createdAt }
+    }
+    val queuePositions = remember(activeSorted) {
+        activeSorted.mapIndexed { i, b -> b.bookingId to (i + 1) }.toMap()
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -404,19 +417,6 @@ fun OwnerBookingsTab(
                     }
                 }
             } else {
-                // Build customer name map
-                val users = adminViewModel.allUsers.collectAsState().value
-                val customerNames = remember(users) {
-                    users.associate { it.userId to it.fullName }
-                }
-                // Queue positions for active bookings (sorted by createdAt)
-                val activeSorted = allBookings
-                    .filter { it.status in listOf(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.IN_PROGRESS) }
-                    .sortedBy { it.createdAt }
-                val queuePositions = remember(activeSorted) {
-                    activeSorted.mapIndexed { i, b -> b.bookingId to (i + 1) }.toMap()
-                }
-
                 items(
                     items = filteredBookings,
                     key = { it.bookingId }
