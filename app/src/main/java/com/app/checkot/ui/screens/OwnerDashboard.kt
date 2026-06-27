@@ -281,7 +281,7 @@ fun OwnerBookingsTab(
     }
     val activeSorted = remember(allBookings) {
         allBookings
-            .filter { it.status == BookingStatus.PENDING }
+            .filter { it.status in listOf(BookingStatus.PENDING, BookingStatus.CONFIRMED) }
             .sortedBy { it.createdAt }
     }
     val queuePositions = remember(activeSorted) {
@@ -1005,6 +1005,7 @@ fun OwnerServicesTab(
     paddingValues: PaddingValues
 ) {
     val customization by adminViewModel.shopCustomization.collectAsState()
+    val allBookings by adminViewModel.allBookings.collectAsState()
     var editedServices by remember { mutableStateOf<List<CustomServiceConfig>>(customization.services) }
     var bayCountText by remember { mutableStateOf(customization.bayCount.toString()) }
     var showAddDropdown by remember { mutableStateOf(false) }
@@ -1220,7 +1221,7 @@ fun OwnerServicesTab(
                     items = editedServices,
                     key = { it.serviceName }
                 ) { config ->
-                    val isInUse = adminViewModel.allBookings.value.any { booking ->
+                    val isInUse = allBookings.any { booking ->
                         val status = booking.status
                         val isActive = status == BookingStatus.PENDING
                             || status == BookingStatus.CONFIRMED
