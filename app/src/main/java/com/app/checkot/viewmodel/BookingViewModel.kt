@@ -313,7 +313,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     if (isToday) {
                         val sh = (sm / 60) + 9
                         val smin = sm % 60
-                        if (sh < curH || (sh == curH && smin <= curM)) avail = false
+                        if (sh < curH || (sh == curH && smin < curM)) avail = false
                     }
 
                     if (avail) {
