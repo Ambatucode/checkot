@@ -25,6 +25,10 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
     // Track previous booking statuses to detect changes
     private var previousBookingStatuses = mutableMapOf<String, BookingStatus>()
 
+    // Cooldown: track when each user last cancelled to prevent rapid booking abuse
+    private val cancelCooldowns = mutableMapOf<String, Long>() // userId -> lastCancelledAt
+    private val COOLDOWN_MS = 5 * 60 * 1000L // 5 minutes
+
     private val _userBookings = MutableStateFlow<List<Booking>>(emptyList())
     val userBookings: StateFlow<List<Booking>> = _userBookings
 
@@ -90,6 +94,18 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
             _isLoading.value = true
             val user = auth.currentUser ?: return@launch
             try {
+                // Check cooldown (rapid booking after cancel)
+                val lastCancelled = cancelCooldowns[user.uid]
+                if (lastCancelled != null) {
+                    val elapsed = System.currentTimeMillis() - lastCancelled
+                    if (elapsed < COOLDOWN_MS) {
+                        val remainingMin = ((COOLDOWN_MS - elapsed) / 60000) + 1
+                        _error.value = "Please wait ${remainingMin} minute(s) before booking again."
+                        _isLoading.value = false
+                        return@launch
+                    }
+                }
+
                 // Check if user already has an active booking
                 val activeSnapshot = firestore.collection("bookings")
                     .whereEqualTo("userId", user.uid)
@@ -174,6 +190,8 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     "status", BookingStatus.CANCELLED,
                     "cancelledAt", System.currentTimeMillis()
                 ).await()
+                // Record cancellation for cooldown timer
+                cancelCooldowns[auth.currentUser?.uid ?: ""] = System.currentTimeMillis()
                 sendBookingNotification(bookingId, "Booking cancelled")
 
                 // Notify the owner via FCM
