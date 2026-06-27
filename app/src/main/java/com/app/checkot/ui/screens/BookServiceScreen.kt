@@ -144,9 +144,11 @@ fun BookServiceScreen(
     // Show error dialog when booking is rejected
     val bookingError by bookingViewModel.error.collectAsState()
     if (bookingError != null) {
-        val isCooldown = bookingError?.startsWith("Please wait") == true
+        val isCooldown = bookingError?.startsWith("cooldown:") == true
         val cooldownEndTime = remember(bookingError) {
-            if (isCooldown) System.currentTimeMillis() + 5 * 60 * 1000 else 0L
+            if (isCooldown) {
+                bookingError!!.substringAfter("cooldown:").toLongOrNull() ?: 0L
+            } else 0L
         }
         var remainingSeconds by remember { mutableStateOf(0) }
 

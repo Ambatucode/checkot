@@ -99,7 +99,8 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 if (lastCancelled > 0) {
                     val elapsed = System.currentTimeMillis() - lastCancelled
                     if (elapsed < COOLDOWN_MS) {
-                        _error.value = "Please wait before booking again."
+                        val endTime = lastCancelled + COOLDOWN_MS
+                        _error.value = "cooldown:$endTime"
                         _isLoading.value = false
                         return@launch
                     }
