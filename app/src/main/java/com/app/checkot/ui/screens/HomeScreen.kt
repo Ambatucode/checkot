@@ -312,7 +312,7 @@ fun BookingCard(
     var queueInfo by remember { mutableStateOf(QueueInfo()) }
 
     // Direct Firestore listener — more reliable than callbackFlow
-    LaunchedEffect(booking.bookingId, booking.shopId, booking.bookingDate) {
+    DisposableEffect(booking.bookingId, booking.shopId, booking.bookingDate) {
         val listener = Firebase.firestore.collection("bookings")
             .whereEqualTo("shopId", booking.shopId)
             .whereEqualTo("bookingDate", booking.bookingDate)
@@ -329,7 +329,7 @@ fun BookingCard(
                 }
                 queueInfo = QueueInfo(position, estimated, sorted.size)
             }
-        awaitDispose { listener.remove() }
+        onDispose { listener.remove() }
     }
 
     Card(
