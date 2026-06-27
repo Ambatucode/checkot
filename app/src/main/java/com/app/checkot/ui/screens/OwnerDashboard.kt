@@ -92,52 +92,130 @@ fun OwnerDashboard(
             }
         }
     ) { paddingValues ->
+        val shopCust = adminViewModel.shopCustomization.collectAsState().value
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            // Pending approval banner
-            val shopCust = adminViewModel.shopCustomization.collectAsState().value
-            if (shopCust.status == "pending") {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+            when (shopCust.status) {
+                "pending" -> {
+                    // Pending banner
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.secondaryContainer
                     ) {
-                        Icon(
-                            Icons.Default.HourglassEmpty,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "Shop Pending Approval",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.HourglassEmpty,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.size(20.dp)
                             )
-                            Text(
-                                "Your shop is not yet visible to customers. Wait for admin approval.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
-                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Shop Pending Approval",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                                Text(
+                                    "Your shop is not yet visible to customers. Wait for admin approval.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                                )
+                            }
                         }
-                        Icon(
-                            Icons.Default.Info,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f),
-                            modifier = Modifier.size(18.dp)
-                        )
+                    }
+                    // Show tabs normally
+                    when (selectedTab) {
+                        0 -> OwnerBookingsTab(navController, adminViewModel, PaddingValues(0.dp))
+                        1 -> OwnerCustomersTab(adminViewModel, PaddingValues(0.dp))
+                        2 -> OwnerRevenueTab(adminViewModel, PaddingValues(0.dp))
+                        3 -> OwnerServicesTab(adminViewModel, PaddingValues(0.dp))
                     }
                 }
-            }
-            when (selectedTab) {
-                0 -> OwnerBookingsTab(navController, adminViewModel, PaddingValues(0.dp))
-                1 -> OwnerCustomersTab(adminViewModel, PaddingValues(0.dp))
-                2 -> OwnerRevenueTab(adminViewModel, PaddingValues(0.dp))
-                3 -> OwnerServicesTab(adminViewModel, PaddingValues(0.dp))
+                "rejected" -> {
+                    // Full-screen rejection message instead of tabs
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(32.dp)
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(100.dp),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(50.dp),
+                                color = MaterialTheme.colorScheme.errorContainer
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Default.Cancel,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(56.dp),
+                                        tint = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Text(
+                                "Shop Application Not Approved",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                "Unfortunately, your shop \"${shopCust.shopName}\" was not approved at this time.",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.ContactMail,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            "Need help?",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        "If you have questions about this decision, please contact support or re-register with updated information.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                else -> {
+                    // Active — normal dashboard, no banner
+                    when (selectedTab) {
+                        0 -> OwnerBookingsTab(navController, adminViewModel, PaddingValues(0.dp))
+                        1 -> OwnerCustomersTab(adminViewModel, PaddingValues(0.dp))
+                        2 -> OwnerRevenueTab(adminViewModel, PaddingValues(0.dp))
+                        3 -> OwnerServicesTab(adminViewModel, PaddingValues(0.dp))
+                    }
+                }
             }
         }
     }
