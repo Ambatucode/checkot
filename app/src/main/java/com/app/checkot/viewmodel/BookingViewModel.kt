@@ -110,9 +110,11 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 // and the client price matches what's set by the shop owner.
                 val verifiedPrice = booking.price
 
+                val normalizedDate = normalizeToStartOfDay(booking.bookingDate)
                 val newBooking = booking.copy(
                     bookingId = bookingDoc.id,
                     userId = user.uid,                 // Always use the authenticated UID
+                    bookingDate = normalizedDate,       // Normalize to start of day so all same-day bookings match
                     price = verifiedPrice,              // Use server-verified price
                     createdAt = System.currentTimeMillis(),
                     status = BookingStatus.PENDING      // Always start as PENDING
@@ -319,6 +321,17 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
             }
             else -> 30
         }
+    }
+
+    /** Normalize a timestamp to the start of the day (midnight) so same-day bookings are grouped together */
+    private fun normalizeToStartOfDay(timestamp: Long): Long {
+        val cal = java.util.Calendar.getInstance()
+        cal.timeInMillis = timestamp
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        return cal.timeInMillis
     }
 
     override fun onCleared() {
