@@ -78,6 +78,7 @@ data class ShopCustomization(
     val ownerId: String = "", // The admin-set owner UID (for admin dashboard)
     val ownerName: String = "", // Owner's full name (admin only, not shown to customers)
     val ownerEmail: String = "", // Owner's email (admin only, not shown to customers)
+    val bayCount: Int = 1, // How many cars can be serviced simultaneously
     val logoBase64: String = "",
     val logoMimeType: String = "image/png",
     val services: List<CustomServiceConfig> = emptyList(),

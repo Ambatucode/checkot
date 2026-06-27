@@ -240,62 +240,94 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
         )
     }
 
-    fun fetchAvailableTimeSlots(date: Long, shopId: String) {
+    fun fetchAvailableTimeSlots(date: Long, shopId: String, durationMinutes: Int = 60) {
         viewModelScope.launch {
             try {
-                val baseSlots = listOf(
-                    "09:00 AM", "10:00 AM", "11:00 AM",
-                    "01:00 PM", "02:00 PM", "03:00 PM",
-                    "04:00 PM", "05:00 PM"
-                )
+                if (shopId.isEmpty()) return@launch
 
-                val calendar = java.util.Calendar.getInstance()
-                val currentHour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
+                // Load bay count from shop settings
+                val shopDoc = firestore.collection("shop_services").document(shopId).get().await()
+                val bayCount = shopDoc.getLong("bayCount")?.toInt() ?: 1
 
-                val selectedCalendar = java.util.Calendar.getInstance().apply {
-                    timeInMillis = date
-                }
-                val isToday = calendar.get(java.util.Calendar.YEAR) == selectedCalendar.get(java.util.Calendar.YEAR) &&
-                              calendar.get(java.util.Calendar.DAY_OF_YEAR) == selectedCalendar.get(java.util.Calendar.DAY_OF_YEAR)
-
-                val timeSlots = baseSlots.map { slotString ->
-                    var isAvailable = true
-                    if (isToday) {
-                        val isPM = slotString.contains("PM")
-                        var hour = slotString.substring(0, 2).toInt()
-                        if (isPM && hour != 12) hour += 12
-                        if (!isPM && hour == 12) hour = 0
-
-                        if (hour <= currentHour) {
-                            isAvailable = false
-                        }
+                // Generate 30-min slots from 9:00 to 16:30
+                val allSlots = mutableListOf<TimeSlot>()
+                for (hour in 9 until 17) {
+                    for (min in listOf(0, 30)) {
+                        if (hour == 16 && min == 30) continue
+                        val displayHour = if (hour <= 12) hour else hour - 12
+                        val amPm = if (hour < 12) "AM" else "PM"
+                        val display = "${String.format("%02d", displayHour)}:${String.format("%02d", min)} $amPm"
+                        allSlots.add(TimeSlot(display, true))
                     }
-                    TimeSlot(slotString, isAvailable)
-                }.toMutableList()
+                }
 
-                // Immediately update UI with base slots
-                _availableTimeSlots.value = timeSlots.toList()
+                // Convert "09:00 AM" → minutes since 9:00
+                fun slotToMinutes(slot: String): Int {
+                    val parts = slot.split(" ")
+                    val timeParts = parts[0].split(":")
+                    var h = timeParts[0].toInt()
+                    val m = timeParts[1].toInt()
+                    val isPM = parts[1] == "PM"
+                    if (isPM && h != 12) h += 12
+                    if (!isPM && h == 12) h = 0
+                    return (h - 9) * 60 + m
+                }
 
-                if (shopId.isEmpty()) return@launch // Don't fetch if no shop selected
-
+                // Get existing active bookings
                 val snapshot = firestore.collection("bookings")
                     .whereEqualTo("bookingDate", date)
                     .whereEqualTo("shopId", shopId)
                     .get().await()
 
-                val bookedSlots = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
+                val existing = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
                     .filter { it.status != BookingStatus.CANCELLED }
-                    .map { it.timeSlot }
 
-                val updatedSlots = timeSlots.map { slot ->
-                    if (bookedSlots.contains(slot.slot)) {
-                        slot.copy(available = false)
-                    } else {
-                        slot
+                // Build busy ranges per bay
+                val busyRanges = mutableMapOf<Int, MutableList<Pair<Int, Int>>>()
+                for (i in 0 until bayCount) busyRanges[i] = mutableListOf()
+
+                for (b in existing) {
+                    val startMin = slotToMinutes(b.timeSlot)
+                    val endMin = startMin + b.services.sumOf { s -> parseDurationMinutes(s.duration) }
+                    for (bay in 0 until bayCount) {
+                        val ranges = busyRanges[bay]!!
+                        if (ranges.none { (s, e) -> startMin < e && endMin > s }) {
+                            ranges.add(startMin to endMin)
+                            break
+                        }
                     }
                 }
 
-                _availableTimeSlots.value = updatedSlots
+                // Check each slot
+                val cal = java.util.Calendar.getInstance()
+                val curH = cal.get(java.util.Calendar.HOUR_OF_DAY)
+                val curM = cal.get(java.util.Calendar.MINUTE)
+                val selCal = java.util.Calendar.getInstance().apply { timeInMillis = date }
+                val isToday = cal.get(java.util.Calendar.YEAR) == selCal.get(java.util.Calendar.YEAR) &&
+                              cal.get(java.util.Calendar.DAY_OF_YEAR) == selCal.get(java.util.Calendar.DAY_OF_YEAR)
+
+                val updated = allSlots.map { slot ->
+                    var avail = true
+                    val sm = slotToMinutes(slot.slot)
+
+                    if (isToday) {
+                        val sh = (sm / 60) + 9
+                        val smin = sm % 60
+                        if (sh < curH || (sh == curH && smin <= curM)) avail = false
+                    }
+
+                    if (avail) {
+                        val em = sm + durationMinutes
+                        val fits = (0 until bayCount).any { bay ->
+                            !busyRanges[bay]!!.any { (s, e) -> sm < e && em > s }
+                        }
+                        if (!fits) avail = false
+                    }
+
+                    slot.copy(available = avail)
+                }
+
+                _availableTimeSlots.value = updated
             } catch (e: Exception) {
                 println("Failed to fetch time slots: ${e.message}")
             }

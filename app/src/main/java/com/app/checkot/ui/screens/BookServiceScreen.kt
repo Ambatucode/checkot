@@ -95,8 +95,17 @@ fun BookServiceScreen(
         }
     }
 
-    LaunchedEffect(selectedDate, shopId) {
-        bookingViewModel.fetchAvailableTimeSlots(selectedDate, shopId)
+    // Calculate total duration from selected services
+    val totalDurationMinutes = remember(selectedServiceConfigs, availableServices) {
+        val selectedAvails = availableServices.filter { selectedServiceConfigs.contains(it.config.serviceName) }
+        selectedAvails.sumOf { avail ->
+            if (avail.config.isCustom) 60 // default 1hr for custom services
+            else parseServiceDuration(avail.serviceType?.duration ?: "30 mins")
+        }.coerceAtLeast(30)
+    }
+
+    LaunchedEffect(selectedDate, shopId, totalDurationMinutes) {
+        bookingViewModel.fetchAvailableTimeSlots(selectedDate, shopId, totalDurationMinutes)
     }
     // Date picker state
     val datePickerState = rememberDatePickerState(
@@ -686,4 +695,15 @@ fun SummaryRow(label: String, value: String) {
             style = MaterialTheme.typography.bodyMedium
         )
     }
+}
+
+private fun parseServiceDuration(duration: String): Int = when {
+    duration.contains("hour") -> {
+        val hours = duration.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 1.0
+        (hours * 60).toInt()
+    }
+    duration.contains("min") -> {
+        duration.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 30
+    }
+    else -> 30
 }

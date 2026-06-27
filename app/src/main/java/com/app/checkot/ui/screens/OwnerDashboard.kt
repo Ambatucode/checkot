@@ -943,6 +943,7 @@ fun OwnerServicesTab(
 ) {
     val customization by adminViewModel.shopCustomization.collectAsState()
     var editedServices by remember { mutableStateOf<List<CustomServiceConfig>>(customization.services) }
+    var bayCountText by remember { mutableStateOf(customization.bayCount.toString()) }
     var showAddDropdown by remember { mutableStateOf(false) }
     var showCustomNameDialog by remember { mutableStateOf(false) }
     var customServiceNameInput by remember { mutableStateOf("") }
@@ -958,6 +959,7 @@ fun OwnerServicesTab(
 
     LaunchedEffect(customization) {
         editedServices = customization.services
+        bayCountText = customization.bayCount.toString()
     }
 
     val atMaxLimit = editedServices.size >= maxServices
@@ -1024,6 +1026,48 @@ fun OwnerServicesTab(
                     color = if (atMaxLimit) MaterialTheme.colorScheme.error
                             else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Garage,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Service Bays:", style = MaterialTheme.typography.bodySmall,
+                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = {
+                            val current = bayCountText.toIntOrNull() ?: 1
+                            if (current > 1) {
+                                bayCountText = (current - 1).toString()
+                            }
+                        },
+                        modifier = Modifier.size(28.dp),
+                        enabled = (bayCountText.toIntOrNull() ?: 1) > 1
+                    ) {
+                        Icon(Icons.Default.Remove, contentDescription = "Decrease", modifier = Modifier.size(16.dp))
+                    }
+                    Text(
+                        text = bayCountText,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                    IconButton(
+                        onClick = {
+                            val current = bayCountText.toIntOrNull() ?: 1
+                            if (current < 10) {
+                                bayCountText = (current + 1).toString()
+                            }
+                        },
+                        modifier = Modifier.size(28.dp),
+                        enabled = (bayCountText.toIntOrNull() ?: 1) < 10
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Increase", modifier = Modifier.size(16.dp))
+                    }
+                }
             }
             Box {
                 OutlinedButton(
@@ -1166,7 +1210,11 @@ fun OwnerServicesTab(
             }
             Button(
                 onClick = {
-                    val updated = customization.copy(services = editedServices)
+                    val bayCount = bayCountText.toIntOrNull() ?: customization.bayCount
+                    val updated = customization.copy(
+                        services = editedServices,
+                        bayCount = bayCount
+                    )
                     adminViewModel.saveShopCustomization(updated)
                 },
                 modifier = Modifier.weight(1f),
