@@ -1,0 +1,208 @@
+╔══════════════════════════════════════════════════════════════╗
+║              CHECKOT — Complete Change Walkthrough          ║
+║                   June 22, 2026                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. OWNER NOTIFICATIONS FIX (Client → Owner)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEM:
+  When a customer created a booking, the owner never received a push 
+  notification. The code tried to read the owner's FCM token from the 
+  "users" collection, but Firestore Security Rules blocked this — 
+  customers can only read their OWN user document, not the owner's.
+
+WHAT WAS FIXED:
+  a) Added ownerFcmToken field to ShopCustomization model (Models.kt)
+     - Stored in shop_services/{shopId} which is readable by all users
+  
+  b) Auto-save FCM token to shop_services on owner login (AdminViewModel.kt)
+     - When owner opens dashboard, their FCM token is saved via 
+       SetOptions.merge() to shop_services/{shopId}.ownerFcmToken
+     - Also saved to users/{uid}.fcmToken for backwards compatibility
+  
+  c) BookingViewModel reads from shop_services instead of users
+     - createBooking() and cancelBooking() now read the token from 
+       shop_services/{shopId}.ownerFcmToken (publicly readable)
+     - Token is passed directly to FCMSender.sendToUser() via fcmToken param
+  
+  d) FCMSender now accepts direct token parameter (FCMSender.kt)
+     - New optional fcmToken parameter skips the Firestore lookup
+     - Falls back to old behavior if token is empty
+
+FILES CHANGED:
+  • app/.../model/Models.kt — added ownerFcmToken field
+  • app/.../viewmodel/AdminViewModel.kt — save token on login
+  • app/.../viewmodel/BookingViewModel.kt — read from shop_services
+  • app/.../service/FCMSender.kt — accept direct token parameter
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. NOTIFICATION TAP CRASH FIX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEM:
+  Tapping a push notification opened the app, but it crashed immediately.
+  The navigation fired before the NavHost was ready, and the Firestore 
+  queue info listener threw exceptions that crashed collectAsState().
+
+WHAT WAS FIXED:
+  a) Added navReady flag + try/catch in MainActivity
+     - Navigation waits for NavHost to be ready
+     - Wrapped in try/catch to prevent crashes
+  
+  b) Fixed callbackFlow error handling (BookingViewModel.kt)
+     - Changed close(error) to trySend(QueueInfo())
+     - Prevents Flow exceptions from crashing collectAsState()
+
+FILES CHANGED:
+  • app/.../MainActivity.kt — safe notification navigation
+  • app/.../viewmodel/BookingViewModel.kt — safe callbackFlow
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. UI OVERFLOW FIXES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEM:
+  Status text ("Confirmed", "In Progress") and service names overflowed 
+  their containers, overlapping with icons and breaking the layout. The 
+  ServiceProgressStepper circles and lines were misaligned.
+
+WHAT WAS FIXED:
+  a) Added maxLines=1 + TextOverflow.Ellipsis to ALL text views
+     - BookingStatusBadge (HomeScreen.kt)
+     - OwnerBookingCard status text (OwnerDashboard.kt)
+     - TransactionItem services text (OwnerDashboard.kt)
+     - BookingDetailsScreen status text (titleLarge instead of headlineSmall)
+     - DetailRow label and value (BookingDetailsScreen.kt)
+     - Car+time row text (HomeScreen.kt)
+     - Calendar date row text (BookingScreens.kt)
+  
+  b) Rebuilt ServiceProgressStepper with proper alignment
+     - Removed padding mismatch between lines and circles
+     - Both use full parent width with matching SpaceEvenly
+     - Reduced Box height from 64dp to 28dp
+     - Circles 28dp (was 32dp) — more proportional
+     - Labels in separate Row below circles
+
+FILES CHANGED:
+  • app/.../ui/screens/HomeScreen.kt — overflow fixes
+  • app/.../ui/screens/BookingScreens.kt — overflow fixes
+  • app/.../ui/screens/BookingDetailsScreen.kt — stepper + overflow
+  • app/.../ui/screens/OwnerDashboard.kt — overflow fixes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. CUSTOM SERVICE NAME DISPLAY FIX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEM:
+  Custom services (e.g., "Jamal Wash") always showed as "Custom Service" 
+  in booking history for both owner and client. The custom name was stored 
+  in customServiceNames but never used for display.
+
+ROOT CAUSES & FIXES:
+  a) ServiceType.CUSTOM was never added to booking services list
+     - BookServiceScreen used mapNotNull which filtered out null 
+       serviceTypes (custom services had serviceType = null)
+     - FIX: Changed mapNotNull to map with fallback (serviceType ?: CUSTOM)
+  
+  b) displayServiceNames() had a bug with indexOf() for duplicates
+     - services.indexOf(service) always returned the FIRST CUSTOM index
+     - FIX: Changed to counter variable that increments per CUSTOM entry
+  
+  c) Old bookings lacked CUSTOM entries in services list
+     - displayServiceNames() found no CUSTOM entries, returned no names
+     - FIX: Now appends unmatched customServiceNames at the end
+
+FILES CHANGED:
+  • app/.../model/Models.kt — displayServiceNames() extension
+  • app/.../ui/screens/BookServiceScreen.kt — map → mapNotNull fix
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. CUSTOM SERVICE PRICE VALIDATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEM:
+  Custom services with empty/untouched price field (customPrice = 0.0) 
+  bypassed the minimum ₱150 validation. 0.0 is valid for regular 
+  services (use default) but invalid for custom services (no default).
+
+FIX:
+  Added explicit check: (config.isCustom && config.customPrice == 0.0)
+  Now the Save button is disabled when a custom service has no price set.
+  Error text also shows for custom services when price field is empty.
+
+FILES CHANGED:
+  • app/.../ui/screens/OwnerDashboard.kt — price validation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. BOOKING LIST IMMEDIATE UPDATE FIX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEM:
+  After creating a booking, the client had to wait before seeing it 
+  in their bookings list. The owner notification code (reading 
+  shop_services + FCM HTTP request) ran in the same coroutine and 
+  blocked _isLoading from being set to false.
+
+FIX:
+  Moved the owner notification to a separate viewModelScope.launch 
+  coroutine. The loading state is cleared immediately after the 
+  booking is written to Firestore, so the UI updates right away.
+
+FILES CHANGED:
+  • app/.../viewmodel/BookingViewModel.kt — background notification
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. DEAD CODE CLEANUP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+REMOVED FILES:
+  • app/src/main/java/com/app/checkot/ui/BookingDetailActivity.kt
+    (unused Activity — was replaced by Compose navigation)
+  
+  • app/src/main/java/com/app/checkot/utils/AccessCode.kt
+    (unused data class)
+  
+  • app/src/test/java/com/app/checkot/ExampleUnitTest.kt
+    (boilerplate)
+  
+  • app/src/androidTest/java/com/app/checkot/ExampleInstrumentedTest.kt
+    (boilerplate)
+
+FILE CHANGES WITHOUT NEW FEATURES:
+  • Navigation.kt — removed self-import, unused imports
+  • DateUtils.kt — removed unused imports
+  • AddCarScreen.kt, EditProfileScreen.kt, LoginScreen.kt
+  • MyBookingScreen.kt, MyCarsScreen.kt, ProfileScreen.kt
+  • SignupScreen.kt, Theme files — import cleanup
+  • AuthViewModel.kt — FCM token upload on init
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. FIREBASE CONFIGURATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+UPDATED RULES (firestore.rules):
+  • shop_services collection rules refined with structure validation
+  • Bookings create validates price > 0
+  • Users create: removed restrictive hasOnlyAllowedFields check
+  • Added helper functions: isPositiveNumber, isNotChanging
+
+NOTE: No rules changes needed for the notification fix — the existing
+      shop_services read rule (allow read: if isSignedIn()) was sufficient.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GIT BRANCH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Branch: feature/notifications-ui-fixes
+Remote: https://github.com/Ambatucode/checkot
+PR:     https://github.com/Ambatucode/checkot/pull/new/feature/notifications-ui-fixes
+
+Commits:
+  1. "Fix owner notifications and UI overflow issues" — main changes
+  2. "Fix: Move owner notification to background coroutine" — booking delay
+  3. "Fix: Custom service price validation and display name" — custom fixes
+  4. "Fix: displayServiceNames now handles old bookings" — backward compat
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

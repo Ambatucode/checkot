@@ -4,7 +4,6 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
-import com.app.checkot.ui.screens.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,9 +16,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.tasks.await
+
+data class AvailableService(
+    val config: CustomServiceConfig,
+    val serviceType: ServiceType? // null for custom "Others" services
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookServiceScreen(
@@ -32,26 +43,69 @@ fun BookServiceScreen(
 ) {
     val userData by authViewModel.currentUserData.collectAsState()
     val scope = rememberCoroutineScope()
-    var selectedServices by remember { mutableStateOf(preselectedService?.let { setOf(it) } ?: emptySet<ServiceType>()) }
+    val firestore: FirebaseFirestore = Firebase.firestore
+
+    // Available services from shop's customization
+    var availableServices by remember { mutableStateOf<List<AvailableService>>(emptyList()) }
+    var loadingServices by remember { mutableStateOf(true) }
+
+    // Real-time listener for shop services — updates instantly when owner changes services
+    DisposableEffect(shopId) {
+        if (shopId.isEmpty()) return@DisposableEffect onDispose {}
+        loadingServices = true
+        val listener = firestore.collection("shop_services").document(shopId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    println("❌ Services listener error: ${error.message}")
+                    loadingServices = false
+                    return@addSnapshotListener
+                }
+                val customization = snapshot?.toObject(ShopCustomization::class.java)
+                val services = mutableListOf<AvailableService>()
+                if (customization != null) {
+                    for (config in customization.services) {
+                        val type = if (!config.isCustom) {
+                            ServiceType.values().find { it.name == config.serviceName }
+                        } else null
+                        services.add(AvailableService(config = config, serviceType = type))
+                    }
+                }
+                availableServices = services
+                loadingServices = false
+            }
+        onDispose {
+            listener.remove()
+        }
+    }
+
+    var selectedServiceConfigs by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectedCar by remember { mutableStateOf<Car?>(null) }
     var selectedDate by remember { mutableStateOf(System.currentTimeMillis()) }
     var selectedTimeSlot by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var step by remember { mutableStateOf(1) }
-    var isLoading by remember { mutableStateOf(false) }
-    
+    var isCreating by remember { mutableStateOf(false) }
+
     val availableTimeSlots by bookingViewModel.availableTimeSlots.collectAsState()
     val savedCars by carViewModel.savedCars.collectAsState()
 
     LaunchedEffect(savedCars) {
-        // Auto-select default car or first car if none is selected
         if (selectedCar == null && savedCars.isNotEmpty()) {
             selectedCar = savedCars.find { it.isDefault } ?: savedCars.first()
         }
     }
 
-    LaunchedEffect(selectedDate, shopId) {
-        bookingViewModel.fetchAvailableTimeSlots(selectedDate, shopId)
+    // Calculate total duration from selected services
+    val totalDurationMinutes = remember(selectedServiceConfigs, availableServices) {
+        val selectedAvails = availableServices.filter { selectedServiceConfigs.contains(it.config.serviceName) }
+        selectedAvails.sumOf { avail ->
+            if (avail.config.isCustom) 60 // default 1hr for custom services
+            else parseServiceDuration(avail.serviceType?.duration ?: "30 mins")
+        }.coerceAtLeast(30)
+    }
+
+    LaunchedEffect(selectedDate, shopId, totalDurationMinutes) {
+        bookingViewModel.fetchAvailableTimeSlots(selectedDate, shopId, totalDurationMinutes)
     }
     // Date picker state
     val datePickerState = rememberDatePickerState(
@@ -95,6 +149,54 @@ fun BookServiceScreen(
             DatePicker(state = datePickerState)
         }
     }
+
+    // Show error dialog when booking is rejected
+    val bookingError by bookingViewModel.error.collectAsState()
+    if (bookingError != null) {
+        val isCooldown = bookingError?.startsWith("cooldown:") == true
+        val cooldownEndTime = remember(bookingError) {
+            if (isCooldown) {
+                bookingError!!.substringAfter("cooldown:").toLongOrNull() ?: 0L
+            } else 0L
+        }
+        var remainingSeconds by remember { mutableStateOf(0) }
+
+        // Live countdown ticker + auto-dismiss
+        LaunchedEffect(cooldownEndTime) {
+            if (cooldownEndTime > 0) {
+                while (true) {
+                    remainingSeconds = ((cooldownEndTime - System.currentTimeMillis()) / 1000).toInt().coerceAtLeast(0)
+                    if (remainingSeconds <= 0) break
+                    kotlinx.coroutines.delay(1000)
+                }
+                bookingViewModel.clearError()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = {
+                if (!isCooldown || remainingSeconds <= 0) {
+                    bookingViewModel.clearError()
+                }
+            },
+            title = { Text(if (isCooldown) "Please Wait" else "Cannot Book") },
+            text = {
+                if (isCooldown) {
+                    val min = remainingSeconds / 60
+                    val sec = remainingSeconds % 60
+                    Text("You cancelled a booking recently. Please wait ${min}:${String.format("%02d", sec)} before booking again.")
+                } else {
+                    Text(bookingError!!)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { bookingViewModel.clearError() }) {
+                    Text("Got it")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -130,28 +232,81 @@ fun BookServiceScreen(
                 // Step 1: Select Service
                 if (step >= 1) {
                     item {
-                        Text(
-                            text = "Step 1: Select Service",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Step 1: Select Service",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (loadingServices) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            }
+                        }
                     }
-                    items(ServiceType.values()) { service ->
-                        ServiceSelectionCard(
-                            service = service,
-                            isSelected = selectedServices.contains(service),
-                            onSelect = { 
-                                selectedServices = if (selectedServices.contains(service)) {
-                                    selectedServices - service
-                                } else {
-                                    selectedServices + service
+                    if (availableServices.isEmpty() && !loadingServices) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        Icons.Default.Storefront,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(48.dp),
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = "This shop is currently not in service",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "The owner hasn't configured any services yet. Check back later!",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                        modifier = Modifier.padding(horizontal = 16.dp)
+                                    )
                                 }
                             }
-                        )
+                        }
+                    } else {
+                        items(availableServices) { avail ->
+                            val isSelected = selectedServiceConfigs.contains(avail.config.serviceName)
+                            val displayPrice = if (avail.config.customPrice > 0) avail.config.customPrice
+                                               else avail.serviceType?.price ?: 0.0
+                            val displayName = if (avail.config.isCustom) avail.config.customName
+                                              else avail.config.displayName
+                            ShopServiceSelectionCard(
+                                name = displayName,
+                                price = displayPrice,
+                                isSelected = isSelected,
+                                onSelect = {
+                                    selectedServiceConfigs = if (isSelected) {
+                                        selectedServiceConfigs - avail.config.serviceName
+                                    } else {
+                                        selectedServiceConfigs + avail.config.serviceName
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
                 // Step 2: Select Car
-                if (step >= 2 && selectedServices.isNotEmpty()) {
+                if (step >= 2 && selectedServiceConfigs.isNotEmpty()) {
                     item {
                         Text(
                             text = "Step 2: Select Car",
@@ -271,6 +426,14 @@ fun BookServiceScreen(
                         )
                     }
                     item {
+                        val selectedAvails = availableServices.filter { selectedServiceConfigs.contains(it.config.serviceName) }
+                        val selectedNames = selectedAvails.joinToString(", ") {
+                            if (it.config.isCustom) it.config.customName else it.config.displayName
+                        }
+                        val totalPrice = selectedAvails.sumOf {
+                            if (it.config.customPrice > 0) it.config.customPrice
+                            else it.serviceType?.price ?: 0.0
+                        }
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
@@ -286,12 +449,12 @@ fun BookServiceScreen(
                                     text = "Booking Summary",
                                     style = MaterialTheme.typography.titleMedium
                                 )
-                                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                                SummaryRow("Services:", selectedServices.joinToString(", ") { it.displayName })
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                                SummaryRow("Services:", selectedNames)
                                 SummaryRow("Car:", "${selectedCar?.brand} ${selectedCar?.model} (${selectedCar?.plateNumber})")
                                 SummaryRow("Date:", DateUtils.formatDate(selectedDate))
                                 SummaryRow("Time:", selectedTimeSlot)
-                                SummaryRow("Total Price:", "₱${selectedServices.sumOf { it.price }}")
+                                SummaryRow("Total Price:", "₱${totalPrice}")
                                 if (notes.isNotBlank()) {
                                     SummaryRow("Notes:", notes)
                                 }
@@ -321,42 +484,58 @@ fun BookServiceScreen(
                         if (step < 4) {
                             step++
                         } else {
-                            // Create booking
                             scope.launch {
-                                isLoading = true
+                                isCreating = true
+                                val selectedAvails = availableServices.filter { selectedServiceConfigs.contains(it.config.serviceName) }
+                                val serviceTypes = selectedAvails.map { it.serviceType ?: ServiceType.CUSTOM }
+                                val customNames = selectedAvails.filter { it.config.isCustom }.map { it.config.customName }
+                                val totalPrice = selectedAvails.sumOf {
+                                    if (it.config.customPrice > 0) it.config.customPrice
+                                    else it.serviceType?.price ?: 0.0
+                                }
                                 val booking = Booking(
                                     userId = authViewModel.getCurrentUser()?.uid ?: "",
                                     shopId = shopId,
                                     carId = selectedCar?.carId ?: "",
                                     carDetails = "${selectedCar?.brand} ${selectedCar?.model} - ${selectedCar?.plateNumber}",
-                                    services = selectedServices.toList(),
+                                    services = serviceTypes,
+                                    customServiceNames = customNames,
                                     bookingDate = selectedDate,
                                     timeSlot = selectedTimeSlot,
-                                    price = selectedServices.sumOf { it.price },
+                                    price = totalPrice,
                                     notes = notes,
                                     status = BookingStatus.PENDING
                                 )
                                 bookingViewModel.createBooking(booking)
-                                kotlinx.coroutines.delay(1500) // Show loading and prevent double clicks
-                                navController.popBackStack()
+                                kotlinx.coroutines.delay(1500)
+                                if (bookingViewModel.error.value == null) {
+                                    navController.popBackStack()
+                                } else {
+                                    isCreating = false
+                                }
                             }
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    enabled = !isLoading && when (step) {
-                        1 -> selectedServices.isNotEmpty()
+                    enabled = !isCreating && when (step) {
+                        1 -> selectedServiceConfigs.isNotEmpty()
                         2 -> selectedCar != null
                         3 -> selectedTimeSlot.isNotEmpty()
                         else -> true
                     }
                 ) {
-                    if (isLoading) {
+                    if (isCreating) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp),
                             color = MaterialTheme.colorScheme.onPrimary
                         )
                     } else {
-                        Text(if (step < 4) "Next" else "Confirm Booking")
+                        Text(
+                            when {
+                                step < 4 -> "Next"
+                                else -> "Confirm Booking"
+                            }
+                        )
                     }
                 }
             }
@@ -364,8 +543,9 @@ fun BookServiceScreen(
     }
 }
 @Composable
-fun ServiceSelectionCard(
-    service: ServiceType,
+fun ShopServiceSelectionCard(
+    name: String,
+    price: Double,
     isSelected: Boolean,
     onSelect: () -> Unit
 ) {
@@ -387,19 +567,13 @@ fun ServiceSelectionCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    text = service.displayName,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = service.duration,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-            }
             Text(
-                text = "₱${service.price}",
+                text = name,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "₱${price}",
                 style = MaterialTheme.typography.titleLarge,
                 color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
             )
@@ -521,4 +695,15 @@ fun SummaryRow(label: String, value: String) {
             style = MaterialTheme.typography.bodyMedium
         )
     }
+}
+
+private fun parseServiceDuration(duration: String): Int = when {
+    duration.contains("hour") -> {
+        val hours = duration.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 1.0
+        (hours * 60).toInt()
+    }
+    duration.contains("min") -> {
+        duration.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 30
+    }
+    else -> 30
 }

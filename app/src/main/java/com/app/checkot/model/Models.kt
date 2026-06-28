@@ -1,10 +1,5 @@
 package com.app.checkot.model
-import com.app.checkot.model.*
-import com.app.checkot.viewmodel.*
-import com.app.checkot.navigation.*
-import com.app.checkot.utils.*
-import com.app.checkot.service.*
-import com.app.checkot.ui.screens.*
+
 data class CarWashUser(
     val userId: String = "",
     val fullName: String = "",
@@ -14,7 +9,8 @@ data class CarWashUser(
     val role: String = "customer", // "customer" or "owner"
     val ownedShopId: String? = null, // Only used if role == "owner"
     var defaultCar: Car? = null,
-    val savedCars: List<Car> = emptyList()
+    val savedCars: List<Car> = emptyList(),
+    val shopCustomization: ShopCustomization? = null // Owner-only
 )
 
 data class CarWashShop(
@@ -37,6 +33,7 @@ data class Booking(
     val carId: String = "",
     val carDetails: String = "", // Store car plate + model for quick reference
     val services: List<ServiceType> = emptyList(),
+    val customServiceNames: List<String> = emptyList(), // Names for CUSTOM type services
     val bookingDate: Long = 0, // Timestamp
     val timeSlot: String = "",
     val status: BookingStatus = BookingStatus.PENDING,
@@ -54,7 +51,8 @@ enum class ServiceType(val displayName: String, val price: Double, val duration:
     DETAILING("Full Detailing", 800.0, "2 hours"),
     INTERIOR_CLEAN("Interior Clean", 400.0, "1 hour"),
     EXTERIOR_WAX("Exterior Wax", 350.0, "45 mins"),
-    ENGINE_CLEAN("Engine Clean", 500.0, "1.5 hours")
+    ENGINE_CLEAN("Engine Clean", 500.0, "1.5 hours"),
+    CUSTOM("Custom Service", 0.0, "N/A")
 }
 enum class BookingStatus(val displayName: String) {
     PENDING("Pending"),
@@ -72,3 +70,47 @@ data class QueueInfo(
     val estimatedWaitMinutes: Int = 0,
     val totalInQueue: Int = 0
 )
+
+data class ShopCustomization(
+    val shopName: String = "",
+    val shopAddress: String = "",
+    val status: String = "active", // "pending", "active", "rejected"
+    val ownerId: String = "", // The admin-set owner UID (for admin dashboard)
+    val ownerName: String = "", // Owner's full name (admin only, not shown to customers)
+    val ownerEmail: String = "", // Owner's email (admin only, not shown to customers)
+    val bayCount: Int = 1, // How many cars can be serviced simultaneously
+    val logoBase64: String = "",
+    val logoMimeType: String = "image/png",
+    val services: List<CustomServiceConfig> = emptyList(),
+    val ownerFcmToken: String = "" // FCM token for sending notifications to the owner
+)
+
+data class CustomServiceConfig(
+    val serviceName: String = "", // Maps to ServiceType.name, or custom ID
+    val displayName: String = "",
+    val customPrice: Double = 0.0, // 0 = use default from ServiceType
+    val isCustom: Boolean = false, // true for owner-created "Others" services
+    val customName: String = "" // Custom name for "Others" services
+)
+
+/** Returns the formatted service names, replacing "Custom Service" with actual custom names */
+fun Booking.displayServiceNames(): String {
+    var customCounter = 0
+    val result = services.joinToString(", ") { service ->
+        if (service == ServiceType.CUSTOM) {
+            val name = customServiceNames.getOrElse(customCounter) { service.displayName }
+            customCounter++
+            name
+        } else {
+            service.displayName
+        }
+    }
+    // Append unmatched custom names (for old bookings)
+    if (customCounter < customServiceNames.size) {
+        val extra = customServiceNames.drop(customCounter).joinToString(", ")
+        return "$result, $extra"
+    }
+    return result
+}
+
+

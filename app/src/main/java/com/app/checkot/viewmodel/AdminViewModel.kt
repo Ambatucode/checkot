@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,15 +29,43 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
     
     private val _currentOwnerShopId = MutableStateFlow<String?>(null)
 
+    private val _shopCustomization = MutableStateFlow(ShopCustomization())
+    val shopCustomization: StateFlow<ShopCustomization> = _shopCustomization
+
     // Track known booking IDs so we only notify on truly new ones
     private var knownBookingIds = mutableSetOf<String>()
     private var isInitialLoad = true
 
     private var bookingsListenerRegistration: ListenerRegistration? = null
+    private var authStateListener: com.google.firebase.auth.FirebaseAuth.AuthStateListener? = null
 
     init {
         println("🔥 AdminViewModel initialized")
-        loadOwnerContext()
+        // Auth listener handles both initial load and re-login to a different user
+        authStateListener = com.google.firebase.auth.FirebaseAuth.AuthStateListener { firebaseAuth ->
+            val currentUser = firebaseAuth.currentUser
+            if (currentUser != null) {
+                // Clear old state first
+                _allBookings.value = emptyList()
+                _allUsers.value = emptyList()
+                bookingsListenerRegistration?.remove()
+                bookingsListenerRegistration = null
+                servicesListenerRegistration?.remove()
+                servicesListenerRegistration = null
+                loadOwnerContext()
+            } else {
+                // User logged out — clear state
+                _allBookings.value = emptyList()
+                _allUsers.value = emptyList()
+                _currentOwnerShopId.value = null
+                _shopCustomization.value = ShopCustomization()
+                bookingsListenerRegistration?.remove()
+                bookingsListenerRegistration = null
+                servicesListenerRegistration?.remove()
+                servicesListenerRegistration = null
+            }
+        }
+        Firebase.auth.addAuthStateListener(authStateListener!!)
     }
     
     private fun loadOwnerContext() {
@@ -46,7 +75,38 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                 val snapshot = firestore.collection("users").document(user.uid).get().await()
                 val userData = snapshot.toObject(CarWashUser::class.java)
                 if (userData?.role == "owner") {
-                    _currentOwnerShopId.value = userData.ownedShopId
+                    val shopId = userData.ownedShopId
+                    _currentOwnerShopId.value = shopId
+                    // Upload FCM token to both users and shop_services so clients can send notifications
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+                        .addOnSuccessListener { token ->
+                            // Save to users/{uid} (for other uses)
+                            firestore.collection("users").document(user.uid)
+                                .update("fcmToken", token)
+                            // Save to shop_services/{shopId} (for client-to-owner notifications)
+                            if (shopId != null) {
+                                firestore.collection("shop_services").document(shopId)
+                                    .set(mapOf("ownerFcmToken" to token), com.google.firebase.firestore.SetOptions.merge())
+                                    .addOnSuccessListener { println("✅ FCM token saved to shop_services/$shopId") }
+                                    .addOnFailureListener { e -> println("❌ Failed to save FCM token to shop_services: ${e.message}") }
+                            }
+                        }
+                    if (shopId != null) {
+                        // Explicit direct read FIRST, then set up listener for updates
+                        try {
+                            val doc = firestore.collection("shop_services").document(shopId)
+                                .get(com.google.firebase.firestore.Source.SERVER).await()
+                            val customization = doc.toObject(ShopCustomization::class.java)
+                            _shopCustomization.value = customization ?: ShopCustomization()
+                            println("📋 Initial shop services loaded: ${_shopCustomization.value.services.size} services")
+                        } catch (e: Exception) {
+                            println("❌ Failed initial services load: ${e.message}")
+                            _shopCustomization.value = ShopCustomization()
+                        }
+                        setupRealTimeServicesListener(shopId)
+                    } else {
+                        _shopCustomization.value = ShopCustomization()
+                    }
                     setupRealTimeBookingsListener()
                 } else {
                     println("❌ Current user is not an owner.")
@@ -55,6 +115,22 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                 println("❌ Failed to load owner context: ${e.message}")
             }
         }
+    }
+
+    private var servicesListenerRegistration: ListenerRegistration? = null
+
+    private fun setupRealTimeServicesListener(shopId: String) {
+        servicesListenerRegistration?.remove()
+        servicesListenerRegistration = firestore.collection("shop_services").document(shopId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    println("🔥 ERROR on services listener: ${error.message}")
+                    return@addSnapshotListener
+                }
+                val customization = snapshot?.toObject(ShopCustomization::class.java)
+                _shopCustomization.value = customization ?: ShopCustomization()
+                println("📋 Shop services updated in real-time: ${_shopCustomization.value.services.size} services")
+            }
     }
 
     private fun setupRealTimeBookingsListener() {
@@ -94,8 +170,119 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun loadBookings() {
-        // Force refresh by re-setting up the listener
         setupRealTimeBookingsListener()
+        // Also auto-cancel stale pending bookings
+        autoCancelStaleBookings()
+    }
+
+    /** Cancel PENDING bookings older than 2 hours */
+    private fun autoCancelStaleBookings() {
+        viewModelScope.launch {
+            try {
+                val shopId = _currentOwnerShopId.value ?: return@launch
+                val cutoff = System.currentTimeMillis() - 2 * 60 * 60 * 1000L // 2 hours
+                val snapshot = firestore.collection("bookings")
+                    .whereEqualTo("shopId", shopId)
+                    .whereEqualTo("status", "PENDING")
+                    .get().await()
+                for (doc in snapshot.documents) {
+                    val createdAt = doc.getLong("createdAt") ?: continue
+                    if (createdAt < cutoff) {
+                        val bookingId = doc.id
+                        firestore.collection("bookings").document(bookingId)
+                            .update("status", "CANCELLED", "cancelledAt", System.currentTimeMillis())
+                            .await()
+                        // Notify customer
+                        val userId = doc.getString("userId") ?: ""
+                        val services = doc.getString("services") ?: "Service"
+                        FCMSender.sendToUser(
+                            context = appContext,
+                            userId = userId,
+                            title = "Booking Cancelled",
+                            body = "Your booking was cancelled because it wasn't approved in time.",
+                            bookingId = bookingId
+                        )
+                        println("📬 Auto-cancelled stale booking $bookingId")
+                    }
+                }
+                // Also auto-cancel CONFIRMED bookings past their slot + 2 hours
+                val confirmedSnapshot = firestore.collection("bookings")
+                    .whereEqualTo("shopId", shopId)
+                    .whereEqualTo("status", "CONFIRMED")
+                    .get().await()
+                for (doc in confirmedSnapshot.documents) {
+                    val timeSlot = doc.getString("timeSlot") ?: continue
+                    val bookingDate = doc.getLong("bookingDate") ?: continue
+                    val confirmedAt = doc.getLong("confirmedAt") ?: 0L
+                    // Skip if confirmed less than 30 min ago (prevents immediate cancel after approval)
+                    if (confirmedAt > 0 && System.currentTimeMillis() - confirmedAt < 30 * 60 * 1000L) continue
+                    try {
+                        val parts = timeSlot.split(" ")
+                        val t = parts[0].split(":")
+                        var h = t[0].toInt()
+                        val m = t[1].toInt()
+                        if (parts[1] == "PM" && h != 12) h += 12
+                        if (parts[1] == "AM" && h == 12) h = 0
+                        val cal = java.util.Calendar.getInstance().apply {
+                            timeInMillis = bookingDate
+                            set(java.util.Calendar.HOUR_OF_DAY, h)
+                            set(java.util.Calendar.MINUTE, m)
+                            add(java.util.Calendar.MINUTE, 30) // grace period
+                            add(java.util.Calendar.HOUR_OF_DAY, 2) // 2 extra hours
+                        }
+                        if (cal.timeInMillis < System.currentTimeMillis()) {
+                            val bookingId = doc.id
+                            firestore.collection("bookings").document(bookingId)
+                                .update("status", "CANCELLED", "cancelledAt", System.currentTimeMillis())
+                                .await()
+                            val userId = doc.getString("userId") ?: ""
+                            val services = doc.getString("services") ?: "Service"
+                            FCMSender.sendToUser(
+                                context = appContext,
+                                userId = userId,
+                                title = "Booking Cancelled",
+                                body = "Your confirmed booking was cancelled because the service wasn't started in time.",
+                                bookingId = bookingId
+                            )
+                            println("📬 Auto-cancelled stale confirmed booking $bookingId")
+                        }
+                    } catch (e: Exception) {
+                        println("⚠️ Failed to parse slot for $timeSlot: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                println("❌ Auto-cancel error: ${e.message}")
+            }
+        }
+    }
+
+    /** Mark a confirmed booking as no-show (past their time slot) */
+    fun markNoShow(bookingId: String) {
+        viewModelScope.launch {
+            try {
+                val doc = firestore.collection("bookings").document(bookingId).get().await()
+                val booking = doc.toObject(Booking::class.java)
+                if (booking == null || booking.shopId != _currentOwnerShopId.value) return@launch
+                if (booking.status != BookingStatus.CONFIRMED) return@launch
+
+                firestore.collection("bookings").document(bookingId)
+                    .update("status", "CANCELLED", "cancelledAt", System.currentTimeMillis())
+                    .await()
+
+                val services = booking.services.joinToString(", ") { it.displayName }
+                FCMSender.sendToUser(
+                    context = appContext,
+                    userId = booking.userId,
+                    title = "Booking Cancelled — No Show",
+                    body = "Your booking for $services was marked as no-show. Please book again when you're ready.",
+                    bookingId = bookingId
+                )
+                println("✅ Marked booking $bookingId as no-show")
+                loadBookings()
+            } catch (e: Exception) {
+                println("❌ No-show error: ${e.message}")
+            }
+        }
     }
 
     private suspend fun loadUsers(userIds: List<String>) {
@@ -199,6 +386,45 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val _saveResult = MutableStateFlow<String?>(null)
+    val saveResult: StateFlow<String?> = _saveResult
+
+    fun saveShopCustomization(customization: ShopCustomization) {
+        viewModelScope.launch {
+            _saveResult.value = null
+            try {
+                val shopId = _currentOwnerShopId.value
+                if (shopId == null) {
+                    _saveResult.value = "Error: No shop ID found"
+                    return@launch
+                }
+                // Get the owner's current FCM token and attach it to the customization
+                val token = com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
+                val customizationWithToken = customization.copy(ownerFcmToken = token)
+                println("💾 Saving ${customizationWithToken.services.size} services to shop_services/$shopId (token: ${token.take(8)}...)")
+                // Save to shop_services collection
+                firestore.collection("shop_services").document(shopId)
+                    .set(customizationWithToken).await()
+                // Verify by reading back immediately
+                val verify = firestore.collection("shop_services").document(shopId)
+                    .get(Source.SERVER).await()
+                val saved = verify.toObject(ShopCustomization::class.java)
+                val savedCount = saved?.services?.size ?: 0
+                _shopCustomization.value = customization
+                _saveResult.value = "✅ Saved: $savedCount services"
+                println("✅ Save verified: $savedCount services in shop_services/$shopId")
+            } catch (e: Exception) {
+                println("❌ Failed to save customization: ${e.message}")
+                _saveResult.value = "❌ Error: ${e.message}"
+            }
+        }
+    }
+
+    fun saveLogoBase64(base64: String, mimeType: String) {
+        val updated = _shopCustomization.value.copy(logoBase64 = base64, logoMimeType = mimeType)
+        saveShopCustomization(updated)
+    }
+
     fun logout(onComplete: () -> Unit) {
         viewModelScope.launch {
             try {
@@ -215,5 +441,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         super.onCleared()
         bookingsListenerRegistration?.remove()
+        servicesListenerRegistration?.remove()
+        authStateListener?.let { Firebase.auth.removeAuthStateListener(it) }
     }
 }

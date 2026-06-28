@@ -4,7 +4,6 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
-import com.app.checkot.ui.screens.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -28,16 +28,29 @@ fun OwnerDashboard(
 ) {
     var selectedTab by remember { mutableStateOf(0) }
     var showLogoutDialog by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val saveResult by adminViewModel.saveResult.collectAsState()
+
+    LaunchedEffect(saveResult) {
+        saveResult?.let {
+            snackbarHostState.showSnackbar(it, duration = SnackbarDuration.Short)
+        }
+    }
+
+    val shopCust by adminViewModel.shopCustomization.collectAsState()
+    val shopStatus = shopCust.status
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             val userData by authViewModel.currentUserData.collectAsState()
             TopAppBar(
                 title = { 
                     Column {
                         Text("Owner Dashboard", style = MaterialTheme.typography.titleMedium)
-                        val shopName = partnerShops.find { it.shopId == userData?.ownedShopId }?.name
-                        if (shopName != null) {
-                            Text(shopName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        val shopCust = adminViewModel.shopCustomization.collectAsState().value
+                        if (shopCust.shopName.isNotEmpty()) {
+                            Text(shopCust.shopName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 },
@@ -54,39 +67,160 @@ fun OwnerDashboard(
             )
         },
         bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.Bookmark, contentDescription = "Bookings") },
-                    label = { Text("Bookings") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.People, contentDescription = "Customers") },
-                    label = { Text("Customers") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.AttachMoney, contentDescription = "Revenue") },
-                    label = { Text("Revenue") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
-                    icon = { Icon(Icons.Default.Build, contentDescription = "Services") },
-                    label = { Text("Services") }
-                )
+            if (shopStatus != "rejected") {
+                NavigationBar {
+                    NavigationBarItem(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        icon = { Icon(Icons.Default.Bookmark, contentDescription = "Bookings") },
+                        label = { Text("Bookings") }
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        icon = { Icon(Icons.Default.People, contentDescription = "Customers") },
+                        label = { Text("Customers") }
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        icon = { Icon(Icons.Default.AttachMoney, contentDescription = "Revenue") },
+                        label = { Text("Revenue") }
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 3,
+                        onClick = { selectedTab = 3 },
+                        icon = { Icon(Icons.Default.Build, contentDescription = "Services") },
+                        label = { Text("Services") }
+                    )
+                }
             }
         }
     ) { paddingValues ->
-        when (selectedTab) {
-            0 -> OwnerBookingsTab(navController, adminViewModel, paddingValues)
-            1 -> OwnerCustomersTab(adminViewModel, paddingValues)
-            2 -> OwnerRevenueTab(adminViewModel, paddingValues)
-            3 -> Text("Services Tab - Coming Soon", modifier = Modifier.padding(paddingValues))
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            when (shopCust.status) {
+                "pending" -> {
+                    // Pending banner
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.secondaryContainer
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.HourglassEmpty,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Shop Pending Approval",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                                Text(
+                                    "Your shop is not yet visible to customers. Wait for admin approval.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+                    }
+                    // Show tabs normally
+                    when (selectedTab) {
+                        0 -> OwnerBookingsTab(navController, adminViewModel, PaddingValues(0.dp))
+                        1 -> OwnerCustomersTab(adminViewModel, PaddingValues(0.dp))
+                        2 -> OwnerRevenueTab(adminViewModel, PaddingValues(0.dp))
+                        3 -> OwnerServicesTab(adminViewModel, PaddingValues(0.dp))
+                    }
+                }
+                "rejected" -> {
+                    // Full-screen rejection message instead of tabs
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(32.dp)
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(100.dp),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(50.dp),
+                                color = MaterialTheme.colorScheme.errorContainer
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Default.Cancel,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(56.dp),
+                                        tint = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Text(
+                                "Shop Application Not Approved",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                "Unfortunately, your shop \"${shopCust.shopName}\" was not approved at this time.",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.ContactMail,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            "Need help?",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        "If you have questions about this decision, please contact support or re-register with updated information.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                else -> {
+                    // Active — normal dashboard, no banner
+                    when (selectedTab) {
+                        0 -> OwnerBookingsTab(navController, adminViewModel, PaddingValues(0.dp))
+                        1 -> OwnerCustomersTab(adminViewModel, PaddingValues(0.dp))
+                        2 -> OwnerRevenueTab(adminViewModel, PaddingValues(0.dp))
+                        3 -> OwnerServicesTab(adminViewModel, PaddingValues(0.dp))
+                    }
+                }
+            }
         }
     }
     // Logout Confirmation Dialog
@@ -134,17 +268,60 @@ fun OwnerBookingsTab(
         adminViewModel.forceRefresh()
     }
     val filteredBookings = when (filter) {
-        "pending" -> allBookings.filter { it.status == BookingStatus.PENDING }
-        "confirmed" -> allBookings.filter { it.status == BookingStatus.CONFIRMED }
+        "pending" -> allBookings.filter { it.status == BookingStatus.PENDING }.sortedBy { it.createdAt }
+        "confirmed" -> allBookings.filter { it.status == BookingStatus.CONFIRMED }.sortedBy { it.createdAt }
         "in_progress" -> allBookings.filter { it.status == BookingStatus.IN_PROGRESS }
         "completed" -> allBookings.filter { it.status == BookingStatus.COMPLETED }
         else -> allBookings
+    }
+    // Customer name lookup + queue positions (must be outside LazyColumn)
+    val users by adminViewModel.allUsers.collectAsState()
+    val customerNames = remember(users) {
+        users.associate { it.userId to it.fullName }
+    }
+    val activeSorted = remember(allBookings) {
+        allBookings
+            .filter { it.status in listOf(BookingStatus.PENDING, BookingStatus.CONFIRMED) }
+            .sortedBy { it.createdAt }
+    }
+    val queuePositions = remember(activeSorted) {
+        activeSorted.mapIndexed { i, b -> b.bookingId to (i + 1) }.toMap()
     }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
     ) {
+        // Stats summary card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                val pendingCount = allBookings.count { it.status == BookingStatus.PENDING }
+                val confirmedCount = allBookings.count { it.status == BookingStatus.CONFIRMED }
+                val inProgressCount = allBookings.count { it.status == BookingStatus.IN_PROGRESS }
+                val todayCompleted = allBookings.count {
+                    it.status == BookingStatus.COMPLETED &&
+                    it.completedAt?.let { completed ->
+                        val cal = java.util.Calendar.getInstance()
+                        completed > cal.timeInMillis - 86400000
+                    } ?: false
+                }
+                StatsBadge(label = "Pending", count = pendingCount, color = MaterialTheme.colorScheme.secondary)
+                StatsBadge(label = "Active", count = confirmedCount + inProgressCount, color = MaterialTheme.colorScheme.primary)
+                StatsBadge(label = "Done Today", count = todayCompleted, color = MaterialTheme.colorScheme.tertiary)
+            }
+        }
         // Filter Chips
         ScrollableTabRow(
             selectedTabIndex = when (filter) {
@@ -156,18 +333,28 @@ fun OwnerBookingsTab(
                 else -> 0
             },
             modifier = Modifier.fillMaxWidth(),
-            edgePadding = 16.dp
+            edgePadding = 16.dp,
+            divider = {}
         ) {
-            listOf("All", "Pending", "Confirmed", "In Progress", "Completed").forEachIndexed { index, label ->
+            val filterLabels = listOf("All", "Pending", "Confirmed", "In Progress", "Completed")
+            val filterIcons = listOf(
+                Icons.Default.AllInclusive,
+                Icons.Default.HourglassEmpty,
+                Icons.Default.CheckCircle,
+                Icons.Default.Build,
+                Icons.Default.DoneAll
+            )
+            filterLabels.forEachIndexed { index, label ->
+                val isSelected = when (filter) {
+                    "all" -> index == 0
+                    "pending" -> index == 1
+                    "confirmed" -> index == 2
+                    "in_progress" -> index == 3
+                    "completed" -> index == 4
+                    else -> false
+                }
                 FilterChip(
-                    selected = when (filter) {
-                        "all" -> index == 0
-                        "pending" -> index == 1
-                        "confirmed" -> index == 2
-                        "in_progress" -> index == 3
-                        "completed" -> index == 4
-                        else -> false
-                    },
+                    selected = isSelected,
                     onClick = {
                         filter = when (index) {
                             0 -> "all"
@@ -178,7 +365,17 @@ fun OwnerBookingsTab(
                             else -> "all"
                         }
                     },
-                    label = { Text(label) },
+                    label = { 
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = filterIcons[index],
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(label)
+                        }
+                    },
                     modifier = Modifier.padding(horizontal = 4.dp)
                 )
             }
@@ -194,10 +391,29 @@ fun OwnerBookingsTab(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(32.dp),
+                            .padding(48.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("No bookings found")
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.BookmarkBorder,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                "No bookings found",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "Bookings in this category will appear here",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                            )
+                        }
                     }
                 }
             } else {
@@ -207,6 +423,9 @@ fun OwnerBookingsTab(
                 ) { booking ->
                     OwnerBookingCard(
                         booking = booking,
+                        customerName = customerNames[booking.userId] ?: "",
+                        queuePosition = queuePositions[booking.bookingId] ?: 0,
+                        onNoShow = { adminViewModel.markNoShow(booking.bookingId) },
                         onApprove = {
                             adminViewModel.updateBookingStatus(booking.bookingId, BookingStatus.CONFIRMED)
                         },
@@ -410,7 +629,7 @@ fun TransactionItem(booking: Booking) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = booking.services.joinToString(", ") { it.displayName }, style = MaterialTheme.typography.titleMedium)
+                Text(text = booking.displayServiceNames(), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 Text(text = DateUtils.formatDate(booking.createdAt), style = MaterialTheme.typography.bodySmall)
             }
             Text(text = "₱${booking.price}", style = MaterialTheme.typography.titleLarge)
@@ -421,6 +640,9 @@ fun TransactionItem(booking: Booking) {
 @Composable
 fun OwnerBookingCard(
     booking: Booking,
+    customerName: String = "",
+    queuePosition: Int = 0,
+    onNoShow: () -> Unit = {},
     onApprove: () -> Unit,
     onReject: () -> Unit,
     onStart: () -> Unit,
@@ -431,6 +653,8 @@ fun OwnerBookingCard(
     var showRejectDialog by remember { mutableStateOf(false) }
     var showStartDialog by remember { mutableStateOf(false) }
     var showCompleteDialog by remember { mutableStateOf(false) }
+    var showNoShowDialog by remember { mutableStateOf(false) }
+    var showCancelConfirmedDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     if (showApproveDialog) {
@@ -521,6 +745,50 @@ fun OwnerBookingCard(
         )
     }
 
+    if (showNoShowDialog) {
+        AlertDialog(
+            onDismissRequest = { showNoShowDialog = false },
+            title = { Text("Mark as No Show") },
+            text = { Text("The customer didn't arrive for their ${booking.timeSlot} slot. This will cancel the booking and notify the customer.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showNoShowDialog = false
+                    scope.launch {
+                        isProcessing = true
+                        onNoShow()
+                        kotlinx.coroutines.delay(2000)
+                        isProcessing = false
+                    }
+                }) { Text("Mark No Show", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNoShowDialog = false }) { Text("Go Back") }
+            }
+        )
+    }
+
+    if (showCancelConfirmedDialog) {
+        AlertDialog(
+            onDismissRequest = { showCancelConfirmedDialog = false },
+            title = { Text("Cancel Booking") },
+            text = { Text("Cancel this confirmed booking? The customer will be notified.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showCancelConfirmedDialog = false
+                    scope.launch {
+                        isProcessing = true
+                        onReject()
+                        kotlinx.coroutines.delay(2000)
+                        isProcessing = false
+                    }
+                }) { Text("Cancel Booking", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCancelConfirmedDialog = false }) { Text("Go Back") }
+            }
+        )
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -554,7 +822,7 @@ fun OwnerBookingCard(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                     Text(
-                        text = booking.services.joinToString(", ") { it.displayName },
+                        text = booking.displayServiceNames(),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
@@ -581,7 +849,110 @@ fun OwnerBookingCard(
                         text = booking.status.displayName,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            // Customer name + queue position
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Person,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = customerName.ifEmpty { "Unknown Customer" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                if (queuePosition > 0 && booking.status != BookingStatus.CANCELLED && booking.status != BookingStatus.COMPLETED) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            "#$queuePosition",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Schedule,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Booked at ${DateUtils.formatDateTime(booking.createdAt)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+            // Countdown for PENDING / No-show time for CONFIRMED
+            if (booking.status == BookingStatus.PENDING) {
+                val countdownText = remember { mutableStateOf("") }
+                val countdownEnd = booking.createdAt + 2 * 60 * 60 * 1000L
+                LaunchedEffect(countdownEnd) {
+                    while (countdownEnd > System.currentTimeMillis()) {
+                        val diff = countdownEnd - System.currentTimeMillis()
+                        val totalMin = (diff / 60000).toInt()
+                        countdownText.value = if (totalMin > 0) {
+                            val h = totalMin / 60
+                            val m = totalMin % 60
+                            "Expires in ${h}h ${m}m"
+                        } else "Expiring soon..."
+                        kotlinx.coroutines.delay(1000)
+                    }
+                    countdownText.value = "Expired"
+                }
+                if (countdownText.value.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = countdownText.value,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+            } else if (booking.status == BookingStatus.CONFIRMED) {
+                // Show the no-show available time (slot + 30 min) as a static time
+                val noShowTime = remember(booking) {
+                    try {
+                        val parts = booking.timeSlot.split(" ")
+                        val t = parts[0].split(":")
+                        var h = t[0].toInt()
+                        val m = t[1].toInt()
+                        if (parts[1] == "PM" && h != 12) h += 12
+                        if (parts[1] == "AM" && h == 12) h = 0
+                        val cal = java.util.Calendar.getInstance().apply {
+                            timeInMillis = booking.bookingDate
+                            set(java.util.Calendar.HOUR_OF_DAY, h)
+                            set(java.util.Calendar.MINUTE, m)
+                            add(java.util.Calendar.MINUTE, 30)
+                        }
+                        DateUtils.formatTime(cal.timeInMillis)
+                    } catch (e: Exception) { "" }
+                }
+                if (noShowTime.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "No-show available at $noShowTime",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
                     )
                 }
             }
@@ -675,19 +1046,66 @@ fun OwnerBookingCard(
             }
             if (booking.status == BookingStatus.CONFIRMED) {
                 Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = { showStartDialog = true }, 
-                    modifier = Modifier.fillMaxWidth(), 
-                    enabled = !isProcessing,
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                ) {
-                    if (isProcessing) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onSecondary)
-                    } else {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Start Service", modifier = Modifier.size(18.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { showStartDialog = true }, 
+                        modifier = Modifier.weight(1f),
+                        enabled = !isProcessing,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    ) {
+                        if (isProcessing) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onSecondary)
+                        } else {
+                            Icon(Icons.Default.PlayArrow, contentDescription = "Start Service", modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Start Service")
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = { showCancelConfirmedDialog = true },
+                        modifier = Modifier.weight(1f),
+                        enabled = !isProcessing,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Cancel", modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Start Service")
+                        Text("Cancel")
+                    }
+                    // Only show "No Show" if the time slot has passed (+ 30 min grace period)
+                    val slotPast = remember(booking) {
+                        try {
+                            val parts = booking.timeSlot.split(" ")
+                            val timeParts = parts[0].split(":")
+                            var h = timeParts[0].toInt()
+                            val m = timeParts[1].toInt()
+                            if (parts[1] == "PM" && h != 12) h += 12
+                            if (parts[1] == "AM" && h == 12) h = 0
+                            val cal = java.util.Calendar.getInstance().apply {
+                                timeInMillis = booking.bookingDate
+                                set(java.util.Calendar.HOUR_OF_DAY, h)
+                                set(java.util.Calendar.MINUTE, m)
+                                set(java.util.Calendar.SECOND, 0)
+                                add(java.util.Calendar.MINUTE, 30) // 30 min grace period
+                            }
+                            cal.timeInMillis < System.currentTimeMillis()
+                        } catch (e: Exception) { false }
+                    }
+                    if (slotPast) {
+                        OutlinedButton(
+                            onClick = { showNoShowDialog = true },
+                            modifier = Modifier.weight(1f),
+                            enabled = !isProcessing,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                        ) {
+                            Icon(Icons.Default.PersonOff, contentDescription = "No Show", modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("No Show")
+                        }
                     }
                 }
             }
@@ -707,6 +1125,485 @@ fun OwnerBookingCard(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Mark as Completed")
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StatsBadge(label: String, count: Int, color: androidx.compose.ui.graphics.Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = count.toString(),
+            style = MaterialTheme.typography.titleLarge,
+            color = color,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun OwnerServicesTab(
+    adminViewModel: AdminViewModel,
+    paddingValues: PaddingValues
+) {
+    val customization by adminViewModel.shopCustomization.collectAsState()
+    val allBookings by adminViewModel.allBookings.collectAsState()
+    var editedServices by remember { mutableStateOf<List<CustomServiceConfig>>(customization.services) }
+    var bayCountText by remember { mutableStateOf(customization.bayCount.toString()) }
+    var showAddDropdown by remember { mutableStateOf(false) }
+    var showCustomNameDialog by remember { mutableStateOf(false) }
+    var customServiceNameInput by remember { mutableStateOf("") }
+    val maxServices = 15
+
+    // A price is invalid if below 150, above 5000, or 0.0 for custom services (no default)
+    val hasInvalidPrice = editedServices.any { config ->
+        (config.customPrice > 0.0 && config.customPrice < 150) || 
+        config.customPrice > 5000 ||
+        (config.isCustom && config.customPrice == 0.0)
+    }
+    val bayCountChanged = bayCountText.toIntOrNull() != customization.bayCount
+    val canSave = (editedServices != customization.services || bayCountChanged) && !hasInvalidPrice
+
+    LaunchedEffect(customization) {
+        editedServices = customization.services
+        bayCountText = customization.bayCount.toString()
+    }
+
+    val atMaxLimit = editedServices.size >= maxServices
+    val availableTypesToAdd = ServiceType.values().filter { type ->
+        type != ServiceType.CUSTOM && editedServices.none { it.serviceName == type.name }
+    }
+
+    if (showCustomNameDialog) {
+        AlertDialog(
+            onDismissRequest = { showCustomNameDialog = false },
+            title = { Text("Custom Service Name") },
+            text = {
+                OutlinedTextField(
+                    value = customServiceNameInput,
+                    onValueChange = { if (it.length <= 30) customServiceNameInput = it },
+                    label = { Text("Service name") },
+                    placeholder = { Text("e.g. Headlight Polish") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val name = customServiceNameInput.trim()
+                        if (name.isNotEmpty()) {
+                            val id = "custom_${System.currentTimeMillis()}"
+                            editedServices = editedServices + CustomServiceConfig(
+                                serviceName = id,
+                                displayName = name,
+                                customName = name,
+                                customPrice = 0.0,
+                                isCustom = true
+                            )
+                            customServiceNameInput = ""
+                            showCustomNameDialog = false
+                        }
+                    },
+                    enabled = customServiceNameInput.trim().isNotEmpty()
+                ) { Text("Add") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCustomNameDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Manage Services", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "${editedServices.size}/$maxServices services",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (atMaxLimit) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Garage,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Service Bays:", style = MaterialTheme.typography.bodySmall,
+                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = {
+                            val current = bayCountText.toIntOrNull() ?: 1
+                            if (current > 1) {
+                                bayCountText = (current - 1).toString()
+                            }
+                        },
+                        modifier = Modifier.size(28.dp),
+                        enabled = (bayCountText.toIntOrNull() ?: 1) > 1
+                    ) {
+                        Icon(Icons.Default.Remove, contentDescription = "Decrease", modifier = Modifier.size(16.dp))
+                    }
+                    Text(
+                        text = bayCountText,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                    IconButton(
+                        onClick = {
+                            val current = bayCountText.toIntOrNull() ?: 1
+                            if (current < 10) {
+                                bayCountText = (current + 1).toString()
+                            }
+                        },
+                        modifier = Modifier.size(28.dp),
+                        enabled = (bayCountText.toIntOrNull() ?: 1) < 10
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Increase", modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+            Box {
+                OutlinedButton(
+                    onClick = { showAddDropdown = true },
+                    enabled = !atMaxLimit,
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add Service", style = MaterialTheme.typography.labelMedium)
+                }
+                DropdownMenu(
+                    expanded = showAddDropdown,
+                    onDismissRequest = { showAddDropdown = false }
+                ) {
+                    availableTypesToAdd.forEach { type ->
+                        DropdownMenuItem(
+                            text = { Text(type.displayName) },
+                            onClick = {
+                                editedServices = editedServices + CustomServiceConfig(
+                                    serviceName = type.name,
+                                    displayName = type.displayName,
+                                    customPrice = type.price
+                                )
+                                showAddDropdown = false
+                            }
+                        )
+                    }
+                    if (availableTypesToAdd.isNotEmpty()) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    }
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AddCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Others (Custom Service)")
+                            }
+                        },
+                        onClick = {
+                            showAddDropdown = false
+                            customServiceNameInput = ""
+                            showCustomNameDialog = true
+                        }
+                    )
+                }
+            }
+        }
+
+        if (editedServices.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(48.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.Build,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        "No services configured",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Tap \"Add Service\" to get started",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(
+                    items = editedServices,
+                    key = { it.serviceName }
+                ) { config ->
+                    val isInUse = allBookings.any { booking ->
+                        val status = booking.status
+                        val isActive = status == BookingStatus.PENDING
+                            || status == BookingStatus.CONFIRMED
+                            || status == BookingStatus.IN_PROGRESS
+                        if (!isActive) return@any false
+                        // Check if this booking uses the service being deleted
+                        if (config.isCustom) {
+                            // Custom service: check customServiceNames
+                            config.customName.isNotEmpty() && booking.customServiceNames.contains(config.customName)
+                        } else {
+                            // Predefined service: check ServiceType list
+                            booking.services.any { it.name == config.serviceName }
+                        }
+                    }
+                    ServiceConfigCard(
+                        config = config,
+                        canDelete = !isInUse,
+                        deleteReason = if (isInUse) "Cannot delete — service has active bookings" else null,
+                        onPriceChange = { newPrice ->
+                            editedServices = editedServices.map {
+                                if (it.serviceName == config.serviceName) it.copy(customPrice = newPrice) else it
+                            }
+                        },
+                        onNameChange = { newName ->
+                            editedServices = editedServices.map {
+                                if (it.serviceName == config.serviceName) it.copy(customName = newName, displayName = newName) else it
+                            }
+                        },
+                        onDelete = {
+                            editedServices = editedServices.filter { it.serviceName != config.serviceName }
+                        }
+                    )
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(
+                onClick = {
+                    editedServices = customization.services
+                },
+                modifier = Modifier.weight(1f),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Text("Reset")
+            }
+            Button(
+                onClick = {
+                    val bayCount = bayCountText.toIntOrNull() ?: customization.bayCount
+                    val updated = customization.copy(
+                        services = editedServices,
+                        bayCount = bayCount
+                    )
+                    adminViewModel.saveShopCustomization(updated)
+                },
+                modifier = Modifier.weight(1f),
+                shape = MaterialTheme.shapes.medium,
+                enabled = canSave
+            ) {
+                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Save Changes")
+            }
+        }
+    }
+}
+
+@Composable
+fun ServiceConfigCard(
+    config: CustomServiceConfig,
+    canDelete: Boolean = true,
+    deleteReason: String? = null,
+    onPriceChange: (Double) -> Unit,
+    onNameChange: (String) -> Unit = {},
+    onDelete: () -> Unit
+) {
+    val defaultPrice = ServiceType.values().find { it.name == config.serviceName }?.price ?: 0.0
+    var priceText by remember(config.customPrice) {
+        mutableStateOf(if (config.customPrice > 0) config.customPrice.toString() else "")
+    }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Remove Service") },
+            text = {
+                Text("Removing \"${config.displayName}\" will delete this service from your shop's service list. Clients will no longer see it.\n\nAre you sure you want to proceed?")
+            },
+            confirmButton = {
+                TextButton(onClick = { showDeleteConfirm = false; onDelete() }) {
+                    Text("Yes, Remove", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    if (config.isCustom) {
+                        OutlinedTextField(
+                            value = config.customName,
+                            onValueChange = { if (it.length <= 30) onNameChange(it) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.titleMedium,
+                            placeholder = { Text("Service name") },
+                            shape = MaterialTheme.shapes.small
+                        )
+                    } else {
+                        Text(
+                            text = config.displayName,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                    Text(
+                        text = if (config.isCustom) "Custom service" else "Default: ₱${defaultPrice}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
+                IconButton(
+                    onClick = { if (canDelete) showDeleteConfirm = true },
+                    enabled = canDelete
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = if (canDelete) MaterialTheme.colorScheme.error
+                               else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                    )
+                }
+            }
+
+            if (!canDelete && deleteReason != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = deleteReason,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Your Price: ₱",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                OutlinedTextField(
+                    value = priceText,
+                    onValueChange = { input ->
+                        val filtered = input.filter { it.isDigit() || it == '.' }
+                        if (filtered.count { it == '.' } <= 1) {
+                            val parts = filtered.split(".")
+                            val limited = if (parts.size == 2 && parts[1].length > 2) {
+                                "${parts[0]}.${parts[1].take(2)}"
+                            } else filtered
+                            priceText = limited
+                            val parsed = limited.toDoubleOrNull()
+                            if (parsed != null && parsed >= 150 && parsed <= 5000) {
+                                onPriceChange(parsed)
+                            }
+                            // When empty or invalid: don't call onPriceChange,
+                            // keep the previous valid customPrice.
+                            // The red error state will show below.
+                        }
+                    },
+                    modifier = Modifier.weight(1f).padding(start = 8.dp),
+                    singleLine = true,
+                    isError = priceText.isNotEmpty() && (priceText.toDoubleOrNull() == null
+                        || priceText.toDoubleOrNull()!! < 150
+                        || priceText.toDoubleOrNull()!! > 5000),
+                    placeholder = { Text("${defaultPrice}") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                    ),
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    shape = MaterialTheme.shapes.small
+                )
+            }
+            val price = priceText.toDoubleOrNull()
+            // Show error when: field is non-empty with invalid value,
+            // or custom service with empty/0 price
+            val showError = priceText.isNotEmpty() || (config.isCustom && priceText.isEmpty())
+            if (showError) {
+                when {
+                    price == null || price < 150 -> Text(
+                        "Minimum price is ₱150.00",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                    )
+                    price > 5000 -> Text(
+                        "Maximum price is ₱5,000.00",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                    )
                 }
             }
         }

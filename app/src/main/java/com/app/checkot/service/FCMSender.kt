@@ -48,45 +48,50 @@ object FCMSender {
         userId: String,
         title: String,
         body: String,
-        bookingId: String = ""
+        bookingId: String = "",
+        fcmToken: String = "" // If provided, skip Firestore lookup
     ) {
         withContext(Dispatchers.IO) {
             try {
-                // 1. Look up the user's FCM token from Firestore
-                val userDoc = Firebase.firestore
-                    .collection("users")
-                    .document(userId)
-                    .get()
-                    .await()
-
-                val fcmToken = userDoc.getString("fcmToken")
-                if (fcmToken.isNullOrEmpty()) {
-                    Log.w(TAG, "User $userId has no fcmToken")
-                    return@withContext
+                // 1. Get the FCM token (from parameter or Firestore lookup)
+                val token = if (fcmToken.isNotEmpty()) {
+                    println("📬 FCMSender: Using provided token: ${fcmToken.take(8)}...")
+                    fcmToken
+                } else {
+                    println("📬 FCMSender: Looking up token for user $userId")
+                    val userDoc = Firebase.firestore
+                        .collection("users")
+                        .document(userId)
+                        .get()
+                        .await()
+                    val t = userDoc.getString("fcmToken")
+                    if (t.isNullOrEmpty()) {
+                        println("❌ FCMSender: User $userId has no fcmToken in Firestore")
+                        Log.w(TAG, "User $userId has no fcmToken")
+                        return@withContext
+                    }
+                    println("📬 FCMSender: Found token in Firestore: ${t.take(8)}...")
+                    t
                 }
 
                 // 2. Get an OAuth2 access token from the service account
+                println("📬 FCMSender: Getting OAuth2 access token...")
                 val accessToken = getAccessToken(context)
+                println("📬 FCMSender: Got access token: ${accessToken.take(20)}...")
 
-                // 3. Build the FCM message (COMBINED payload)
+                // 3. Build the FCM message
                 val message = JSONObject().apply {
                     put("message", JSONObject().apply {
-                        put("token", fcmToken)
-
-                        // notification block → system shows this even if app is killed
+                        put("token", token)
                         put("notification", JSONObject().apply {
                             put("title", title)
                             put("body", body)
                         })
-
-                        // data block → available in onMessageReceived / intent extras
                         put("data", JSONObject().apply {
                             put("title", title)
                             put("body", body)
                             put("bookingId", bookingId)
                         })
-
-                        // Android-specific settings
                         put("android", JSONObject().apply {
                             put("priority", "HIGH")
                             put("notification", JSONObject().apply {
@@ -98,6 +103,7 @@ object FCMSender {
                 }
 
                 // 4. Send the HTTP request to FCM
+                println("📬 FCMSender: Sending to FCM API...")
                 val url = URL(FCM_URL)
                 val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"
@@ -112,16 +118,19 @@ object FCMSender {
 
                 val responseCode = conn.responseCode
                 if (responseCode == 200) {
+                    println("✅ FCMSender: Push sent successfully!")
                     Log.d(TAG, "Push sent successfully to user $userId")
                 } else {
                     val errorStream = conn.errorStream ?: conn.inputStream
                     val errorBody = BufferedReader(InputStreamReader(errorStream))
                         .readText()
+                    println("❌ FCMSender: FCM error ($responseCode): $errorBody")
                     Log.e(TAG, "FCM error ($responseCode): $errorBody")
                 }
                 conn.disconnect()
 
             } catch (e: Exception) {
+                println("❌ FCMSender: Exception: ${e::class.simpleName}: ${e.message}")
                 Log.e(TAG, "Failed to send push to user $userId", e)
             }
         }

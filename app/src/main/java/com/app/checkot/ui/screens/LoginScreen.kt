@@ -1,8 +1,11 @@
 package com.app.checkot.ui.screens
 
 import com.app.checkot.model.*
+import com.app.checkot.navigation.Screen
 import com.app.checkot.viewmodel.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -40,26 +43,40 @@ fun LoginScreen(
     var showResetDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    LaunchedEffect(Unit) {
+        authViewModel.clearError()
+    }
+
     LaunchedEffect(authState, currentUserData) {
         if (authState is AuthState.Authenticated && currentUserData != null) {
-            if (currentUserData?.role == "owner") {
-                navController.navigate("owner_dashboard") {
+            when (currentUserData?.role) {
+                "admin" -> navController.navigate("admin_dashboard") {
                     popUpTo("login") { inclusive = true }
                 }
-            } else {
-                onLoginSuccess() // goes to home
+                "owner" -> navController.navigate("owner_dashboard") {
+                    popUpTo("login") { inclusive = true }
+                }
+                else -> onLoginSuccess() // goes to home
             }
         }
     }
 
-    Column(
+    val scrollState = rememberScrollState()
+    Box(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(scrollState)
             .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        contentAlignment = Alignment.Center
     ) {
-        // App Logo/Name
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // App Logo/Name
         Text(
             text = "Checkot",
             fontSize = 48.sp,
@@ -216,6 +233,30 @@ fun LoginScreen(
             )
         }
 
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Owner Registration Link
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "Own a car wash? ",
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+            Text(
+                text = "Register Your Shop",
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable {
+                    if (authState != AuthState.Loading) {
+                        navController.navigate(Screen.OwnerSignup.route)
+                    }
+                }
+            )
+        }
+
         // Reset Password Dialog
         if (showResetDialog) {
             AlertDialog(
@@ -238,6 +279,7 @@ fun LoginScreen(
                     }
                 }
             )
+        }
         }
     }
 }

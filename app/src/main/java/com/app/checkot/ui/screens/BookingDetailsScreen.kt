@@ -4,7 +4,13 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
-import com.app.checkot.ui.screens.*
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.tasks.await
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
@@ -33,14 +39,49 @@ fun BookingDetailsScreen(
     val scope = rememberCoroutineScope()
     var isCancelling by remember { mutableStateOf(false) }
     var showCancelDialog by remember { mutableStateOf(false) }
+    var queueInfo by remember { mutableStateOf(QueueInfo()) }
 
-    val queueInfo by remember(booking) {
-        if (booking != null) {
-            bookingViewModel.getQueueInfoRealTime(booking)
-        } else {
-            kotlinx.coroutines.flow.flowOf(QueueInfo())
+    // Direct Firestore listener for queue info
+    DisposableEffect(booking?.bookingId, booking?.shopId, booking?.bookingDate) {
+        if (booking == null) return@DisposableEffect onDispose {}
+        val listener = Firebase.firestore.collection("bookings")
+            .whereEqualTo("shopId", booking.shopId)
+            .whereEqualTo("bookingDate", booking.bookingDate)
+            .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
+            .addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) return@addSnapshotListener
+                val bookings = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
+                val sorted = bookings.sortedBy { it.createdAt }
+                val index = sorted.indexOfFirst { it.bookingId == booking.bookingId }
+                val position = if (index != -1) index + 1 else -1
+                val ahead = if (index > 0) sorted.subList(0, index) else emptyList()
+                val estimated = ahead.sumOf { b ->
+                    b.services.sumOf { s -> parseDuration(s.duration) }
+                }
+                queueInfo = QueueInfo(position, estimated, sorted.size)
+            }
+        onDispose { listener.remove() }
+    }
+
+    // Load the shop name from Firestore
+    var shopName by remember(booking) { mutableStateOf("") }
+    LaunchedEffect(booking?.shopId) {
+        val shopId = booking?.shopId ?: return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            try {
+                val doc = Firebase.firestore.collection("shop_services").document(shopId).get().await()
+                val name = doc.getString("shopName")
+                if (!name.isNullOrEmpty()) {
+                    withContext(Dispatchers.Main) { shopName = name }
+                } else {
+                    withContext(Dispatchers.Main) { shopName = shopId.takeLast(6).uppercase() }
+                }
+            } catch (e: Exception) {
+                println("❌ Failed to load shop name: ${e.message}")
+                withContext(Dispatchers.Main) { shopName = shopId.takeLast(6).uppercase() }
+            }
         }
-    }.collectAsState(initial = QueueInfo())
+    }
 
     if (booking == null) {
         Box(
@@ -129,7 +170,9 @@ fun BookingDetailsScreen(
                             )
                             Text(
                                 text = booking.status.displayName,
-                                style = MaterialTheme.typography.headlineSmall,
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                 color = when (booking.status) {
                                     BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
                                     BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.onPrimaryContainer
@@ -157,6 +200,93 @@ fun BookingDetailsScreen(
                                 BookingStatus.CANCELLED -> MaterialTheme.colorScheme.onErrorContainer
                             }
                         )
+                    }
+                }
+            }
+            // Countdown card
+            item {
+                val countdownEnd = remember(booking.bookingId) {
+                    when (booking.status) {
+                        BookingStatus.PENDING -> booking.createdAt + 2 * 60 * 60 * 1000L
+                        BookingStatus.CONFIRMED -> {
+                            try {
+                                val parts = booking.timeSlot.split(" ")
+                                val t = parts[0].split(":")
+                                var h = t[0].toInt()
+                                val m = t[1].toInt()
+                                if (parts[1] == "PM" && h != 12) h += 12
+                                if (parts[1] == "AM" && h == 12) h = 0
+                                val cal = java.util.Calendar.getInstance().apply {
+                                    timeInMillis = booking.bookingDate
+                                    set(java.util.Calendar.HOUR_OF_DAY, h)
+                                    set(java.util.Calendar.MINUTE, m)
+                                    add(java.util.Calendar.MINUTE, 30)
+                                }
+                                cal.timeInMillis
+                            } catch (e: Exception) { 0L }
+                        }
+                        else -> 0L
+                    }
+                }
+                var countdownText by remember { mutableStateOf("") }
+                LaunchedEffect(countdownEnd) {
+                    while (countdownEnd > 0 && countdownEnd > System.currentTimeMillis()) {
+                        val diff = countdownEnd - System.currentTimeMillis()
+                        val totalMin = (diff / 60000).toInt()
+                        countdownText = if (totalMin > 0) {
+                            val h = totalMin / 60
+                            val m = totalMin % 60
+                            when (booking.status) {
+                                BookingStatus.PENDING -> if (h > 0) "Auto-cancels in ${h}h ${m}m" else "Auto-cancels in ${m}m"
+                                BookingStatus.CONFIRMED -> if (h > 0) "Arrive within ${h}h ${m}m" else "Arrive within ${m}m"
+                                else -> ""
+                            }
+                        } else {
+                            when (booking.status) {
+                                BookingStatus.PENDING -> "Cancelling soon..."
+                                BookingStatus.CONFIRMED -> "Almost expired!"
+                                else -> ""
+                            }
+                        }
+                        kotlinx.coroutines.delay(1000)
+                    }
+                }
+                if (countdownText.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = when (booking.status) {
+                                BookingStatus.PENDING -> MaterialTheme.colorScheme.secondaryContainer
+                                BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.errorContainer
+                                else -> MaterialTheme.colorScheme.surfaceVariant
+                            }
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Timer,
+                                contentDescription = null,
+                                tint = when (booking.status) {
+                                    BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
+                                    BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.onErrorContainer
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = countdownText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                color = when (booking.status) {
+                                    BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
+                                    BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.onErrorContainer
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -198,11 +328,12 @@ fun BookingDetailsScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        Divider()
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
-                        val shopName = partnerShops.find { it.shopId == booking.shopId }?.name ?: "Unknown Shop"
-                        DetailRow("Shop", shopName)
-                        DetailRow("Services", booking.services.joinToString(", ") { it.displayName })
+                        DetailRow("Shop", shopName.ifEmpty { booking.shopId.takeLast(6).uppercase() })
+                        DetailRow("Services", booking.displayServiceNames())
                         DetailRow("Duration", booking.services.map { it.duration }.distinct().joinToString(" + "))
                         DetailRow("Price", "₱${booking.price}")
                         if (booking.notes.isNotBlank()) {
@@ -238,7 +369,9 @@ fun BookingDetailsScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        Divider()
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                         val carDetails = booking.carDetails.split(" - ")
                         if (carDetails.size == 2) {
@@ -277,7 +410,9 @@ fun BookingDetailsScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        Divider()
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                         DetailRow("Date", DateUtils.formatDate(booking.bookingDate))
                         DetailRow("Time", booking.timeSlot)
@@ -311,7 +446,9 @@ fun BookingDetailsScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        Divider()
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                         if (booking.createdAt > 0) {
                             DetailRow("Created", DateUtils.formatDateTime(booking.createdAt))
@@ -371,12 +508,15 @@ fun DetailRow(label: String, value: String) {
             text = "$label:",
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            maxLines = 1
         )
         Text(
             text = value,
             modifier = Modifier.weight(2f),
-            style = MaterialTheme.typography.bodyMedium
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
     }
 }
@@ -426,28 +566,54 @@ fun ServiceProgressStepper(status: BookingStatus) {
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly
+            // Line with circles
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp)
             ) {
-                steps.forEachIndexed { index, label ->
-                    val isCompleted = index < currentStepIndex
-                    val isActive = index == currentStepIndex
-                    val color = when {
-                        isCompleted -> MaterialTheme.colorScheme.primary
-                        isActive -> MaterialTheme.colorScheme.tertiary
-                        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                    }
-
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f)
-                    ) {
+                // Full background line
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .align(Alignment.CenterStart)
+                        .background(
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                            MaterialTheme.shapes.small
+                        )
+                )
+                // Completed portion of line
+                if (currentStepIndex > 0) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(currentStepIndex.toFloat() / (steps.size - 1).toFloat())
+                            .height(4.dp)
+                            .align(Alignment.CenterStart)
+                            .background(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.shapes.small
+                            )
+                    )
+                }
+                // Circles
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    steps.forEachIndexed { index, label ->
+                        val isCompleted = index < currentStepIndex
+                        val isActive = index == currentStepIndex
+                        val circleColor = when {
+                            isCompleted -> MaterialTheme.colorScheme.primary
+                            isActive -> MaterialTheme.colorScheme.tertiary
+                            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                        }
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
-                                .background(color, shape = CircleShape),
+                                .size(28.dp)
+                                .background(circleColor, shape = CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             if (isCompleted) {
@@ -460,30 +626,31 @@ fun ServiceProgressStepper(status: BookingStatus) {
                             } else {
                                 Text(
                                     text = (index + 1).toString(),
-                                    color = if (isActive) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                    style = MaterialTheme.typography.labelMedium
+                                    color = if (isActive) MaterialTheme.colorScheme.onTertiary
+                                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    style = MaterialTheme.typography.labelSmall
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isActive) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                            fontWeight = if (isActive) androidx.compose.ui.text.font.FontWeight.Bold else null
-                        )
                     }
-
-                    if (index < steps.lastIndex) {
-                        val lineColor = if (index < currentStepIndex) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                        Divider(
-                            modifier = Modifier
-                                .weight(0.5f)
-                                .padding(bottom = 16.dp),
-                            color = lineColor,
-                            thickness = 2.dp
-                        )
-                    }
+                }
+            }
+            // Labels below circles
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                steps.forEachIndexed { index, label ->
+                    val isActive = index == currentStepIndex
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isActive) MaterialTheme.colorScheme.tertiary
+                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        fontWeight = if (isActive) androidx.compose.ui.text.font.FontWeight.Bold else null
+                    )
                 }
             }
         }
@@ -589,4 +756,15 @@ fun QueuePositionCard(queueInfo: QueueInfo, status: BookingStatus) {
             )
         }
     }
+}
+
+private fun parseDuration(duration: String): Int = when {
+    duration.contains("hour") -> {
+        val hours = duration.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 1.0
+        (hours * 60).toInt()
+    }
+    duration.contains("min") -> {
+        duration.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 30
+    }
+    else -> 30
 }

@@ -1,10 +1,5 @@
 package com.app.checkot.utils
-import com.app.checkot.model.*
-import com.app.checkot.viewmodel.*
-import com.app.checkot.navigation.*
-import com.app.checkot.utils.*
-import com.app.checkot.service.*
-import com.app.checkot.ui.screens.*
+
 import java.text.SimpleDateFormat
 import java.util.*
 object DateUtils {

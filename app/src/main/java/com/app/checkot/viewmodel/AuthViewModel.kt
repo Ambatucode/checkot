@@ -61,6 +61,15 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         if (auth.currentUser != null) {
             _authState.value = AuthState.Authenticated
             loadUserData()
+            // Upload FCM token directly — ensures token is always saved
+            // even if loadUserData hasn't completed yet
+            FirebaseMessaging.getInstance().token
+                .addOnSuccessListener { token ->
+                    firestore.collection("users").document(auth.currentUser!!.uid)
+                        .update("fcmToken", token)
+                        .addOnSuccessListener { println("✅ AuthVM: FCM token saved on init") }
+                        .addOnFailureListener { e -> println("❌ AuthVM: Failed to save token: ${e.message}") }
+                }
         }
     }
 
@@ -87,6 +96,93 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 _authState.value = AuthState.Error(e.message ?: "Sign up failed")
+            }
+        }
+    }
+
+    fun signUpOwner(
+        email: String,
+        password: String,
+        fullName: String,
+        phoneNumber: String,
+        shopName: String,
+        shopAddress: String
+    ) {
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            try {
+                // 1. Create Firebase Auth user
+                val result = auth.createUserWithEmailAndPassword(email, password).await()
+                val user = result.user ?: throw Exception("Failed to create user")
+
+                // 2. Generate shop ID
+                val shopId = firestore.collection("shop_services").document().id
+
+                // 3. Create the user document with role="owner"
+                val userData = CarWashUser(
+                    userId = user.uid,
+                    fullName = fullName,
+                    email = email,
+                    phoneNumber = phoneNumber,
+                    createdAt = System.currentTimeMillis(),
+                    role = "owner",
+                    ownedShopId = shopId,
+                    savedCars = emptyList()
+                )
+                firestore.collection("users").document(user.uid).set(userData).await()
+
+                // 4. Get FCM token
+                val fcmToken = try {
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
+                } catch (e: Exception) {
+                    println("⚠️ Could not get FCM token: ${e.message}")
+                    ""
+                }
+
+                // 5. Create shop_services document with shop info — clean slate
+                val shopCustomization = ShopCustomization(
+                    shopName = shopName,
+                    shopAddress = shopAddress,
+                    status = "pending",
+                    ownerId = user.uid,
+                    ownerName = fullName,
+                    ownerEmail = email,
+                    services = emptyList(), // owner adds services from dashboard
+                    ownerFcmToken = fcmToken
+                )
+                firestore.collection("shop_services").document(shopId)
+                    .set(shopCustomization)
+                    .await()
+                println("✅ Owner signup complete: shop_services/$shopId created — clean slate")
+
+                // Notify admins about the new shop (background, don't block signup)
+                viewModelScope.launch {
+                    try {
+                        val adminSnapshot = firestore.collection("users")
+                            .whereEqualTo("role", "admin").get().await()
+                        for (adminDoc in adminSnapshot.documents) {
+                            val adminToken = adminDoc.getString("fcmToken")
+                            if (!adminToken.isNullOrEmpty()) {
+                                FCMSender.sendToUser(
+                                    context = appContext,
+                                    userId = "",
+                                    title = "New Shop Pending Approval",
+                                    body = "$fullName registered \"$shopName\" — review it in Admin Dashboard",
+                                    bookingId = "",
+                                    fcmToken = adminToken
+                                )
+                            }
+                        }
+                        println("📬 Notified ${adminSnapshot.documents.size} admin(s) about new shop")
+                    } catch (e: Exception) {
+                        println("⚠️ Failed to notify admins: ${e.message}")
+                    }
+                }
+
+                _currentUserData.value = userData
+                _authState.value = AuthState.Authenticated
+            } catch (e: Exception) {
+                _authState.value = AuthState.Error(e.message ?: "Owner sign up failed")
             }
         }
     }
@@ -141,5 +237,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getCurrentUser(): FirebaseUser? {
         return auth.currentUser
+    }
+
+    fun clearError() {
+        if (_authState.value is AuthState.Error) {
+            _authState.value = AuthState.Unauthenticated
+        }
     }
 }

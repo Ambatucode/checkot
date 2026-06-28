@@ -1,10 +1,4 @@
 package com.app.checkot.ui.theme.ui.theme
-import com.app.checkot.model.*
-import com.app.checkot.viewmodel.*
-import com.app.checkot.navigation.*
-import com.app.checkot.utils.*
-import com.app.checkot.service.*
-import com.app.checkot.ui.screens.*
 import androidx.compose.ui.graphics.Color
 val Purple80 = Color(0xFFD0BCFF)
 val PurpleGrey80 = Color(0xFFCCC2DC)
