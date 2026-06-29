@@ -1161,6 +1161,7 @@ fun OwnerServicesTab(
     var showAddDropdown by remember { mutableStateOf(false) }
     var showCustomNameDialog by remember { mutableStateOf(false) }
     var customServiceNameInput by remember { mutableStateOf("") }
+    var isSavingServices by remember { mutableStateOf(false) }
     val maxServices = 15
 
     // A price is invalid if below 150, above 5000, or 0.0 for custom services (no default)
@@ -1425,18 +1426,27 @@ fun OwnerServicesTab(
             }
             Button(
                 onClick = {
+                    isSavingServices = true
                     val bayCount = bayCountText.toIntOrNull() ?: customization.bayCount
                     val updated = customization.copy(
                         services = editedServices,
                         bayCount = bayCount
                     )
                     adminViewModel.saveShopCustomization(updated)
+                    scope.launch {
+                        kotlinx.coroutines.delay(1500)
+                        isSavingServices = false
+                    }
                 },
                 modifier = Modifier.weight(1f),
                 shape = MaterialTheme.shapes.medium,
-                enabled = canSave
+                enabled = canSave && !isSavingServices
             ) {
-                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                if (isSavingServices) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                } else {
+                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                }
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Save Changes")
             }
