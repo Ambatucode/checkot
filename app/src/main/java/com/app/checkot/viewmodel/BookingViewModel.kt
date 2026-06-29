@@ -128,9 +128,9 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 val existingSnapshot = firestore.collection("bookings")
                     .whereEqualTo("shopId", booking.shopId)
                     .whereEqualTo("bookingDate", normalizedDate)
-                    .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
                     .get().await()
                 val existing = existingSnapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
+                    .filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED || it.status == BookingStatus.IN_PROGRESS }
 
                 // Parse slot to minutes since 9:00
                 fun slotToMin(slot: String): Int {
