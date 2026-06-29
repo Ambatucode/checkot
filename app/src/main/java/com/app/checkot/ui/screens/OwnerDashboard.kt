@@ -1162,6 +1162,7 @@ fun OwnerServicesTab(
     var showCustomNameDialog by remember { mutableStateOf(false) }
     var customServiceNameInput by remember { mutableStateOf("") }
     var isSavingServices by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val maxServices = 15
 
     // A price is invalid if below 150, above 5000, or 0.0 for custom services (no default)
