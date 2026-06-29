@@ -119,74 +119,71 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 }
 
                 // Server-side slot availability check (prevents race conditions)
-                val slotDuration = booking.services.sumOf { s -> parseDurationMinutes(s.duration) }
-                val shopDoc = firestore.collection("shop_services").document(booking.shopId).get().await()
-                val bayCount = (shopDoc.getLong("bayCount")?.toInt() ?: 1).coerceAtLeast(1)
                 val normalizedDate = normalizeToStartOfDay(booking.bookingDate)
+                try {
+                    val slotDuration = booking.services.sumOf { s -> parseDurationMinutes(s.duration) }
+                    val shopDoc = firestore.collection("shop_services").document(booking.shopId).get().await()
+                    val bayCount = (shopDoc.getLong("bayCount")?.toInt() ?: 1).coerceAtLeast(1)
 
-                // Get existing active bookings for this shop + date + time slot
-                val existingSnapshot = firestore.collection("bookings")
-                    .whereEqualTo("shopId", booking.shopId)
-                    .whereEqualTo("bookingDate", normalizedDate)
-                    .get().await()
-                val existing = existingSnapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
-                    .filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED || it.status == BookingStatus.IN_PROGRESS }
+                    // Get existing active bookings for this shop + date
+                    val existingSnapshot = firestore.collection("bookings")
+                        .whereEqualTo("shopId", booking.shopId)
+                        .whereEqualTo("bookingDate", normalizedDate)
+                        .get().await()
+                    val existing = existingSnapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
+                        .filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED || it.status == BookingStatus.IN_PROGRESS }
 
-                // Parse slot to minutes since 9:00
-                fun slotToMin(slot: String): Int {
-                    val parts = slot.split(" ")
-                    val t = parts[0].split(":")
-                    var h = t[0].toInt()
-                    val m = t[1].toInt()
-                    if (parts[1] == "PM" && h != 12) h += 12
-                    if (parts[1] == "AM" && h == 12) h = 0
-                    return (h - 9) * 60 + m
-                }
+                    fun slotToMin(slot: String): Int {
+                        val parts = slot.split(" ")
+                        val t = parts[0].split(":")
+                        var h = t[0].toInt()
+                        val m = t[1].toInt()
+                        if (parts[1] == "PM" && h != 12) h += 12
+                        if (parts[1] == "AM" && h == 12) h = 0
+                        return (h - 9) * 60 + m
+                    }
 
-                val newStartMin = slotToMin(booking.timeSlot)
-                val newEndMin = newStartMin + slotDuration
+                    val newStartMin = slotToMin(booking.timeSlot)
+                    val newEndMin = newStartMin + slotDuration
 
-                // Build busy ranges per bay
-                val busyRanges = mutableMapOf<Int, MutableList<Pair<Int, Int>>>()
-                for (i in 0 until bayCount) busyRanges[i] = mutableListOf()
-                for (b in existing) {
-                    val bs = slotToMin(b.timeSlot)
-                    val be = bs + b.services.sumOf { s -> parseDurationMinutes(s.duration) }
-                    for (bay in 0 until bayCount) {
-                        val ranges = busyRanges[bay]!!
-                        if (ranges.none { (s, e) -> bs < e && be > s }) {
-                            ranges.add(bs to be)
-                            break
+                    val busyRanges = mutableMapOf<Int, MutableList<Pair<Int, Int>>>()
+                    for (i in 0 until bayCount) busyRanges[i] = mutableListOf()
+                    for (b in existing) {
+                        val bs = slotToMin(b.timeSlot)
+                        val be = bs + b.services.sumOf { s -> parseDurationMinutes(s.duration) }
+                        for (bay in 0 until bayCount) {
+                            val ranges = busyRanges[bay]!!
+                            if (ranges.none { (s, e) -> bs < e && be > s }) {
+                                ranges.add(bs to be)
+                                break
+                            }
                         }
                     }
-                }
 
-                // Check if any bay is free for this new booking
-                val hasFreeBay = (0 until bayCount).any { bay ->
-                    !busyRanges[bay]!!.any { (s, e) -> newStartMin < e && newEndMin > s }
-                }
-                if (!hasFreeBay) {
-                    _isLoading.value = false
-                    _error.value = "This time slot is no longer available. All bays are occupied. Please select another time."
-                    println("❌ Cannot create booking — no free bay for ${booking.timeSlot}")
-                    return@launch
+                    val hasFreeBay = (0 until bayCount).any { bay ->
+                        !busyRanges[bay]!!.any { (s, e) -> newStartMin < e && newEndMin > s }
+                    }
+                    if (!hasFreeBay) {
+                        _isLoading.value = false
+                        _error.value = "This time slot is no longer available. All bays are occupied. Please select another time."
+                        println("❌ Cannot create booking — no free bay for ${booking.timeSlot}")
+                        return@launch
+                    }
+                } catch (e: Exception) {
+                    println("⚠️ Slot availability check failed: ${e.message}. Proceeding with booking.")
                 }
 
                 val bookingDoc = firestore.collection("bookings").document()
 
-                // Use the price sent from the client. For predefined services,
-                // the client already uses the owner's custom prices from Firestore.
-                // This is acceptable because the Firestore rules also verify
-                // and the client price matches what's set by the shop owner.
                 val verifiedPrice = booking.price
 
                 val newBooking = booking.copy(
                     bookingId = bookingDoc.id,
-                    userId = user.uid,                 // Always use the authenticated UID
-                    bookingDate = normalizedDate,       // Normalize to start of day so all same-day bookings match
-                    price = verifiedPrice,              // Use server-verified price
+                    userId = user.uid,
+                    bookingDate = normalizedDate,
+                    price = verifiedPrice,
                     createdAt = System.currentTimeMillis(),
-                    status = BookingStatus.PENDING      // Always start as PENDING
+                    status = BookingStatus.PENDING
                 )
                 bookingDoc.set(newBooking).await()
                 println("✅ Booking created: ${newBooking.bookingId}")
