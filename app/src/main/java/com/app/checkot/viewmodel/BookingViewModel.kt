@@ -118,6 +118,60 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     return@launch
                 }
 
+                // Server-side slot availability check (prevents race conditions)
+                val slotDuration = booking.services.sumOf { s -> parseDurationMinutes(s.duration) }
+                val shopDoc = firestore.collection("shop_services").document(booking.shopId).get().await()
+                val bayCount = (shopDoc.getLong("bayCount")?.toInt() ?: 1).coerceAtLeast(1)
+                val normalizedDate = normalizeToStartOfDay(booking.bookingDate)
+
+                // Get existing active bookings for this shop + date + time slot
+                val existingSnapshot = firestore.collection("bookings")
+                    .whereEqualTo("shopId", booking.shopId)
+                    .whereEqualTo("bookingDate", normalizedDate)
+                    .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
+                    .get().await()
+                val existing = existingSnapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
+
+                // Parse slot to minutes since 9:00
+                fun slotToMin(slot: String): Int {
+                    val parts = slot.split(" ")
+                    val t = parts[0].split(":")
+                    var h = t[0].toInt()
+                    val m = t[1].toInt()
+                    if (parts[1] == "PM" && h != 12) h += 12
+                    if (parts[1] == "AM" && h == 12) h = 0
+                    return (h - 9) * 60 + m
+                }
+
+                val newStartMin = slotToMin(booking.timeSlot)
+                val newEndMin = newStartMin + slotDuration
+
+                // Build busy ranges per bay
+                val busyRanges = mutableMapOf<Int, MutableList<Pair<Int, Int>>>()
+                for (i in 0 until bayCount) busyRanges[i] = mutableListOf()
+                for (b in existing) {
+                    val bs = slotToMin(b.timeSlot)
+                    val be = bs + b.services.sumOf { s -> parseDurationMinutes(s.duration) }
+                    for (bay in 0 until bayCount) {
+                        val ranges = busyRanges[bay]!!
+                        if (ranges.none { (s, e) -> bs < e && be > s }) {
+                            ranges.add(bs to be)
+                            break
+                        }
+                    }
+                }
+
+                // Check if any bay is free for this new booking
+                val hasFreeBay = (0 until bayCount).any { bay ->
+                    !busyRanges[bay]!!.any { (s, e) -> newStartMin < e && newEndMin > s }
+                }
+                if (!hasFreeBay) {
+                    _isLoading.value = false
+                    _error.value = "This time slot is no longer available. All bays are occupied. Please select another time."
+                    println("❌ Cannot create booking — no free bay for ${booking.timeSlot}")
+                    return@launch
+                }
+
                 val bookingDoc = firestore.collection("bookings").document()
 
                 // Use the price sent from the client. For predefined services,
@@ -126,7 +180,6 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 // and the client price matches what's set by the shop owner.
                 val verifiedPrice = booking.price
 
-                val normalizedDate = normalizeToStartOfDay(booking.bookingDate)
                 val newBooking = booking.copy(
                     bookingId = bookingDoc.id,
                     userId = user.uid,                 // Always use the authenticated UID
@@ -303,7 +356,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     .get().await()
 
                 val existing = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
-                    .filter { it.status != BookingStatus.CANCELLED }
+                    .filter { it.status != BookingStatus.CANCELLED && it.status != BookingStatus.COMPLETED }
                 println("📅 Existing bookings: ${existing.size}")
 
                 // Build busy ranges per bay
