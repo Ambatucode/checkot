@@ -1,6 +1,7 @@
 package com.app.checkot.viewmodel
 
 import android.app.Application
+import android.util.Log
 import com.app.checkot.model.*
 import com.app.checkot.service.NotificationHelper
 import com.app.checkot.service.FCMSender
@@ -20,6 +21,7 @@ import kotlinx.coroutines.tasks.await
 
 
 class BookingViewModel(application: Application) : AndroidViewModel(application) {
+    private val TAG = "BookingViewModel"
     private val auth = Firebase.auth
     private val firestore: FirebaseFirestore = Firebase.firestore
     private val appContext = application.applicationContext
@@ -69,7 +71,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
             .whereEqualTo("userId", user.uid)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    println("Real-time listener cancelled: ${error.message}")
+                    Log.d(TAG, "Real-time listener cancelled: ${error.message}")
                     return@addSnapshotListener
                 }
 
@@ -86,7 +88,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 }
 
                 _userBookings.value = bookings
-                println("Bookings updated in real-time: ${bookings.size} bookings")
+                Log.d(TAG, "Bookings updated in real-time: ${bookings.size} bookings")
             }
     }
 
@@ -116,7 +118,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 if (activeSnapshot.documents.isNotEmpty()) {
                     _isLoading.value = false
                     _error.value = "You already have an active booking. Please cancel or wait for it to complete before booking again."
-                    println("❌ Cannot create booking — user has an active booking already")
+                    Log.e(TAG, "❌ Cannot create booking — user has an active booking already")
                     return@launch
                 }
 
@@ -140,15 +142,15 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 } catch (e: BookingLedgerService.NoFreeBayException) {
                     _isLoading.value = false
                     _error.value = "This time slot is no longer available. All bays are occupied. Please select another time."
-                    println("❌ Cannot create booking — no free bay for ${booking.timeSlot}")
+                    Log.e(TAG, "❌ Cannot create booking — no free bay for ${booking.timeSlot}")
                     return@launch
                 } catch (e: Exception) {
                     _isLoading.value = false
                     _error.value = "Could not create booking. Please check your connection and try again."
-                    println("❌ Booking reservation failed: ${e.message}")
+                    Log.e(TAG, "❌ Booking reservation failed: ${e.message}")
                     return@launch
                 }
-                println("✅ Booking created: ${newBooking.bookingId}")
+                Log.d(TAG, "✅ Booking created: ${newBooking.bookingId}")
 
                 // Track the new booking's status
                 previousBookingStatuses[bookingDoc.id] = BookingStatus.PENDING
@@ -168,7 +170,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                             .get().await()
                         val ownerToken = shopDoc.getString("ownerFcmToken")
                         if (!ownerToken.isNullOrEmpty()) {
-                            println("📬 Notifying owner for shop ${newBooking.shopId}...")
+                            Log.d(TAG, "📬 Notifying owner for shop ${newBooking.shopId}...")
                             FCMSender.sendToUser(
                                 context = appContext,
                                 userId = "",
@@ -178,14 +180,14 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                                 fcmToken = ownerToken
                             )
                         } else {
-                            println("⚠️ No owner FCM token in shop_services/${newBooking.shopId}")
+                            Log.w(TAG, "⚠️ No owner FCM token in shop_services/${newBooking.shopId}")
                         }
                     } catch (e: Exception) {
-                        println("❌ Owner notification failed: ${e.message}")
+                        Log.e(TAG, "❌ Owner notification failed: ${e.message}")
                     }
                 }
             } catch (e: Exception) {
-                println("Failed to create booking: ${e.message}")
+                Log.e(TAG, "Failed to create booking: ${e.message}")
             } finally {
                 _isLoading.value = false
             }
@@ -223,7 +225,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                             .get().await()
                         val ownerToken = shopDoc.getString("ownerFcmToken")
                         if (!ownerToken.isNullOrEmpty()) {
-                            println("📬 Sending cancellation notification to owner (token: ${ownerToken.take(8)}...)")
+                            Log.d(TAG, "📬 Sending cancellation notification to owner (token: ${ownerToken.take(8)}...)")
                             FCMSender.sendToUser(
                                 context = appContext,
                                 userId = "",
@@ -234,11 +236,11 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                             )
                         }
                     } catch (e: Exception) {
-                        println("❌ Failed to notify owner of cancellation: ${e.message}")
+                        Log.e(TAG, "❌ Failed to notify owner of cancellation: ${e.message}")
                     }
                 }
             } catch (e: Exception) {
-                println("Failed to cancel booking: ${e.message}")
+                Log.e(TAG, "Failed to cancel booking: ${e.message}")
             }
         }
     }
@@ -292,12 +294,12 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             try {
                 if (shopId.isEmpty()) return@launch
-                println("📅 fetchAvailableTimeSlots: shop=$shopId duration=${durationMinutes}min")
+                Log.d(TAG, "📅 fetchAvailableTimeSlots: shop=$shopId duration=${durationMinutes}min")
 
                 // Load bay count from shop settings
                 val shopDoc = firestore.collection("shop_services").document(shopId).get().await()
                 val bayCount = (shopDoc.getLong("bayCount")?.toInt() ?: 1).coerceAtLeast(1)
-                println("📅 Bay count: $bayCount")
+                Log.d(TAG, "📅 Bay count: $bayCount")
 
                 // Use raw slots (past-time filter already applied in initialSlots)
                 val allSlots = rawSlots.toMutableList()
@@ -310,7 +312,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
 
                 val existing = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
                     .filter { it.status != BookingStatus.CANCELLED && it.status != BookingStatus.COMPLETED }
-                println("📅 Existing bookings: ${existing.size}")
+                Log.d(TAG, "📅 Existing bookings: ${existing.size}")
 
                 // Build busy ranges per bay
                 val busyRanges = BookingUtils.computeBusyRanges(existing, bayCount)
@@ -336,10 +338,10 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 }
 
                 val availCount = updated.count { it.available }
-                println("📅 Slots updated: ${updated.size} total, $availCount available")
+                Log.d(TAG, "📅 Slots updated: ${updated.size} total, $availCount available")
                 _availableTimeSlots.value = updated
             } catch (e: Exception) {
-                println("❌ Failed to fetch time slots: ${e.message}")
+                Log.e(TAG, "❌ Failed to fetch time slots: ${e.message}")
                 // Keep default slots on error
             }
         }

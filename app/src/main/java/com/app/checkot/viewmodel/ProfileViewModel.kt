@@ -1,6 +1,7 @@
 package com.app.checkot.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.ktx.auth
@@ -13,6 +14,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
+    private val TAG = "ProfileViewModel"
     private val auth = Firebase.auth
     private val firestore: FirebaseFirestore = Firebase.firestore
 
@@ -32,7 +34,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 if (safeUpdates.isEmpty()) return@launch
                 firestore.collection("users").document(user.uid).update(safeUpdates).await()
             } catch (e: Exception) {
-                println("Failed to update profile: ${e.message}")
+                Log.e(TAG, "Failed to update profile: ${e.message}")
             } finally {
                 _isLoading.value = false
             }

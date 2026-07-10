@@ -1,6 +1,7 @@
 package com.app.checkot.viewmodel
 
 import android.app.Application
+import android.util.Log
 import com.app.checkot.model.*
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,6 +15,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class CarViewModel(application: Application) : AndroidViewModel(application) {
+    private val TAG = "CarViewModel"
     private val auth = Firebase.auth
     private val firestore: FirebaseFirestore = Firebase.firestore
 
@@ -42,7 +44,7 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
         listenerRegistration = firestore.collection("users").document(uid)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    println("Failed to listen for saved cars: ${error.message}")
+                    Log.e(TAG, "Failed to listen for saved cars: ${error.message}")
                     return@addSnapshotListener
                 }
                 if (snapshot != null && snapshot.exists()) {
@@ -59,7 +61,7 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val currentCars = _savedCars.value.toMutableList()
                 if (currentCars.size >= 5) {
-                    println("Car limit reached. Cannot add more than 5 cars.")
+                    Log.d(TAG, "Car limit reached. Cannot add more than 5 cars.")
                     return@launch
                 }
 
@@ -70,7 +72,7 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
                 firestore.collection("users").document(user.uid).update("savedCars", currentCars).await()
                 _savedCars.value = currentCars
             } catch (e: Exception) {
-                println("Failed to add car: ${e.message}")
+                Log.e(TAG, "Failed to add car: ${e.message}")
             } finally {
                 _isLoading.value = false
             }
@@ -88,7 +90,7 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
                 firestore.collection("users").document(user.uid).update("savedCars", currentCars).await()
                 _savedCars.value = currentCars
             } catch (e: Exception) {
-                println("Failed to delete car: ${e.message}")
+                Log.e(TAG, "Failed to delete car: ${e.message}")
             } finally {
                 _isLoading.value = false
             }
