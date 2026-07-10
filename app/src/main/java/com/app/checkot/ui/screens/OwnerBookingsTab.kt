@@ -89,7 +89,7 @@ fun OwnerBookingsTab(
             }
         }
         // Filter Chips
-        ScrollableTabRow(
+        PrimaryScrollableTabRow(
             selectedTabIndex = when (filter) {
                 "all" -> 0
                 "pending" -> 1
