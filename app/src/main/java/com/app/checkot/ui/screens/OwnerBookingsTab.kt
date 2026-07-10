@@ -646,10 +646,13 @@ fun OwnerBookingCard(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isProcessing,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
                 ) {
                     if (isProcessing) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onTertiary)
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary)
                     } else {
                         Icon(Icons.Default.DoneAll, contentDescription = "Complete", modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
