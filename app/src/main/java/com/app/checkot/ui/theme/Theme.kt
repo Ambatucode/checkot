@@ -1,48 +1,50 @@
 package com.app.checkot.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
-// Modern purple accent color for your app
-val CheckotPurple = Color(0xFF6C63FF)
-val CheckotPurpleLight = Color(0xFF9D94FF)
-val CheckotPurpleDark = Color(0xFF4A42CC)
-val CheckotTeal = Color(0xFF03DAC6)
-private val DarkColorScheme = darkColorScheme(
-    primary = CheckotPurple,
-    secondary = CheckotTeal,
-    background = Color(0xFF121212),
-    surface = Color(0xFF1E1E1E),
-    onPrimary = Color.White,
-    onSecondary = Color.Black,
-    onBackground = Color.White,
-    onSurface = Color.White,
-    primaryContainer = CheckotPurpleDark,
-    onPrimaryContainer = Color.White
+
+// CHECKOT brand scheme: dark navy background, teal as the primary action
+// color, white primary text. One fixed scheme — the brand look does not
+// follow the system light/dark setting.
+private val CheckotColorScheme = darkColorScheme(
+    primary = CheckotTeal,
+    onPrimary = CheckotTextPrimary,
+    primaryContainer = CheckotTealDark,
+    onPrimaryContainer = CheckotTextPrimary,
+
+    secondary = CheckotTealDark,
+    onSecondary = CheckotTextPrimary,
+    secondaryContainer = CheckotNavyElevated,
+    onSecondaryContainer = CheckotSparkle,
+
+    tertiary = CheckotSparkle,
+    onTertiary = CheckotNavy,
+    tertiaryContainer = CheckotNavyElevated,
+    onTertiaryContainer = CheckotSparkle,
+
+    background = CheckotNavy,
+    onBackground = CheckotTextPrimary,
+    surface = CheckotNavySurface,
+    onSurface = CheckotTextPrimary,
+    surfaceVariant = CheckotNavyElevated,
+    onSurfaceVariant = CheckotTextSecondary,
+
+    outline = CheckotOutline,
+    outlineVariant = CheckotOutline,
+
+    error = CheckotError,
+    onError = CheckotTextPrimary,
+    errorContainer = CheckotErrorContainer,
+    onErrorContainer = CheckotOnErrorContainer
 )
-private val LightColorScheme = lightColorScheme(
-    primary = CheckotPurple,
-    secondary = CheckotTeal,
-    background = Color(0xFFF5F5F5),
-    surface = Color.White,
-    onPrimary = Color.White,
-    onSecondary = Color.Black,
-    onBackground = Color.Black,
-    onSurface = Color.Black,
-    primaryContainer = CheckotPurpleLight,
-    onPrimaryContainer = Color.Black
-)
+
 @Composable
 fun CheckotTheme(
-    // Always light: the app has never shipped a dark UI, and following the
-    // system setting surprised users whose phones are in dark mode.
-    darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = CheckotColorScheme,
         typography = CheckotTypography,
         content = content
     )
