@@ -194,7 +194,6 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                             .await()
                         // Notify customer
                         val userId = doc.getString("userId") ?: ""
-                        val services = doc.getString("services") ?: "Service"
                         FCMSender.sendToUser(
                             context = appContext,
                             userId = userId,
@@ -236,7 +235,6 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                                 .update("status", "CANCELLED", "cancelledAt", System.currentTimeMillis())
                                 .await()
                             val userId = doc.getString("userId") ?: ""
-                            val services = doc.getString("services") ?: "Service"
                             FCMSender.sendToUser(
                                 context = appContext,
                                 userId = userId,
