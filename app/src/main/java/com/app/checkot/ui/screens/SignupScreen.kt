@@ -295,7 +295,7 @@ fun SignupScreen(
                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
                     Icon(
                         imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = null,
+                        contentDescription = if (passwordVisible) "Hide password" else "Show password",
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -340,7 +340,7 @@ fun SignupScreen(
                 IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
                     Icon(
                         imageVector = if (confirmPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = null,
+                        contentDescription = if (confirmPasswordVisible) "Hide password" else "Show password",
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }

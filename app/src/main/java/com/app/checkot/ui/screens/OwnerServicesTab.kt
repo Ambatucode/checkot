@@ -134,10 +134,10 @@ fun OwnerServicesTab(
                                 bayCountText = (current - 1).toString()
                             }
                         },
-                        modifier = Modifier.size(28.dp),
+                        modifier = Modifier.size(48.dp),
                         enabled = (bayCountText.toIntOrNull() ?: 1) > 1
                     ) {
-                        Icon(Icons.Default.Remove, contentDescription = "Decrease", modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Remove, contentDescription = "Decrease bay count", modifier = Modifier.size(16.dp))
                     }
                     Text(
                         text = bayCountText,
@@ -151,10 +151,10 @@ fun OwnerServicesTab(
                                 bayCountText = (current + 1).toString()
                             }
                         },
-                        modifier = Modifier.size(28.dp),
+                        modifier = Modifier.size(48.dp),
                         enabled = (bayCountText.toIntOrNull() ?: 1) < 10
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "Increase", modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Add, contentDescription = "Increase bay count", modifier = Modifier.size(16.dp))
                     }
                 }
             }

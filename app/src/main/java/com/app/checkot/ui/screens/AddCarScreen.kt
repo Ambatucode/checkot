@@ -15,6 +15,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -149,7 +153,11 @@ fun AddCarScreen(
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .clickable(enabled = !isLoading) { brandDropdownExpanded = true }
+                        .clickable(enabled = !isLoading, onClickLabel = "Select brand") { brandDropdownExpanded = true }
+                        .semantics {
+                            contentDescription = if (brand.isNotEmpty()) "Brand: $brand" else "Select brand"
+                            role = Role.Button
+                        }
                 )
                 // Centered anchor for the DropdownMenu positioned at the bottom-center
                 Box(
