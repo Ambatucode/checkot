@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -592,12 +593,13 @@ fun ShopServiceSelectionCard(
             Text(
                 text = name,
                 style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                color = if (isSelected) Color.White else Color.Unspecified
             )
             Text(
                 text = "₱${price}",
                 style = MaterialTheme.typography.titleLarge,
-                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
             )
         }
     }
