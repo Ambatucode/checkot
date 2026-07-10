@@ -35,7 +35,9 @@ private val LightColorScheme = lightColorScheme(
 )
 @Composable
 fun CheckotTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    // Always light: the app has never shipped a dark UI, and following the
+    // system setting surprised users whose phones are in dark mode.
+    darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
