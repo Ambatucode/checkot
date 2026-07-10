@@ -4,6 +4,7 @@ import android.app.Application
 import com.app.checkot.model.*
 import com.app.checkot.service.NotificationHelper
 import com.app.checkot.service.FCMSender
+import com.app.checkot.service.BookingLedgerService
 import com.app.checkot.utils.BookingUtils
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -193,6 +194,10 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                         firestore.collection("bookings").document(bookingId)
                             .update("status", "CANCELLED", "cancelledAt", System.currentTimeMillis())
                             .await()
+                        val bookingDate = doc.getLong("bookingDate")
+                        if (bookingDate != null) {
+                            BookingLedgerService.release(firestore, shopId, bookingDate, bookingId)
+                        }
                         // Notify customer
                         val userId = doc.getString("userId") ?: ""
                         FCMSender.sendToUser(
@@ -230,6 +235,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                             firestore.collection("bookings").document(bookingId)
                                 .update("status", "CANCELLED", "cancelledAt", System.currentTimeMillis())
                                 .await()
+                            BookingLedgerService.release(firestore, shopId, bookingDate, bookingId)
                             val userId = doc.getString("userId") ?: ""
                             FCMSender.sendToUser(
                                 context = appContext,
@@ -262,6 +268,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                 firestore.collection("bookings").document(bookingId)
                     .update("status", "CANCELLED", "cancelledAt", System.currentTimeMillis())
                     .await()
+                BookingLedgerService.release(firestore, booking.shopId, booking.bookingDate, bookingId)
 
                 val services = booking.services.joinToString(", ") { it.displayName }
                 FCMSender.sendToUser(
@@ -343,6 +350,10 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                 firestore.collection("bookings").document(bookingId)
                     .update(updates).await()
                 println("✅ Booking $bookingId updated to $status")
+
+                if (status == BookingStatus.CANCELLED) {
+                    BookingLedgerService.release(firestore, booking.shopId, booking.bookingDate, bookingId)
+                }
 
                 // 3. Send FCM push notification to the CUSTOMER
                 val services = booking.services.joinToString(", ") { it.displayName }

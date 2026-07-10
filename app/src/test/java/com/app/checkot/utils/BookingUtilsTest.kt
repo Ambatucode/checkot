@@ -1,9 +1,11 @@
 package com.app.checkot.utils
 
 import com.app.checkot.model.Booking
+import com.app.checkot.model.DaySlotEntry
 import com.app.checkot.model.ServiceType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -150,5 +152,43 @@ class BookingUtilsTest {
         // only bay, so a new 09:30-10:00 booking must be rejected.
         val ranges = BookingUtils.computeBusyRanges(forwardOrder, bayCount = 1)
         assertFalse(BookingUtils.hasFreeBay(ranges, start = 30, end = 60))
+    }
+
+    // ---- findFreeBayIndex ----
+
+    @Test
+    fun `findFreeBayIndex returns the lowest-numbered open bay`() {
+        val ranges = BookingUtils.computeBusyRanges(listOf(bookingAt("09:00 AM")), bayCount = 2)
+        // Bay 0 is taken by the existing booking, bay 1 is free.
+        assertEquals(1, BookingUtils.findFreeBayIndex(ranges, bayCount = 2, start = 0, end = 30))
+    }
+
+    @Test
+    fun `findFreeBayIndex returns null when every bay conflicts`() {
+        val bookings = listOf(bookingAt("09:00 AM"), bookingAt("09:00 AM"))
+        val ranges = BookingUtils.computeBusyRanges(bookings, bayCount = 2)
+        assertNull(BookingUtils.findFreeBayIndex(ranges, bayCount = 2, start = 0, end = 30))
+    }
+
+    // ---- ledgerDocId / busyRangesFromLedger ----
+
+    @Test
+    fun `ledgerDocId combines shopId and date deterministically`() {
+        assertEquals("shop123_1700000000000", BookingUtils.ledgerDocId("shop123", 1700000000000L))
+    }
+
+    @Test
+    fun `busyRangesFromLedger groups entries by bay`() {
+        val entries = listOf(
+            DaySlotEntry(bay = 0, start = 0, end = 30, bookingId = "b1"),
+            DaySlotEntry(bay = 0, start = 60, end = 90, bookingId = "b2"),
+            DaySlotEntry(bay = 1, start = 0, end = 45, bookingId = "b3")
+        )
+        val ranges = BookingUtils.busyRangesFromLedger(entries)
+
+        assertEquals(listOf(0 to 30, 60 to 90), ranges[0])
+        assertEquals(listOf(0 to 45), ranges[1])
+        assertFalse(BookingUtils.hasFreeBay(ranges, start = 0, end = 30)) // bay0 busy...
+        assertTrue(BookingUtils.hasFreeBay(ranges, start = 45, end = 60)) // ...but a gap exists in bay0
     }
 }

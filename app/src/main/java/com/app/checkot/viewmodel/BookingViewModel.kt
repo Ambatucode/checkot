@@ -4,6 +4,7 @@ import android.app.Application
 import com.app.checkot.model.*
 import com.app.checkot.service.NotificationHelper
 import com.app.checkot.service.FCMSender
+import com.app.checkot.service.BookingLedgerService
 import com.app.checkot.utils.BookingUtils
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -119,48 +120,34 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     return@launch
                 }
 
-                // Server-side slot availability check (prevents race conditions)
+                // Server-side slot availability check + creation, atomically —
+                // avoids the race where two concurrent bookings both pass a
+                // separate check before either writes (see BookingLedgerService).
                 val normalizedDate = normalizeToStartOfDay(booking.bookingDate)
-                try {
-                    val slotDuration = BookingUtils.totalDurationMinutes(booking.services)
-                    val shopDoc = firestore.collection("shop_services").document(booking.shopId).get().await()
-                    val bayCount = (shopDoc.getLong("bayCount")?.toInt() ?: 1).coerceAtLeast(1)
-
-                    // Get existing active bookings for this shop + date
-                    val existingSnapshot = firestore.collection("bookings")
-                        .whereEqualTo("shopId", booking.shopId)
-                        .whereEqualTo("bookingDate", normalizedDate)
-                        .get().await()
-                    val existing = existingSnapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
-                        .filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED || it.status == BookingStatus.IN_PROGRESS }
-
-                    val newStartMin = BookingUtils.parseTimeSlotToMinutesSince9AM(booking.timeSlot)
-                    val newEndMin = newStartMin + slotDuration
-
-                    val busyRanges = BookingUtils.computeBusyRanges(existing, bayCount)
-                    if (!BookingUtils.hasFreeBay(busyRanges, newStartMin, newEndMin)) {
-                        _isLoading.value = false
-                        _error.value = "This time slot is no longer available. All bays are occupied. Please select another time."
-                        println("❌ Cannot create booking — no free bay for ${booking.timeSlot}")
-                        return@launch
-                    }
-                } catch (e: Exception) {
-                    println("⚠️ Slot availability check failed: ${e.message}. Proceeding with booking.")
-                }
-
                 val bookingDoc = firestore.collection("bookings").document()
-
-                val verifiedPrice = booking.price
-
                 val newBooking = booking.copy(
                     bookingId = bookingDoc.id,
                     userId = user.uid,
                     bookingDate = normalizedDate,
-                    price = verifiedPrice,
                     createdAt = System.currentTimeMillis(),
                     status = BookingStatus.PENDING
                 )
-                bookingDoc.set(newBooking).await()
+                val startMin = BookingUtils.parseTimeSlotToMinutesSince9AM(booking.timeSlot)
+                val endMin = startMin + BookingUtils.totalDurationMinutes(booking.services)
+
+                try {
+                    BookingLedgerService.reserveAndCreateBooking(firestore, bookingDoc, newBooking, startMin, endMin)
+                } catch (e: BookingLedgerService.NoFreeBayException) {
+                    _isLoading.value = false
+                    _error.value = "This time slot is no longer available. All bays are occupied. Please select another time."
+                    println("❌ Cannot create booking — no free bay for ${booking.timeSlot}")
+                    return@launch
+                } catch (e: Exception) {
+                    _isLoading.value = false
+                    _error.value = "Could not create booking. Please check your connection and try again."
+                    println("❌ Booking reservation failed: ${e.message}")
+                    return@launch
+                }
                 println("✅ Booking created: ${newBooking.bookingId}")
 
                 // Track the new booking's status
@@ -215,6 +202,9 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     "status", BookingStatus.CANCELLED,
                     "cancelledAt", System.currentTimeMillis()
                 ).await()
+                if (booking != null) {
+                    BookingLedgerService.release(firestore, booking.shopId, booking.bookingDate, bookingId)
+                }
                 // Store cancellation timestamp in Firestore (survives app restart)
                 val uid = auth.currentUser?.uid ?: ""
                 if (uid.isNotEmpty()) {

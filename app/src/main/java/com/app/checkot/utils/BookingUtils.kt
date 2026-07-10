@@ -1,6 +1,7 @@
 package com.app.checkot.utils
 
 import com.app.checkot.model.Booking
+import com.app.checkot.model.DaySlotEntry
 import com.app.checkot.model.ServiceType
 
 /**
@@ -75,4 +76,20 @@ object BookingUtils {
     fun hasFreeBay(busyRanges: Map<Int, List<Pair<Int, Int>>>, start: Int, end: Int): Boolean {
         return busyRanges.values.any { ranges -> ranges.none { (s, e) -> start < e && end > s } }
     }
+
+    /** The lowest-numbered bay (0-indexed) with no range overlapping [start, end), or null if none. */
+    fun findFreeBayIndex(busyRanges: Map<Int, List<Pair<Int, Int>>>, bayCount: Int, start: Int, end: Int): Int? {
+        for (bay in 0 until bayCount) {
+            val ranges = busyRanges[bay].orEmpty()
+            if (ranges.none { (s, e) -> start < e && end > s }) return bay
+        }
+        return null
+    }
+
+    /** Deterministic document ID for a shop's day_slots ledger entry. */
+    fun ledgerDocId(shopId: String, date: Long): String = "${shopId}_$date"
+
+    /** Reshapes a ledger's flat entry list into the same per-bay range map computeBusyRanges produces. */
+    fun busyRangesFromLedger(entries: List<DaySlotEntry>): Map<Int, List<Pair<Int, Int>>> =
+        entries.groupBy { it.bay }.mapValues { (_, v) -> v.map { it.start to it.end } }
 }

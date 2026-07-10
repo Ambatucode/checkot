@@ -93,6 +93,29 @@ data class CustomServiceConfig(
     val customName: String = "" // Custom name for "Others" services
 )
 
+/**
+ * One reserved bay-time range within a DaySlotLedger, tied back to the
+ * booking that reserved it.
+ */
+data class DaySlotEntry(
+    val bay: Int = 0,
+    val start: Int = 0, // minutes since 9:00 AM
+    val end: Int = 0,
+    val bookingId: String = ""
+)
+
+/**
+ * Per-shop-per-day bay reservation ledger, stored at day_slots/{shopId}_{date}.
+ * Firestore transactions can only read specific documents (not run queries),
+ * so this single small document stands in for "query every booking for this
+ * shop+date" — letting booking creation check-and-reserve a bay atomically.
+ */
+data class DaySlotLedger(
+    val shopId: String = "",
+    val date: Long = 0,
+    val entries: List<DaySlotEntry> = emptyList()
+)
+
 /** Returns the formatted service names, replacing "Custom Service" with actual custom names */
 fun Booking.displayServiceNames(): String {
     var customCounter = 0

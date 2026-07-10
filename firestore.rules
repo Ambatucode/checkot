@@ -202,6 +202,25 @@ service cloud.firestore {
     }
 
     // ============================================================
+    // DAY SLOTS COLLECTION
+    //   Per-shop-per-day bay reservation ledger (day_slots/{shopId}_{date}).
+    //   Used transactionally by booking create/cancel so the check-and-
+    //   reserve can be atomic — Firestore transactions can't run queries,
+    //   so this document stands in for "query every booking for this
+    //   shop+date". Like bookings.price, this can't be fully validated
+    //   here (no list-sum support in rules), so this is a guardrail
+    //   against garbage writes, not a full correctness check.
+    // ============================================================
+    match /day_slots/{docId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.shopId is string
+        && request.resource.data.shopId != ''
+        && request.resource.data.entries is list;
+      allow delete: if false;
+    }
+
+    // ============================================================
     // DENY EVERYTHING ELSE BY DEFAULT
     // ============================================================
     match /{document=**} {
