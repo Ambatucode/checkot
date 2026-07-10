@@ -4,6 +4,7 @@ import android.app.Application
 import com.app.checkot.model.*
 import com.app.checkot.service.NotificationHelper
 import com.app.checkot.service.FCMSender
+import com.app.checkot.utils.BookingUtils
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.ktx.auth
@@ -121,7 +122,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 // Server-side slot availability check (prevents race conditions)
                 val normalizedDate = normalizeToStartOfDay(booking.bookingDate)
                 try {
-                    val slotDuration = booking.services.sumOf { s -> parseDurationMinutes(s.duration) }
+                    val slotDuration = BookingUtils.totalDurationMinutes(booking.services)
                     val shopDoc = firestore.collection("shop_services").document(booking.shopId).get().await()
                     val bayCount = (shopDoc.getLong("bayCount")?.toInt() ?: 1).coerceAtLeast(1)
 
@@ -133,37 +134,11 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     val existing = existingSnapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
                         .filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED || it.status == BookingStatus.IN_PROGRESS }
 
-                    fun slotToMin(slot: String): Int {
-                        val parts = slot.split(" ")
-                        val t = parts[0].split(":")
-                        var h = t[0].toInt()
-                        val m = t[1].toInt()
-                        if (parts[1] == "PM" && h != 12) h += 12
-                        if (parts[1] == "AM" && h == 12) h = 0
-                        return (h - 9) * 60 + m
-                    }
-
-                    val newStartMin = slotToMin(booking.timeSlot)
+                    val newStartMin = BookingUtils.parseTimeSlotToMinutesSince9AM(booking.timeSlot)
                     val newEndMin = newStartMin + slotDuration
 
-                    val busyRanges = mutableMapOf<Int, MutableList<Pair<Int, Int>>>()
-                    for (i in 0 until bayCount) busyRanges[i] = mutableListOf()
-                    for (b in existing) {
-                        val bs = slotToMin(b.timeSlot)
-                        val be = bs + b.services.sumOf { s -> parseDurationMinutes(s.duration) }
-                        for (bay in 0 until bayCount) {
-                            val ranges = busyRanges[bay]!!
-                            if (ranges.none { (s, e) -> bs < e && be > s }) {
-                                ranges.add(bs to be)
-                                break
-                            }
-                        }
-                    }
-
-                    val hasFreeBay = (0 until bayCount).any { bay ->
-                        !busyRanges[bay]!!.any { (s, e) -> newStartMin < e && newEndMin > s }
-                    }
-                    if (!hasFreeBay) {
+                    val busyRanges = BookingUtils.computeBusyRanges(existing, bayCount)
+                    if (!BookingUtils.hasFreeBay(busyRanges, newStartMin, newEndMin)) {
                         _isLoading.value = false
                         _error.value = "This time slot is no longer available. All bays are occupied. Please select another time."
                         println("❌ Cannot create booking — no free bay for ${booking.timeSlot}")
@@ -304,16 +279,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
         )
 
         // Convert "09:00 AM" → minutes since 9:00
-        fun slotToMinutes(slot: String): Int {
-            val parts = slot.split(" ")
-            val timeParts = parts[0].split(":")
-            var h = timeParts[0].toInt()
-            val m = timeParts[1].toInt()
-            val isPM = parts[1] == "PM"
-            if (isPM && h != 12) h += 12
-            if (!isPM && h == 12) h = 0
-            return (h - 9) * 60 + m
-        }
+        fun slotToMinutes(slot: String): Int = BookingUtils.parseTimeSlotToMinutesSince9AM(slot)
 
         // Filter out slots too close to current time (30 min min advance)
         val cal = java.util.Calendar.getInstance()
@@ -357,20 +323,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 println("📅 Existing bookings: ${existing.size}")
 
                 // Build busy ranges per bay
-                val busyRanges = mutableMapOf<Int, MutableList<Pair<Int, Int>>>()
-                for (i in 0 until bayCount) busyRanges[i] = mutableListOf()
-
-                for (b in existing) {
-                    val startMin = slotToMinutes(b.timeSlot)
-                    val endMin = startMin + b.services.sumOf { s -> parseDurationMinutes(s.duration) }
-                    for (bay in 0 until bayCount) {
-                        val ranges = busyRanges[bay]!!
-                        if (ranges.none { (s, e) -> startMin < e && endMin > s }) {
-                            ranges.add(startMin to endMin)
-                            break
-                        }
-                    }
-                }
+                val busyRanges = BookingUtils.computeBusyRanges(existing, bayCount)
 
                 // Check each slot (curH/curM/isToday/slotToMinutes from outer scope)
                 val updated = allSlots.map { slot ->
@@ -386,10 +339,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
 
                     if (avail) {
                         val em = sm + durationMinutes
-                        val fits = (0 until bayCount).any { bay ->
-                            !busyRanges[bay]!!.any { (s, e) -> sm < e && em > s }
-                        }
-                        if (!fits) avail = false
+                        if (!BookingUtils.hasFreeBay(busyRanges, sm, em)) avail = false
                     }
 
                     slot.copy(available = avail)
@@ -402,19 +352,6 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 println("❌ Failed to fetch time slots: ${e.message}")
                 // Keep default slots on error
             }
-        }
-    }
-
-    private fun parseDurationMinutes(duration: String): Int {
-        return when {
-            duration.contains("hour") -> {
-                val hours = duration.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 1.0
-                (hours * 60).toInt()
-            }
-            duration.contains("min") -> {
-                duration.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 30
-            }
-            else -> 30
         }
     }
 

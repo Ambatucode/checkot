@@ -184,10 +184,14 @@ service cloud.firestore {
       // Owner can update their shop (prices, services, logo, etc.)
       // but CANNOT change the 'status' field
       // Admin can ONLY change the 'status' field (approve/reject)
+      // bayCount is bounded to match the app's own stepper limit (1-10)
       allow update: if (ownsShop(shopId)
         && isNotChanging(['status'])
         && request.resource.data.services is list
-        && request.resource.data.services.size() <= 50)
+        && request.resource.data.services.size() <= 50
+        && request.resource.data.bayCount is number
+        && request.resource.data.bayCount >= 1
+        && request.resource.data.bayCount <= 10)
         || (isAdmin()
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly(['status']));

@@ -4,6 +4,7 @@ import android.app.Application
 import com.app.checkot.model.*
 import com.app.checkot.service.NotificationHelper
 import com.app.checkot.service.FCMSender
+import com.app.checkot.utils.BookingUtils
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.ktx.auth
@@ -216,12 +217,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                     // Skip if confirmed less than 30 min ago (prevents immediate cancel after approval)
                     if (confirmedAt > 0 && System.currentTimeMillis() - confirmedAt < 30 * 60 * 1000L) continue
                     try {
-                        val parts = timeSlot.split(" ")
-                        val t = parts[0].split(":")
-                        var h = t[0].toInt()
-                        val m = t[1].toInt()
-                        if (parts[1] == "PM" && h != 12) h += 12
-                        if (parts[1] == "AM" && h == 12) h = 0
+                        val (h, m) = BookingUtils.parseTimeSlotToHourMinute(timeSlot)
                         val cal = java.util.Calendar.getInstance().apply {
                             timeInMillis = bookingDate
                             set(java.util.Calendar.HOUR_OF_DAY, h)
