@@ -44,6 +44,10 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
 
+    /** True once the first userBookings snapshot (success or error) has arrived. */
+    private val _userBookingsLoaded = MutableStateFlow(false)
+    val userBookingsLoaded: StateFlow<Boolean> = _userBookingsLoaded
+
     private var bookingsListenerRegistration: ListenerRegistration? = null
     private var authStateListener: com.google.firebase.auth.FirebaseAuth.AuthStateListener? = null
 
@@ -55,9 +59,11 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
             previousBookingStatuses.clear()
             if (user != null) {
                 _userBookings.value = emptyList()
+                _userBookingsLoaded.value = false
                 setupRealTimeBookingsListener()
             } else {
                 _userBookings.value = emptyList()
+                _userBookingsLoaded.value = true
             }
         }
         auth.addAuthStateListener(authStateListener!!)
@@ -72,6 +78,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.d(TAG, "Real-time listener cancelled: ${error.message}")
+                    _userBookingsLoaded.value = true
                     return@addSnapshotListener
                 }
 
@@ -88,6 +95,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 }
 
                 _userBookings.value = bookings
+                _userBookingsLoaded.value = true
                 Log.d(TAG, "Bookings updated in real-time: ${bookings.size} bookings")
             }
     }

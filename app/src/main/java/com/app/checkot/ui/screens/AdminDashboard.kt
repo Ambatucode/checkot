@@ -36,6 +36,7 @@ fun AdminDashboard(
     val activeShops by adminViewModel.activeShops.collectAsState()
     val rejectedShops by adminViewModel.rejectedShops.collectAsState()
     val isLoading by adminViewModel.isLoading.collectAsState()
+    val loadError by adminViewModel.error.collectAsState()
 
     // Initial load
     LaunchedEffect(Unit) {
@@ -101,6 +102,24 @@ fun AdminDashboard(
                 isLoading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
+                    }
+                }
+                loadError != null -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.ErrorOutline,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(loadError ?: "", style = MaterialTheme.typography.bodyMedium)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(onClick = { adminViewModel.loadShops() }) {
+                                Text("Retry")
+                            }
+                        }
                     }
                 }
                 selectedTab == 0 -> PendingShopsTab(pendingShops, adminViewModel)

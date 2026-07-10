@@ -31,6 +31,14 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
     private val _allUsers = MutableStateFlow<List<CarWashUser>>(emptyList())
     val allUsers: StateFlow<List<CarWashUser>> = _allUsers
 
+    /** True once the first allBookings snapshot (success or error) has arrived. */
+    private val _allBookingsLoaded = MutableStateFlow(false)
+    val allBookingsLoaded: StateFlow<Boolean> = _allBookingsLoaded
+
+    /** True once loadUsers has resolved (success or error) at least once. */
+    private val _allUsersLoaded = MutableStateFlow(false)
+    val allUsersLoaded: StateFlow<Boolean> = _allUsersLoaded
+
     private val _currentOwnerShopId = MutableStateFlow<String?>(null)
 
     private val _shopCustomization = MutableStateFlow(ShopCustomization())
@@ -52,6 +60,8 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 // Clear old state first
                 _allBookings.value = emptyList()
                 _allUsers.value = emptyList()
+                _allBookingsLoaded.value = false
+                _allUsersLoaded.value = false
                 bookingsListenerRegistration?.remove()
                 bookingsListenerRegistration = null
                 servicesListenerRegistration?.remove()
@@ -61,6 +71,8 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 // User logged out — clear state
                 _allBookings.value = emptyList()
                 _allUsers.value = emptyList()
+                _allBookingsLoaded.value = true
+                _allUsersLoaded.value = true
                 _currentOwnerShopId.value = null
                 _shopCustomization.value = ShopCustomization()
                 bookingsListenerRegistration?.remove()
@@ -146,6 +158,7 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e(TAG, "🔥 ERROR on bookings listener: ${error.message}")
+                    _allBookingsLoaded.value = true
                     return@addSnapshotListener
                 }
 
@@ -153,6 +166,7 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                     ?: emptyList()
 
                 _allBookings.value = bookingsList
+                _allBookingsLoaded.value = true
                 Log.d(TAG, "🔥 Bookings updated in real-time: ${bookingsList.size}")
 
                 // Update known IDs
@@ -291,6 +305,7 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
     private suspend fun loadUsers(userIds: List<String>) {
         if (userIds.isEmpty()) {
             _allUsers.value = emptyList()
+            _allUsersLoaded.value = true
             return
         }
         try {
@@ -305,9 +320,11 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
             }
 
             _allUsers.value = usersList
+            _allUsersLoaded.value = true
             Log.d(TAG, "🔥 Total users loaded: ${usersList.size}")
         } catch (e: Exception) {
             Log.e(TAG, "🔥 ERROR loading users: ${e.message}")
+            _allUsersLoaded.value = true
         }
     }
 

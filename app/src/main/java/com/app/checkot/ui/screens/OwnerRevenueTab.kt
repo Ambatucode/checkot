@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: PaddingValues) {
     val allBookings by ownerViewModel.allBookings.collectAsState()
+    val allBookingsLoaded by ownerViewModel.allBookingsLoaded.collectAsState()
     var selectedPeriod by remember { mutableStateOf("today") }
     val now = System.currentTimeMillis()
     val oneDay = 86400000
@@ -99,7 +100,13 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
             ) { booking ->
                 TransactionItem(booking = booking)
             }
-            if (filteredBookings.isEmpty()) {
+            if (!allBookingsLoaded) {
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                }
+            } else if (filteredBookings.isEmpty()) {
                 item {
                     Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                         Text("No completed bookings for this period")

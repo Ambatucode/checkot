@@ -29,6 +29,7 @@ fun OwnerBookingsTab(
     paddingValues: PaddingValues
 ) {
     val allBookings by ownerViewModel.allBookings.collectAsState()
+    val allBookingsLoaded by ownerViewModel.allBookingsLoaded.collectAsState()
     var filter by remember { mutableStateOf("all") }
     // FORCE REFRESH WHEN TAB OPENS
     LaunchedEffect(Unit) {
@@ -153,7 +154,18 @@ fun OwnerBookingsTab(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (filteredBookings.isEmpty()) {
+            if (!allBookingsLoaded) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                }
+            } else if (filteredBookings.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier

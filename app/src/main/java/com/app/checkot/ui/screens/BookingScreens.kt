@@ -26,6 +26,7 @@ fun BookingsScreen(
     bookingViewModel: BookingViewModel = viewModel()
 ) {
     val bookings by bookingViewModel.userBookings.collectAsState()
+    val bookingsLoaded by bookingViewModel.userBookingsLoaded.collectAsState()
     var selectedTab by remember { mutableStateOf(0) }
     val filteredBookings = when (selectedTab) {
         0 -> bookings // All
@@ -61,7 +62,14 @@ fun BookingsScreen(
                     )
                 }
             }
-            if (filteredBookings.isEmpty()) {
+            if (!bookingsLoaded) {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                }
+            } else if (filteredBookings.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()

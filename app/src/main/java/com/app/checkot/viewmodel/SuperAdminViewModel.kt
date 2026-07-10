@@ -43,9 +43,13 @@ class SuperAdminViewModel(application: Application) : AndroidViewModel(applicati
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error
+
     fun loadShops() {
         viewModelScope.launch {
             _isLoading.value = true
+            _error.value = null
             try {
                 val snapshot = firestore.collection("shop_services").get().await()
                 val shops = snapshot.documents.mapNotNull { doc ->
@@ -67,6 +71,7 @@ class SuperAdminViewModel(application: Application) : AndroidViewModel(applicati
                 _rejectedShops.value = shops.filter { it.status == "rejected" }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ SuperAdmin: Failed to load shops: ${e.message}")
+                _error.value = "Couldn't load shops. Check your connection and try again."
             } finally {
                 _isLoading.value = false
             }

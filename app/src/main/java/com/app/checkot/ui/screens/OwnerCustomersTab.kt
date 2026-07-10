@@ -27,6 +27,7 @@ fun OwnerCustomersTab(
     paddingValues: PaddingValues
 ) {
     val allUsers by ownerViewModel.allUsers.collectAsState()
+    val allUsersLoaded by ownerViewModel.allUsersLoaded.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
     val filteredUsers = if (searchQuery.isEmpty()) {
         allUsers
@@ -74,7 +75,13 @@ fun OwnerCustomersTab(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (filteredUsers.isEmpty()) {
+            if (!allUsersLoaded) {
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                }
+            } else if (filteredUsers.isEmpty()) {
                 item {
                     Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                         Text("No customers found")

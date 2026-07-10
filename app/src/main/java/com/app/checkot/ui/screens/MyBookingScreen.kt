@@ -28,6 +28,7 @@ fun MyBookingsScreen(
     bookingViewModel: BookingViewModel = viewModel()
 ) {
     val bookings by bookingViewModel.userBookings.collectAsState()
+    val bookingsLoaded by bookingViewModel.userBookingsLoaded.collectAsState()
     var selectedTab by remember { mutableStateOf(0) }
     val pendingBookings = bookings.filter { it.status == BookingStatus.PENDING }
     val confirmedBookings = bookings.filter { it.status == BookingStatus.CONFIRMED }
@@ -135,7 +136,14 @@ fun MyBookingsScreen(
                 4 -> cancelledBookings
                 else -> bookings
             }
-            if (displayBookings.isEmpty()) {
+            if (!bookingsLoaded) {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                }
+            } else if (displayBookings.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()

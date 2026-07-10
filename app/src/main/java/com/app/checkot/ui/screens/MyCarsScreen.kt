@@ -27,6 +27,7 @@ fun MyCarsScreen(
     bookingViewModel: BookingViewModel = viewModel()
 ) {
     val savedCars by carViewModel.savedCars.collectAsState()
+    val savedCarsLoaded by carViewModel.savedCarsLoaded.collectAsState()
     val userBookings by bookingViewModel.userBookings.collectAsState()
     val scope = rememberCoroutineScope()
     Scaffold(
@@ -42,7 +43,16 @@ fun MyCarsScreen(
             )
         }
     ) { paddingValues ->
-        if (savedCars.isEmpty()) {
+        if (!savedCarsLoaded) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            }
+        } else if (savedCars.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

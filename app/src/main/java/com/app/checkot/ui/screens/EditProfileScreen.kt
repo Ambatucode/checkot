@@ -32,6 +32,7 @@ fun EditProfileScreen(
     var fullName by remember { mutableStateOf(userData?.fullName ?: "") }
     var phoneNumber by remember { mutableStateOf(userData?.phoneNumber ?: "") }
     var isLoading by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<String?>(null) }
     Scaffold(
         topBar = {
             BackTopAppBar(
@@ -40,15 +41,19 @@ fun EditProfileScreen(
                 actions = {
                     TextButton(
                         onClick = {
-                            scope.launch {
-                                isLoading = true
-                                val updates = mapOf(
-                                    "fullName" to fullName,
-                                    "phoneNumber" to phoneNumber
-                                )
-                                profileViewModel.updateUserProfile(updates)
+                            isLoading = true
+                            saveError = null
+                            val updates = mapOf(
+                                "fullName" to fullName,
+                                "phoneNumber" to phoneNumber
+                            )
+                            profileViewModel.updateUserProfile(updates) { success, error ->
                                 isLoading = false
-                                navController.popBackStack()
+                                if (success) {
+                                    navController.popBackStack()
+                                } else {
+                                    saveError = error
+                                }
                             }
                         },
                         enabled = !isLoading
@@ -128,6 +133,14 @@ fun EditProfileScreen(
                         enabled = false
                     )
                 }
+            }
+            if (saveError != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = saveError ?: "",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
             Spacer(modifier = Modifier.weight(1f))
             // Save button at bottom

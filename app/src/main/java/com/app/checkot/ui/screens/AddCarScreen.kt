@@ -38,6 +38,7 @@ fun AddCarScreen(
     var isDefault by remember { mutableStateOf(false) }
     var brandDropdownExpanded by remember { mutableStateOf(false) }
     var isOtherSelected by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<String?>(null) }
     val popularBrands = listOf(
         "Toyota", "Honda", "Mitsubishi", "Ford", "Nissan", 
         "Suzuki", "Hyundai", "Isuzu", "Mazda", "Kia", 
@@ -271,6 +272,13 @@ fun AddCarScreen(
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
+            if (saveError != null) {
+                Text(
+                    text = saveError ?: "",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
             // Add Car Button
             Button(
                 onClick = {
@@ -282,8 +290,14 @@ fun AddCarScreen(
                         color = color.trim(),
                         isDefault = isDefault
                     )
-                    carViewModel.addCar(newCar)
-                    navController.popBackStack()
+                    saveError = null
+                    carViewModel.addCar(newCar) { success, error ->
+                        if (success) {
+                            navController.popBackStack()
+                        } else {
+                            saveError = error
+                        }
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = plateNumber.isNotBlank() && plateError == null && brand.isNotBlank() && model.isNotBlank() && !isLoading && !carLimitReached
