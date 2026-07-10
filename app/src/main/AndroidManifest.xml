@@ -21,7 +21,6 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Checkot"
-        android:usesCleartextTraffic="true"
         tools:targetApi="31">
 
         <!-- Set custom default notification channel. This is used when no channel is set for the incoming notification message. -->

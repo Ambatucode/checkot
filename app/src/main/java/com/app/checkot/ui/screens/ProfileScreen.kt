@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,11 +32,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import com.app.checkot.ui.components.BackTopAppBar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     authViewModel: AuthViewModel = viewModel(),
-    adminViewModel: AdminViewModel = viewModel(),
+    ownerViewModel: OwnerDashboardViewModel = viewModel(),
     onLogout: () -> Unit,
     navController: NavController
 ) {
@@ -49,7 +51,7 @@ fun ProfileScreen(
     var logoBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var logoError by remember { mutableStateOf<String?>(null) }
     var isSavingLogo by remember { mutableStateOf(false) }
-    val shopCustomization by adminViewModel.shopCustomization.collectAsState()
+    val shopCustomization by ownerViewModel.shopCustomization.collectAsState()
 
     // Decode existing logo base64
     LaunchedEffect(shopCustomization.logoBase64) {
@@ -77,7 +79,7 @@ fun ProfileScreen(
                     logoBitmap = bitmap
                     logoError = null
                     // Save immediately
-                    adminViewModel.saveLogoBase64(base64, "image/jpeg")
+                    ownerViewModel.saveLogoBase64(base64, "image/jpeg")
                 }, onError = { error ->
                     logoError = error
                 })
@@ -87,13 +89,9 @@ fun ProfileScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("My Profile") },
-                navigationIcon = {
-                    IconButton(onClick = { if(navController.previousBackStackEntry != null) navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                }
+            BackTopAppBar(
+                title = "My Profile",
+                onBack = { if (navController.previousBackStackEntry != null) navController.popBackStack() }
             )
         }
     ) { paddingValues ->
@@ -365,7 +363,7 @@ fun ProfileScreen(
                                     strokeWidth = 2.dp
                                 )
                             } else {
-                                Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("Logout")
                             }

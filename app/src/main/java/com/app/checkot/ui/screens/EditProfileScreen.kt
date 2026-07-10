@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
+import com.app.checkot.ui.components.BackTopAppBar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditProfileScreen(
@@ -30,27 +32,28 @@ fun EditProfileScreen(
     var fullName by remember { mutableStateOf(userData?.fullName ?: "") }
     var phoneNumber by remember { mutableStateOf(userData?.phoneNumber ?: "") }
     var isLoading by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<String?>(null) }
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Edit Profile") },
-                navigationIcon = {
-                    IconButton(onClick = { if(navController.previousBackStackEntry != null) navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            BackTopAppBar(
+                title = "Edit Profile",
+                onBack = { if (navController.previousBackStackEntry != null) navController.popBackStack() },
                 actions = {
                     TextButton(
                         onClick = {
-                            scope.launch {
-                                isLoading = true
-                                val updates = mapOf(
-                                    "fullName" to fullName,
-                                    "phoneNumber" to phoneNumber
-                                )
-                                profileViewModel.updateUserProfile(updates)
+                            isLoading = true
+                            saveError = null
+                            val updates = mapOf(
+                                "fullName" to fullName,
+                                "phoneNumber" to phoneNumber
+                            )
+                            profileViewModel.updateUserProfile(updates) { success, error ->
                                 isLoading = false
-                                navController.popBackStack()
+                                if (success) {
+                                    navController.popBackStack()
+                                } else {
+                                    saveError = error
+                                }
                             }
                         },
                         enabled = !isLoading
@@ -130,6 +133,14 @@ fun EditProfileScreen(
                         enabled = false
                     )
                 }
+            }
+            if (saveError != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = saveError ?: "",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
             Spacer(modifier = Modifier.weight(1f))
             // Save button at bottom

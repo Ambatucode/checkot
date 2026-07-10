@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.app.checkot.viewmodel.AuthViewModel
+import com.app.checkot.ui.theme.CheckotTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -52,7 +53,7 @@ class MainActivity : ComponentActivity() {
         requestNotificationPermission()
 
         setContent {
-            MaterialTheme {
+            CheckotTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

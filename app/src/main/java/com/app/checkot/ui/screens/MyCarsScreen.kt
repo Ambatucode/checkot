@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
+import com.app.checkot.ui.components.BackTopAppBar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyCarsScreen(
@@ -25,17 +27,14 @@ fun MyCarsScreen(
     bookingViewModel: BookingViewModel = viewModel()
 ) {
     val savedCars by carViewModel.savedCars.collectAsState()
+    val savedCarsLoaded by carViewModel.savedCarsLoaded.collectAsState()
     val userBookings by bookingViewModel.userBookings.collectAsState()
     val scope = rememberCoroutineScope()
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("My Cars") },
-                navigationIcon = {
-                    IconButton(onClick = { if(navController.previousBackStackEntry != null) navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            BackTopAppBar(
+                title = "My Cars",
+                onBack = { if (navController.previousBackStackEntry != null) navController.popBackStack() },
                 actions = {
                     IconButton(onClick = { navController.navigate("add_car") }) {
                         Icon(Icons.Default.Add, contentDescription = "Add Car")
@@ -44,7 +43,16 @@ fun MyCarsScreen(
             )
         }
     ) { paddingValues ->
-        if (savedCars.isEmpty()) {
+        if (!savedCarsLoaded) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            }
+        } else if (savedCars.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

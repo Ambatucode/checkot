@@ -10,10 +10,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -22,6 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 import java.util.UUID
+import com.app.checkot.ui.components.BackTopAppBar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddCarScreen(
@@ -36,6 +42,7 @@ fun AddCarScreen(
     var isDefault by remember { mutableStateOf(false) }
     var brandDropdownExpanded by remember { mutableStateOf(false) }
     var isOtherSelected by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<String?>(null) }
     val popularBrands = listOf(
         "Toyota", "Honda", "Mitsubishi", "Ford", "Nissan", 
         "Suzuki", "Hyundai", "Isuzu", "Mazda", "Kia", 
@@ -47,13 +54,9 @@ fun AddCarScreen(
     val carLimitReached = savedCars.size >= 5
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Add New Car") },
-                navigationIcon = {
-                    IconButton(onClick = { if(navController.previousBackStackEntry != null) navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                }
+            BackTopAppBar(
+                title = "Add New Car",
+                onBack = { if (navController.previousBackStackEntry != null) navController.popBackStack() }
             )
         }
     ) { paddingValues ->
@@ -150,7 +153,11 @@ fun AddCarScreen(
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .clickable(enabled = !isLoading) { brandDropdownExpanded = true }
+                        .clickable(enabled = !isLoading, onClickLabel = "Select brand") { brandDropdownExpanded = true }
+                        .semantics {
+                            contentDescription = if (brand.isNotEmpty()) "Brand: $brand" else "Select brand"
+                            role = Role.Button
+                        }
                 )
                 // Centered anchor for the DropdownMenu positioned at the bottom-center
                 Box(
@@ -273,6 +280,13 @@ fun AddCarScreen(
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
+            if (saveError != null) {
+                Text(
+                    text = saveError ?: "",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
             // Add Car Button
             Button(
                 onClick = {
@@ -284,8 +298,14 @@ fun AddCarScreen(
                         color = color.trim(),
                         isDefault = isDefault
                     )
-                    carViewModel.addCar(newCar)
-                    navController.popBackStack()
+                    saveError = null
+                    carViewModel.addCar(newCar) { success, error ->
+                        if (success) {
+                            navController.popBackStack()
+                        } else {
+                            saveError = error
+                        }
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = plateNumber.isNotBlank() && plateError == null && brand.isNotBlank() && model.isNotBlank() && !isLoading && !carLimitReached

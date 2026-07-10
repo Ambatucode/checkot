@@ -1,6 +1,7 @@
 package com.app.checkot.viewmodel
 
 import android.app.Application
+import android.util.Log
 import com.app.checkot.model.*
 import com.app.checkot.service.FCMSender
 import androidx.lifecycle.AndroidViewModel
@@ -27,6 +28,7 @@ data class ShopWithOwner(
 )
 
 class SuperAdminViewModel(application: Application) : AndroidViewModel(application) {
+    private val TAG = "SuperAdminViewModel"
     private val firestore: FirebaseFirestore = Firebase.firestore
 
     private val _pendingShops = MutableStateFlow<List<ShopWithOwner>>(emptyList())
@@ -41,9 +43,13 @@ class SuperAdminViewModel(application: Application) : AndroidViewModel(applicati
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error
+
     fun loadShops() {
         viewModelScope.launch {
             _isLoading.value = true
+            _error.value = null
             try {
                 val snapshot = firestore.collection("shop_services").get().await()
                 val shops = snapshot.documents.mapNotNull { doc ->
@@ -64,7 +70,8 @@ class SuperAdminViewModel(application: Application) : AndroidViewModel(applicati
                 _activeShops.value = shops.filter { it.status == "active" }
                 _rejectedShops.value = shops.filter { it.status == "rejected" }
             } catch (e: Exception) {
-                println("❌ SuperAdmin: Failed to load shops: ${e.message}")
+                Log.e(TAG, "❌ SuperAdmin: Failed to load shops: ${e.message}")
+                _error.value = "Couldn't load shops. Check your connection and try again."
             } finally {
                 _isLoading.value = false
             }
@@ -96,13 +103,13 @@ class SuperAdminViewModel(application: Application) : AndroidViewModel(applicati
             try {
                 firestore.collection("shop_services").document(shopId)
                     .update("status", "active").await()
-                println("✅ SuperAdmin: Shop $shopId approved")
+                Log.d(TAG, "✅ SuperAdmin: Shop $shopId approved")
                 // Notify the owner
                 notifyOwner(shopId, "approved")
                 loadShops()
                 onResult(true)
             } catch (e: Exception) {
-                println("❌ SuperAdmin: Failed to approve shop $shopId: ${e.message}")
+                Log.e(TAG, "❌ SuperAdmin: Failed to approve shop $shopId: ${e.message}")
                 onResult(false)
             }
         }
@@ -114,13 +121,13 @@ class SuperAdminViewModel(application: Application) : AndroidViewModel(applicati
             try {
                 firestore.collection("shop_services").document(shopId)
                     .update("status", "rejected").await()
-                println("✅ SuperAdmin: Shop $shopId rejected")
+                Log.d(TAG, "✅ SuperAdmin: Shop $shopId rejected")
                 // Notify the owner
                 notifyOwner(shopId, "rejected")
                 loadShops()
                 onResult(true)
             } catch (e: Exception) {
-                println("❌ SuperAdmin: Failed to reject shop $shopId: ${e.message}")
+                Log.e(TAG, "❌ SuperAdmin: Failed to reject shop $shopId: ${e.message}")
                 onResult(false)
             }
         }
@@ -146,12 +153,12 @@ class SuperAdminViewModel(application: Application) : AndroidViewModel(applicati
                     bookingId = "",
                     fcmToken = token
                 )
-                println("📬 SuperAdmin: Notified owner of shop $shopId about $action")
+                Log.d(TAG, "📬 SuperAdmin: Notified owner of shop $shopId about $action")
             } else {
-                println("⚠️ SuperAdmin: No FCM token for shop $shopId owner")
+                Log.w(TAG, "⚠️ SuperAdmin: No FCM token for shop $shopId owner")
             }
         } catch (e: Exception) {
-            println("❌ SuperAdmin: Failed to notify owner: ${e.message}")
+            Log.e(TAG, "❌ SuperAdmin: Failed to notify owner: ${e.message}")
         }
     }
 }

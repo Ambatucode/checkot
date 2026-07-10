@@ -52,6 +52,13 @@ service cloud.firestore {
       return value is number && value > 0;
     }
 
+    // Returns true if the given shop exists and is approved/active.
+    // Prevents booking against a fake, pending, or rejected shopId.
+    function shopIsActive(shopId) {
+      return exists(/databases/$(database)/documents/shop_services/$(shopId))
+        && get(/databases/$(database)/documents/shop_services/$(shopId)).data.status == 'active';
+    }
+
     // ============================================================
     // USERS COLLECTION
     // ============================================================
@@ -81,9 +88,11 @@ service cloud.firestore {
       // --- UPDATE ---
       // Users can update their own profile
       // Cannot change: role, userId, ownedShopId (prevents privilege escalation)
+      // savedCars is capped to match the app's own 5-car limit
       allow update: if isSignedIn()
         && request.auth.uid == userId
-        && isNotChanging(['role', 'userId', 'ownedShopId']);
+        && isNotChanging(['role', 'userId', 'ownedShopId'])
+        && request.resource.data.savedCars.size() <= 5;
 
       // --- DELETE ---
       // Nobody can delete accounts from the client
@@ -105,12 +114,22 @@ service cloud.firestore {
       // --- CREATE ---
       // Customer must book as themselves, start as PENDING
       // Price must be positive, required fields must exist
+      // Shop must actually exist and be approved/active (blocks booking
+      // against a fake or not-yet-approved shopId)
+      // Services list and price are sanity-bounded — Firestore rules can't
+      // sum a list to verify the price matches the shop's per-service
+      // pricing, so this is a guardrail, not a full price check.
       allow create: if isSignedIn()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'PENDING'
         && request.resource.data.shopId is string
         && request.resource.data.shopId != ''
-        && isPositiveNumber(request.resource.data.price);
+        && shopIsActive(request.resource.data.shopId)
+        && request.resource.data.services is list
+        && request.resource.data.services.size() > 0
+        && request.resource.data.services.size() <= 20
+        && isPositiveNumber(request.resource.data.price)
+        && request.resource.data.price <= 1000000;
 
       // --- UPDATE (Customer) ---
       // Customer can only CANCEL their own PENDING or CONFIRMED booking
@@ -153,23 +172,51 @@ service cloud.firestore {
 
       // --- CREATE ---
       // Only the owner of this shop can create
+      // Must start as 'pending' — prevents an owner from self-approving
+      // their shop and skipping SuperAdmin review
       allow create: if ownsShop(shopId)
         && request.resource.data is map
         && request.resource.data.keys().hasAll(['services'])
-        && request.resource.data.services is list;
+        && request.resource.data.services is list
+        && request.resource.data.status == 'pending';
 
       // --- UPDATE ---
       // Owner can update their shop (prices, services, logo, etc.)
       // but CANNOT change the 'status' field
       // Admin can ONLY change the 'status' field (approve/reject)
+      // bayCount is bounded to match the app's own stepper limit (1-10)
       allow update: if (ownsShop(shopId)
-        && isNotChanging(['status']))
+        && isNotChanging(['status'])
+        && request.resource.data.services is list
+        && request.resource.data.services.size() <= 50
+        && request.resource.data.bayCount is number
+        && request.resource.data.bayCount >= 1
+        && request.resource.data.bayCount <= 10)
         || (isAdmin()
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly(['status']));
 
       // --- DELETE ---
       // Nobody deletes shops from the client
+      allow delete: if false;
+    }
+
+    // ============================================================
+    // DAY SLOTS COLLECTION
+    //   Per-shop-per-day bay reservation ledger (day_slots/{shopId}_{date}).
+    //   Used transactionally by booking create/cancel so the check-and-
+    //   reserve can be atomic — Firestore transactions can't run queries,
+    //   so this document stands in for "query every booking for this
+    //   shop+date". Like bookings.price, this can't be fully validated
+    //   here (no list-sum support in rules), so this is a guardrail
+    //   against garbage writes, not a full correctness check.
+    // ============================================================
+    match /day_slots/{docId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.shopId is string
+        && request.resource.data.shopId != ''
+        && request.resource.data.entries is list;
       allow delete: if false;
     }
 

@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.app.checkot.ui.components.BackTopAppBar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookingsScreen(
@@ -24,6 +26,7 @@ fun BookingsScreen(
     bookingViewModel: BookingViewModel = viewModel()
 ) {
     val bookings by bookingViewModel.userBookings.collectAsState()
+    val bookingsLoaded by bookingViewModel.userBookingsLoaded.collectAsState()
     var selectedTab by remember { mutableStateOf(0) }
     val filteredBookings = when (selectedTab) {
         0 -> bookings // All
@@ -34,13 +37,9 @@ fun BookingsScreen(
     }
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("My Bookings") },
-                navigationIcon = {
-                    IconButton(onClick = { if(navController.previousBackStackEntry != null) navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                }
+            BackTopAppBar(
+                title = "My Bookings",
+                onBack = { if (navController.previousBackStackEntry != null) navController.popBackStack() }
             )
         }
     ) { paddingValues ->
@@ -50,7 +49,7 @@ fun BookingsScreen(
                 .padding(paddingValues)
         ) {
             // Tabs
-            ScrollableTabRow(
+            PrimaryScrollableTabRow(
                 selectedTabIndex = selectedTab,
                 edgePadding = 0.dp,
                 modifier = Modifier.fillMaxWidth()
@@ -63,7 +62,14 @@ fun BookingsScreen(
                     )
                 }
             }
-            if (filteredBookings.isEmpty()) {
+            if (!bookingsLoaded) {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                }
+            } else if (filteredBookings.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()

@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.app.checkot.ui.components.ConfirmDialog
 
 private enum class AdminDialogType { APPROVE, REJECT }
 
@@ -34,6 +36,7 @@ fun AdminDashboard(
     val activeShops by adminViewModel.activeShops.collectAsState()
     val rejectedShops by adminViewModel.rejectedShops.collectAsState()
     val isLoading by adminViewModel.isLoading.collectAsState()
+    val loadError by adminViewModel.error.collectAsState()
 
     // Initial load
     LaunchedEffect(Unit) {
@@ -58,7 +61,7 @@ fun AdminDashboard(
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
                     IconButton(onClick = { showLogoutDialog = true }) {
-                        Icon(Icons.Default.Logout, contentDescription = "Logout")
+                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Logout")
                     }
                 }
             )
@@ -101,6 +104,24 @@ fun AdminDashboard(
                         CircularProgressIndicator()
                     }
                 }
+                loadError != null -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.ErrorOutline,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(loadError ?: "", style = MaterialTheme.typography.bodyMedium)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(onClick = { adminViewModel.loadShops() }) {
+                                Text("Retry")
+                            }
+                        }
+                    }
+                }
                 selectedTab == 0 -> PendingShopsTab(pendingShops, adminViewModel)
                 selectedTab == 1 -> ActiveShopsTab(activeShops)
                 selectedTab == 2 -> RejectedShopsTab(rejectedShops)
@@ -110,22 +131,19 @@ fun AdminDashboard(
 
     // Logout Dialog
     if (showLogoutDialog) {
-        AlertDialog(
-            onDismissRequest = { showLogoutDialog = false },
-            title = { Text("Logout") },
-            text = { Text("Are you sure you want to logout?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showLogoutDialog = false
-                    authViewModel.signOut()
-                    navController.navigate("login") {
-                        popUpTo(0)
-                    }
-                }) { Text("Yes") }
+        ConfirmDialog(
+            title = "Logout",
+            text = "Are you sure you want to logout?",
+            confirmLabel = "Yes",
+            dismissLabel = "No",
+            onConfirm = {
+                showLogoutDialog = false
+                authViewModel.signOut()
+                navController.navigate("login") {
+                    popUpTo(0)
+                }
             },
-            dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) { Text("No") }
-            }
+            onDismiss = { showLogoutDialog = false }
         )
     }
 }

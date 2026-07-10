@@ -1,9 +1,12 @@
 package com.app.checkot.viewmodel
 
 import android.app.Application
+import android.util.Log
 import com.app.checkot.model.*
 import com.app.checkot.service.NotificationHelper
 import com.app.checkot.service.FCMSender
+import com.app.checkot.service.BookingLedgerService
+import com.app.checkot.utils.BookingUtils
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.ktx.auth
@@ -17,16 +20,25 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
-class AdminViewModel(application: Application) : AndroidViewModel(application) {
+class OwnerDashboardViewModel(application: Application) : AndroidViewModel(application) {
+    private val TAG = "OwnerDashboardViewModel"
     private val firestore: FirebaseFirestore = Firebase.firestore
     private val appContext = application.applicationContext
-    
+
     private val _allBookings = MutableStateFlow<List<Booking>>(emptyList())
     val allBookings: StateFlow<List<Booking>> = _allBookings
-    
+
     private val _allUsers = MutableStateFlow<List<CarWashUser>>(emptyList())
     val allUsers: StateFlow<List<CarWashUser>> = _allUsers
-    
+
+    /** True once the first allBookings snapshot (success or error) has arrived. */
+    private val _allBookingsLoaded = MutableStateFlow(false)
+    val allBookingsLoaded: StateFlow<Boolean> = _allBookingsLoaded
+
+    /** True once loadUsers has resolved (success or error) at least once. */
+    private val _allUsersLoaded = MutableStateFlow(false)
+    val allUsersLoaded: StateFlow<Boolean> = _allUsersLoaded
+
     private val _currentOwnerShopId = MutableStateFlow<String?>(null)
 
     private val _shopCustomization = MutableStateFlow(ShopCustomization())
@@ -40,7 +52,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
     private var authStateListener: com.google.firebase.auth.FirebaseAuth.AuthStateListener? = null
 
     init {
-        println("🔥 AdminViewModel initialized")
+        Log.d(TAG, "🔥 OwnerDashboardViewModel initialized")
         // Auth listener handles both initial load and re-login to a different user
         authStateListener = com.google.firebase.auth.FirebaseAuth.AuthStateListener { firebaseAuth ->
             val currentUser = firebaseAuth.currentUser
@@ -48,6 +60,8 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                 // Clear old state first
                 _allBookings.value = emptyList()
                 _allUsers.value = emptyList()
+                _allBookingsLoaded.value = false
+                _allUsersLoaded.value = false
                 bookingsListenerRegistration?.remove()
                 bookingsListenerRegistration = null
                 servicesListenerRegistration?.remove()
@@ -57,6 +71,8 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                 // User logged out — clear state
                 _allBookings.value = emptyList()
                 _allUsers.value = emptyList()
+                _allBookingsLoaded.value = true
+                _allUsersLoaded.value = true
                 _currentOwnerShopId.value = null
                 _shopCustomization.value = ShopCustomization()
                 bookingsListenerRegistration?.remove()
@@ -67,7 +83,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
         }
         Firebase.auth.addAuthStateListener(authStateListener!!)
     }
-    
+
     private fun loadOwnerContext() {
         viewModelScope.launch {
             val user = Firebase.auth.currentUser ?: return@launch
@@ -87,8 +103,8 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                             if (shopId != null) {
                                 firestore.collection("shop_services").document(shopId)
                                     .set(mapOf("ownerFcmToken" to token), com.google.firebase.firestore.SetOptions.merge())
-                                    .addOnSuccessListener { println("✅ FCM token saved to shop_services/$shopId") }
-                                    .addOnFailureListener { e -> println("❌ Failed to save FCM token to shop_services: ${e.message}") }
+                                    .addOnSuccessListener { Log.d(TAG, "✅ FCM token saved to shop_services/$shopId") }
+                                    .addOnFailureListener { e -> Log.e(TAG, "❌ Failed to save FCM token to shop_services: ${e.message}") }
                             }
                         }
                     if (shopId != null) {
@@ -98,9 +114,9 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                                 .get(com.google.firebase.firestore.Source.SERVER).await()
                             val customization = doc.toObject(ShopCustomization::class.java)
                             _shopCustomization.value = customization ?: ShopCustomization()
-                            println("📋 Initial shop services loaded: ${_shopCustomization.value.services.size} services")
+                            Log.d(TAG, "📋 Initial shop services loaded: ${_shopCustomization.value.services.size} services")
                         } catch (e: Exception) {
-                            println("❌ Failed initial services load: ${e.message}")
+                            Log.e(TAG, "❌ Failed initial services load: ${e.message}")
                             _shopCustomization.value = ShopCustomization()
                         }
                         setupRealTimeServicesListener(shopId)
@@ -109,10 +125,10 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     setupRealTimeBookingsListener()
                 } else {
-                    println("❌ Current user is not an owner.")
+                    Log.e(TAG, "❌ Current user is not an owner.")
                 }
             } catch (e: Exception) {
-                println("❌ Failed to load owner context: ${e.message}")
+                Log.e(TAG, "❌ Failed to load owner context: ${e.message}")
             }
         }
     }
@@ -124,12 +140,12 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
         servicesListenerRegistration = firestore.collection("shop_services").document(shopId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    println("🔥 ERROR on services listener: ${error.message}")
+                    Log.e(TAG, "🔥 ERROR on services listener: ${error.message}")
                     return@addSnapshotListener
                 }
                 val customization = snapshot?.toObject(ShopCustomization::class.java)
                 _shopCustomization.value = customization ?: ShopCustomization()
-                println("📋 Shop services updated in real-time: ${_shopCustomization.value.services.size} services")
+                Log.d(TAG, "📋 Shop services updated in real-time: ${_shopCustomization.value.services.size} services")
             }
     }
 
@@ -141,15 +157,17 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
             .whereEqualTo("shopId", shopId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    println("🔥 ERROR on bookings listener: ${error.message}")
+                    Log.e(TAG, "🔥 ERROR on bookings listener: ${error.message}")
+                    _allBookingsLoaded.value = true
                     return@addSnapshotListener
                 }
 
                 val bookingsList = snapshot?.documents?.mapNotNull { it.toObject(Booking::class.java) }
                     ?: emptyList()
-                
+
                 _allBookings.value = bookingsList
-                println("🔥 Bookings updated in real-time: ${bookingsList.size}")
+                _allBookingsLoaded.value = true
+                Log.d(TAG, "🔥 Bookings updated in real-time: ${bookingsList.size}")
 
                 // Update known IDs
                 if (!isInitialLoad) {
@@ -192,9 +210,12 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                         firestore.collection("bookings").document(bookingId)
                             .update("status", "CANCELLED", "cancelledAt", System.currentTimeMillis())
                             .await()
+                        val bookingDate = doc.getLong("bookingDate")
+                        if (bookingDate != null) {
+                            BookingLedgerService.release(firestore, shopId, bookingDate, bookingId)
+                        }
                         // Notify customer
                         val userId = doc.getString("userId") ?: ""
-                        val services = doc.getString("services") ?: "Service"
                         FCMSender.sendToUser(
                             context = appContext,
                             userId = userId,
@@ -202,7 +223,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                             body = "Your booking was cancelled because it wasn't approved in time.",
                             bookingId = bookingId
                         )
-                        println("📬 Auto-cancelled stale booking $bookingId")
+                        Log.d(TAG, "📬 Auto-cancelled stale booking $bookingId")
                     }
                 }
                 // Also auto-cancel CONFIRMED bookings past their slot + 2 hours
@@ -217,12 +238,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                     // Skip if confirmed less than 30 min ago (prevents immediate cancel after approval)
                     if (confirmedAt > 0 && System.currentTimeMillis() - confirmedAt < 30 * 60 * 1000L) continue
                     try {
-                        val parts = timeSlot.split(" ")
-                        val t = parts[0].split(":")
-                        var h = t[0].toInt()
-                        val m = t[1].toInt()
-                        if (parts[1] == "PM" && h != 12) h += 12
-                        if (parts[1] == "AM" && h == 12) h = 0
+                        val (h, m) = BookingUtils.parseTimeSlotToHourMinute(timeSlot)
                         val cal = java.util.Calendar.getInstance().apply {
                             timeInMillis = bookingDate
                             set(java.util.Calendar.HOUR_OF_DAY, h)
@@ -235,8 +251,8 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                             firestore.collection("bookings").document(bookingId)
                                 .update("status", "CANCELLED", "cancelledAt", System.currentTimeMillis())
                                 .await()
+                            BookingLedgerService.release(firestore, shopId, bookingDate, bookingId)
                             val userId = doc.getString("userId") ?: ""
-                            val services = doc.getString("services") ?: "Service"
                             FCMSender.sendToUser(
                                 context = appContext,
                                 userId = userId,
@@ -244,14 +260,14 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                                 body = "Your confirmed booking was cancelled because the service wasn't started in time.",
                                 bookingId = bookingId
                             )
-                            println("📬 Auto-cancelled stale confirmed booking $bookingId")
+                            Log.d(TAG, "📬 Auto-cancelled stale confirmed booking $bookingId")
                         }
                     } catch (e: Exception) {
-                        println("⚠️ Failed to parse slot for $timeSlot: ${e.message}")
+                        Log.w(TAG, "⚠️ Failed to parse slot for $timeSlot: ${e.message}")
                     }
                 }
             } catch (e: Exception) {
-                println("❌ Auto-cancel error: ${e.message}")
+                Log.e(TAG, "❌ Auto-cancel error: ${e.message}")
             }
         }
     }
@@ -268,6 +284,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                 firestore.collection("bookings").document(bookingId)
                     .update("status", "CANCELLED", "cancelledAt", System.currentTimeMillis())
                     .await()
+                BookingLedgerService.release(firestore, booking.shopId, booking.bookingDate, bookingId)
 
                 val services = booking.services.joinToString(", ") { it.displayName }
                 FCMSender.sendToUser(
@@ -277,10 +294,10 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                     body = "Your booking for $services was marked as no-show. Please book again when you're ready.",
                     bookingId = bookingId
                 )
-                println("✅ Marked booking $bookingId as no-show")
+                Log.d(TAG, "✅ Marked booking $bookingId as no-show")
                 loadBookings()
             } catch (e: Exception) {
-                println("❌ No-show error: ${e.message}")
+                Log.e(TAG, "❌ No-show error: ${e.message}")
             }
         }
     }
@@ -288,19 +305,26 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun loadUsers(userIds: List<String>) {
         if (userIds.isEmpty()) {
             _allUsers.value = emptyList()
+            _allUsersLoaded.value = true
             return
         }
         try {
-            println("🔥 Attempting to load users...")
-            val snapshot = firestore.collection("users").get().await()
-            
-            val usersList = snapshot.documents.mapNotNull { it.toObject(CarWashUser::class.java) }
-                .filter { userIds.contains(it.userId) }
-                
+            Log.d(TAG, "🔥 Attempting to load users...")
+            // Firestore whereIn() caps out at 10 values per query, so batch
+            // in chunks instead of fetching the entire users collection.
+            val usersList = userIds.chunked(10).flatMap { chunk ->
+                firestore.collection("users")
+                    .whereIn("userId", chunk)
+                    .get().await()
+                    .documents.mapNotNull { it.toObject(CarWashUser::class.java) }
+            }
+
             _allUsers.value = usersList
-            println("🔥 Total users loaded: ${usersList.size}")
+            _allUsersLoaded.value = true
+            Log.d(TAG, "🔥 Total users loaded: ${usersList.size}")
         } catch (e: Exception) {
-            println("🔥 ERROR loading users: ${e.message}")
+            Log.e(TAG, "🔥 ERROR loading users: ${e.message}")
+            _allUsersLoaded.value = true
         }
     }
 
@@ -319,7 +343,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                 // This prevents a rogue owner from modifying another shop's bookings.
                 val ownerShopId = _currentOwnerShopId.value
                 if (booking == null || booking.shopId != ownerShopId) {
-                    println("❌ Security: Attempted to update a booking not belonging to this shop. Blocked.")
+                    Log.e(TAG, "❌ Security: Attempted to update a booking not belonging to this shop. Blocked.")
                     return@launch
                 }
 
@@ -332,7 +356,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 val currentStatus = booking.status
                 if (status !in (allowedTransitions[currentStatus] ?: emptySet())) {
-                    println("❌ Security: Invalid status transition $currentStatus → $status. Blocked.")
+                    Log.e(TAG, "❌ Security: Invalid status transition $currentStatus → $status. Blocked.")
                     return@launch
                 }
 
@@ -348,7 +372,11 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
 
                 firestore.collection("bookings").document(bookingId)
                     .update(updates).await()
-                println("✅ Booking $bookingId updated to $status")
+                Log.d(TAG, "✅ Booking $bookingId updated to $status")
+
+                if (status == BookingStatus.CANCELLED) {
+                    BookingLedgerService.release(firestore, booking.shopId, booking.bookingDate, bookingId)
+                }
 
                 // 3. Send FCM push notification to the CUSTOMER
                 val services = booking.services.joinToString(", ") { it.displayName }
@@ -381,7 +409,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
 
                 loadBookings()
             } catch (e: Exception) {
-                println("❌ Failed to update booking: ${e.message}")
+                Log.e(TAG, "❌ Failed to update booking: ${e.message}")
             }
         }
     }
@@ -401,7 +429,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                 // Get the owner's current FCM token and attach it to the customization
                 val token = com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
                 val customizationWithToken = customization.copy(ownerFcmToken = token)
-                println("💾 Saving ${customizationWithToken.services.size} services to shop_services/$shopId (token: ${token.take(8)}...)")
+                Log.d(TAG, "💾 Saving ${customizationWithToken.services.size} services to shop_services/$shopId (token: ${token.take(8)}...)")
                 // Save to shop_services collection
                 firestore.collection("shop_services").document(shopId)
                     .set(customizationWithToken).await()
@@ -412,9 +440,9 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                 val savedCount = saved?.services?.size ?: 0
                 _shopCustomization.value = customization
                 _saveResult.value = "✅ Saved: $savedCount services"
-                println("✅ Save verified: $savedCount services in shop_services/$shopId")
+                Log.d(TAG, "✅ Save verified: $savedCount services in shop_services/$shopId")
             } catch (e: Exception) {
-                println("❌ Failed to save customization: ${e.message}")
+                Log.e(TAG, "❌ Failed to save customization: ${e.message}")
                 _saveResult.value = "❌ Error: ${e.message}"
             }
         }
@@ -430,10 +458,10 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 bookingsListenerRegistration?.remove()
                 Firebase.auth.signOut()
-                println("✅ User logged out")
+                Log.d(TAG, "✅ User logged out")
                 onComplete()
             } catch (e: Exception) {
-                println("❌ Logout failed: ${e.message}")
+                Log.e(TAG, "❌ Logout failed: ${e.message}")
             }
         }
     }

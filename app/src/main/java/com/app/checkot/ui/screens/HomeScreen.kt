@@ -22,16 +22,7 @@ import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
-private fun parseDuration(duration: String): Int = when {
-    duration.contains("hour") -> {
-        val hours = duration.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 1.0
-        (hours * 60).toInt()
-    }
-    duration.contains("min") -> {
-        duration.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 30
-    }
-    else -> 30
-}
+import com.app.checkot.utils.BookingUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -349,7 +340,7 @@ fun BookingCard(
                 val position = if (index != -1) index + 1 else -1
                 val ahead = if (index > 0) sorted.subList(0, index) else emptyList()
                 val estimated = ahead.sumOf { b ->
-                    b.services.sumOf { s -> parseDuration(s.duration) }
+                    b.services.sumOf { s -> BookingUtils.parseDurationMinutes(s.duration) }
                 }
                 queueInfo = QueueInfo(position, estimated, sorted.size)
             }

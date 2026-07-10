@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import com.app.checkot.ui.components.ConfirmDialog
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -66,7 +67,7 @@ fun LoginScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(24.dp),
+            .padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -134,7 +135,7 @@ fun LoginScreen(
                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
                     Icon(
                         imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = null,
+                        contentDescription = if (passwordVisible) "Hide password" else "Show password",
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -259,25 +260,15 @@ fun LoginScreen(
 
         // Reset Password Dialog
         if (showResetDialog) {
-            AlertDialog(
-                onDismissRequest = { showResetDialog = false },
-                title = { Text("Reset Password") },
-                text = { Text("A password reset link will be sent to $email") },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            authViewModel.resetPassword(email)
-                            showResetDialog = false
-                        }
-                    ) {
-                        Text("Send")
-                    }
+            ConfirmDialog(
+                title = "Reset Password",
+                text = "A password reset link will be sent to $email",
+                confirmLabel = "Send",
+                onConfirm = {
+                    authViewModel.resetPassword(email)
+                    showResetDialog = false
                 },
-                dismissButton = {
-                    TextButton(onClick = { showResetDialog = false }) {
-                        Text("Cancel")
-                    }
-                }
+                onDismiss = { showResetDialog = false }
             )
         }
         }

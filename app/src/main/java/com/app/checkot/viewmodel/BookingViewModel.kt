@@ -1,9 +1,12 @@
 package com.app.checkot.viewmodel
 
 import android.app.Application
+import android.util.Log
 import com.app.checkot.model.*
 import com.app.checkot.service.NotificationHelper
 import com.app.checkot.service.FCMSender
+import com.app.checkot.service.BookingLedgerService
+import com.app.checkot.utils.BookingUtils
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.ktx.auth
@@ -18,6 +21,7 @@ import kotlinx.coroutines.tasks.await
 
 
 class BookingViewModel(application: Application) : AndroidViewModel(application) {
+    private val TAG = "BookingViewModel"
     private val auth = Firebase.auth
     private val firestore: FirebaseFirestore = Firebase.firestore
     private val appContext = application.applicationContext
@@ -40,6 +44,10 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
 
+    /** True once the first userBookings snapshot (success or error) has arrived. */
+    private val _userBookingsLoaded = MutableStateFlow(false)
+    val userBookingsLoaded: StateFlow<Boolean> = _userBookingsLoaded
+
     private var bookingsListenerRegistration: ListenerRegistration? = null
     private var authStateListener: com.google.firebase.auth.FirebaseAuth.AuthStateListener? = null
 
@@ -51,9 +59,11 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
             previousBookingStatuses.clear()
             if (user != null) {
                 _userBookings.value = emptyList()
+                _userBookingsLoaded.value = false
                 setupRealTimeBookingsListener()
             } else {
                 _userBookings.value = emptyList()
+                _userBookingsLoaded.value = true
             }
         }
         auth.addAuthStateListener(authStateListener!!)
@@ -67,7 +77,8 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
             .whereEqualTo("userId", user.uid)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    println("Real-time listener cancelled: ${error.message}")
+                    Log.d(TAG, "Real-time listener cancelled: ${error.message}")
+                    _userBookingsLoaded.value = true
                     return@addSnapshotListener
                 }
 
@@ -84,7 +95,8 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 }
 
                 _userBookings.value = bookings
-                println("Bookings updated in real-time: ${bookings.size} bookings")
+                _userBookingsLoaded.value = true
+                Log.d(TAG, "Bookings updated in real-time: ${bookings.size} bookings")
             }
     }
 
@@ -114,79 +126,39 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 if (activeSnapshot.documents.isNotEmpty()) {
                     _isLoading.value = false
                     _error.value = "You already have an active booking. Please cancel or wait for it to complete before booking again."
-                    println("❌ Cannot create booking — user has an active booking already")
+                    Log.e(TAG, "❌ Cannot create booking — user has an active booking already")
                     return@launch
                 }
 
-                // Server-side slot availability check (prevents race conditions)
+                // Server-side slot availability check + creation, atomically —
+                // avoids the race where two concurrent bookings both pass a
+                // separate check before either writes (see BookingLedgerService).
                 val normalizedDate = normalizeToStartOfDay(booking.bookingDate)
-                try {
-                    val slotDuration = booking.services.sumOf { s -> parseDurationMinutes(s.duration) }
-                    val shopDoc = firestore.collection("shop_services").document(booking.shopId).get().await()
-                    val bayCount = (shopDoc.getLong("bayCount")?.toInt() ?: 1).coerceAtLeast(1)
-
-                    // Get existing active bookings for this shop + date
-                    val existingSnapshot = firestore.collection("bookings")
-                        .whereEqualTo("shopId", booking.shopId)
-                        .whereEqualTo("bookingDate", normalizedDate)
-                        .get().await()
-                    val existing = existingSnapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
-                        .filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED || it.status == BookingStatus.IN_PROGRESS }
-
-                    fun slotToMin(slot: String): Int {
-                        val parts = slot.split(" ")
-                        val t = parts[0].split(":")
-                        var h = t[0].toInt()
-                        val m = t[1].toInt()
-                        if (parts[1] == "PM" && h != 12) h += 12
-                        if (parts[1] == "AM" && h == 12) h = 0
-                        return (h - 9) * 60 + m
-                    }
-
-                    val newStartMin = slotToMin(booking.timeSlot)
-                    val newEndMin = newStartMin + slotDuration
-
-                    val busyRanges = mutableMapOf<Int, MutableList<Pair<Int, Int>>>()
-                    for (i in 0 until bayCount) busyRanges[i] = mutableListOf()
-                    for (b in existing) {
-                        val bs = slotToMin(b.timeSlot)
-                        val be = bs + b.services.sumOf { s -> parseDurationMinutes(s.duration) }
-                        for (bay in 0 until bayCount) {
-                            val ranges = busyRanges[bay]!!
-                            if (ranges.none { (s, e) -> bs < e && be > s }) {
-                                ranges.add(bs to be)
-                                break
-                            }
-                        }
-                    }
-
-                    val hasFreeBay = (0 until bayCount).any { bay ->
-                        !busyRanges[bay]!!.any { (s, e) -> newStartMin < e && newEndMin > s }
-                    }
-                    if (!hasFreeBay) {
-                        _isLoading.value = false
-                        _error.value = "This time slot is no longer available. All bays are occupied. Please select another time."
-                        println("❌ Cannot create booking — no free bay for ${booking.timeSlot}")
-                        return@launch
-                    }
-                } catch (e: Exception) {
-                    println("⚠️ Slot availability check failed: ${e.message}. Proceeding with booking.")
-                }
-
                 val bookingDoc = firestore.collection("bookings").document()
-
-                val verifiedPrice = booking.price
-
                 val newBooking = booking.copy(
                     bookingId = bookingDoc.id,
                     userId = user.uid,
                     bookingDate = normalizedDate,
-                    price = verifiedPrice,
                     createdAt = System.currentTimeMillis(),
                     status = BookingStatus.PENDING
                 )
-                bookingDoc.set(newBooking).await()
-                println("✅ Booking created: ${newBooking.bookingId}")
+                val startMin = BookingUtils.parseTimeSlotToMinutesSince9AM(booking.timeSlot)
+                val endMin = startMin + BookingUtils.totalDurationMinutes(booking.services)
+
+                try {
+                    BookingLedgerService.reserveAndCreateBooking(firestore, bookingDoc, newBooking, startMin, endMin)
+                } catch (e: BookingLedgerService.NoFreeBayException) {
+                    _isLoading.value = false
+                    _error.value = "This time slot is no longer available. All bays are occupied. Please select another time."
+                    Log.e(TAG, "❌ Cannot create booking — no free bay for ${booking.timeSlot}")
+                    return@launch
+                } catch (e: Exception) {
+                    _isLoading.value = false
+                    _error.value = "Could not create booking. Please check your connection and try again."
+                    Log.e(TAG, "❌ Booking reservation failed: ${e.message}")
+                    return@launch
+                }
+                Log.d(TAG, "✅ Booking created: ${newBooking.bookingId}")
 
                 // Track the new booking's status
                 previousBookingStatuses[bookingDoc.id] = BookingStatus.PENDING
@@ -206,7 +178,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                             .get().await()
                         val ownerToken = shopDoc.getString("ownerFcmToken")
                         if (!ownerToken.isNullOrEmpty()) {
-                            println("📬 Notifying owner for shop ${newBooking.shopId}...")
+                            Log.d(TAG, "📬 Notifying owner for shop ${newBooking.shopId}...")
                             FCMSender.sendToUser(
                                 context = appContext,
                                 userId = "",
@@ -216,14 +188,14 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                                 fcmToken = ownerToken
                             )
                         } else {
-                            println("⚠️ No owner FCM token in shop_services/${newBooking.shopId}")
+                            Log.w(TAG, "⚠️ No owner FCM token in shop_services/${newBooking.shopId}")
                         }
                     } catch (e: Exception) {
-                        println("❌ Owner notification failed: ${e.message}")
+                        Log.e(TAG, "❌ Owner notification failed: ${e.message}")
                     }
                 }
             } catch (e: Exception) {
-                println("Failed to create booking: ${e.message}")
+                Log.e(TAG, "Failed to create booking: ${e.message}")
             } finally {
                 _isLoading.value = false
             }
@@ -240,6 +212,9 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     "status", BookingStatus.CANCELLED,
                     "cancelledAt", System.currentTimeMillis()
                 ).await()
+                if (booking != null) {
+                    BookingLedgerService.release(firestore, booking.shopId, booking.bookingDate, bookingId)
+                }
                 // Store cancellation timestamp in Firestore (survives app restart)
                 val uid = auth.currentUser?.uid ?: ""
                 if (uid.isNotEmpty()) {
@@ -258,7 +233,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                             .get().await()
                         val ownerToken = shopDoc.getString("ownerFcmToken")
                         if (!ownerToken.isNullOrEmpty()) {
-                            println("📬 Sending cancellation notification to owner (token: ${ownerToken.take(8)}...)")
+                            Log.d(TAG, "📬 Sending cancellation notification to owner (token: ${ownerToken.take(8)}...)")
                             FCMSender.sendToUser(
                                 context = appContext,
                                 userId = "",
@@ -269,11 +244,11 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                             )
                         }
                     } catch (e: Exception) {
-                        println("❌ Failed to notify owner of cancellation: ${e.message}")
+                        Log.e(TAG, "❌ Failed to notify owner of cancellation: ${e.message}")
                     }
                 }
             } catch (e: Exception) {
-                println("Failed to cancel booking: ${e.message}")
+                Log.e(TAG, "Failed to cancel booking: ${e.message}")
             }
         }
     }
@@ -304,16 +279,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
         )
 
         // Convert "09:00 AM" → minutes since 9:00
-        fun slotToMinutes(slot: String): Int {
-            val parts = slot.split(" ")
-            val timeParts = parts[0].split(":")
-            var h = timeParts[0].toInt()
-            val m = timeParts[1].toInt()
-            val isPM = parts[1] == "PM"
-            if (isPM && h != 12) h += 12
-            if (!isPM && h == 12) h = 0
-            return (h - 9) * 60 + m
-        }
+        fun slotToMinutes(slot: String): Int = BookingUtils.parseTimeSlotToMinutesSince9AM(slot)
 
         // Filter out slots too close to current time (30 min min advance)
         val cal = java.util.Calendar.getInstance()
@@ -336,12 +302,12 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             try {
                 if (shopId.isEmpty()) return@launch
-                println("📅 fetchAvailableTimeSlots: shop=$shopId duration=${durationMinutes}min")
+                Log.d(TAG, "📅 fetchAvailableTimeSlots: shop=$shopId duration=${durationMinutes}min")
 
                 // Load bay count from shop settings
                 val shopDoc = firestore.collection("shop_services").document(shopId).get().await()
                 val bayCount = (shopDoc.getLong("bayCount")?.toInt() ?: 1).coerceAtLeast(1)
-                println("📅 Bay count: $bayCount")
+                Log.d(TAG, "📅 Bay count: $bayCount")
 
                 // Use raw slots (past-time filter already applied in initialSlots)
                 val allSlots = rawSlots.toMutableList()
@@ -354,23 +320,10 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
 
                 val existing = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
                     .filter { it.status != BookingStatus.CANCELLED && it.status != BookingStatus.COMPLETED }
-                println("📅 Existing bookings: ${existing.size}")
+                Log.d(TAG, "📅 Existing bookings: ${existing.size}")
 
                 // Build busy ranges per bay
-                val busyRanges = mutableMapOf<Int, MutableList<Pair<Int, Int>>>()
-                for (i in 0 until bayCount) busyRanges[i] = mutableListOf()
-
-                for (b in existing) {
-                    val startMin = slotToMinutes(b.timeSlot)
-                    val endMin = startMin + b.services.sumOf { s -> parseDurationMinutes(s.duration) }
-                    for (bay in 0 until bayCount) {
-                        val ranges = busyRanges[bay]!!
-                        if (ranges.none { (s, e) -> startMin < e && endMin > s }) {
-                            ranges.add(startMin to endMin)
-                            break
-                        }
-                    }
-                }
+                val busyRanges = BookingUtils.computeBusyRanges(existing, bayCount)
 
                 // Check each slot (curH/curM/isToday/slotToMinutes from outer scope)
                 val updated = allSlots.map { slot ->
@@ -386,35 +339,19 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
 
                     if (avail) {
                         val em = sm + durationMinutes
-                        val fits = (0 until bayCount).any { bay ->
-                            !busyRanges[bay]!!.any { (s, e) -> sm < e && em > s }
-                        }
-                        if (!fits) avail = false
+                        if (!BookingUtils.hasFreeBay(busyRanges, sm, em)) avail = false
                     }
 
                     slot.copy(available = avail)
                 }
 
                 val availCount = updated.count { it.available }
-                println("📅 Slots updated: ${updated.size} total, $availCount available")
+                Log.d(TAG, "📅 Slots updated: ${updated.size} total, $availCount available")
                 _availableTimeSlots.value = updated
             } catch (e: Exception) {
-                println("❌ Failed to fetch time slots: ${e.message}")
+                Log.e(TAG, "❌ Failed to fetch time slots: ${e.message}")
                 // Keep default slots on error
             }
-        }
-    }
-
-    private fun parseDurationMinutes(duration: String): Int {
-        return when {
-            duration.contains("hour") -> {
-                val hours = duration.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 1.0
-                (hours * 60).toInt()
-            }
-            duration.contains("min") -> {
-                duration.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 30
-            }
-            else -> 30
         }
     }
 

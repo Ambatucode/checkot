@@ -1,6 +1,7 @@
 package com.app.checkot.viewmodel
 
 import android.app.Application
+import android.util.Log
 import com.app.checkot.model.*
 import com.app.checkot.service.NotificationHelper
 import com.app.checkot.service.FCMSender
@@ -26,6 +27,7 @@ sealed class AuthState {
 }
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
+    private val TAG = "AuthViewModel"
     private val auth: FirebaseAuth = Firebase.auth
     private val firestore: FirebaseFirestore = Firebase.firestore
     private val appContext = application.applicationContext
@@ -37,14 +39,14 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 firestore.collection("users").document(userId)
                     .update("fcmToken", token)
                     .addOnSuccessListener {
-                        println("✅ FCM token saved to Firestore")
+                        Log.d(TAG, "✅ FCM token saved to Firestore")
                     }
                     .addOnFailureListener { e ->
-                        println("Failed to upload FCM token: ${e.message}")
+                        Log.e(TAG, "Failed to upload FCM token: ${e.message}")
                     }
             }
             .addOnFailureListener { e ->
-                println("Failed to get FCM token: ${e.message}")
+                Log.e(TAG, "Failed to get FCM token: ${e.message}")
             }
     }
 
@@ -67,8 +69,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 .addOnSuccessListener { token ->
                     firestore.collection("users").document(auth.currentUser!!.uid)
                         .update("fcmToken", token)
-                        .addOnSuccessListener { println("✅ AuthVM: FCM token saved on init") }
-                        .addOnFailureListener { e -> println("❌ AuthVM: Failed to save token: ${e.message}") }
+                        .addOnSuccessListener { Log.d(TAG, "✅ AuthVM: FCM token saved on init") }
+                        .addOnFailureListener { e -> Log.e(TAG, "❌ AuthVM: Failed to save token: ${e.message}") }
                 }
         }
     }
@@ -135,7 +137,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 val fcmToken = try {
                     com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
                 } catch (e: Exception) {
-                    println("⚠️ Could not get FCM token: ${e.message}")
+                    Log.w(TAG, "⚠️ Could not get FCM token: ${e.message}")
                     ""
                 }
 
@@ -153,7 +155,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 firestore.collection("shop_services").document(shopId)
                     .set(shopCustomization)
                     .await()
-                println("✅ Owner signup complete: shop_services/$shopId created — clean slate")
+                Log.d(TAG, "✅ Owner signup complete: shop_services/$shopId created — clean slate")
 
                 // Notify admins about the new shop (background, don't block signup)
                 viewModelScope.launch {
@@ -173,9 +175,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                                 )
                             }
                         }
-                        println("📬 Notified ${adminSnapshot.documents.size} admin(s) about new shop")
+                        Log.d(TAG, "📬 Notified ${adminSnapshot.documents.size} admin(s) about new shop")
                     } catch (e: Exception) {
-                        println("⚠️ Failed to notify admins: ${e.message}")
+                        Log.w(TAG, "⚠️ Failed to notify admins: ${e.message}")
                     }
                 }
 
@@ -210,9 +212,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 auth.sendPasswordResetEmail(email).await()
-                println("Password reset email sent to $email")
+                Log.d(TAG, "Password reset email sent to $email")
             } catch (e: Exception) {
-                println("Failed to send password reset email: ${e.message}")
+                Log.e(TAG, "Failed to send password reset email: ${e.message}")
             }
         }
     }
@@ -230,7 +232,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     uploadFcmToken(userData.userId)
                 }
             } catch (e: Exception) {
-                println("Failed to load user data: ${e.message}")
+                Log.e(TAG, "Failed to load user data: ${e.message}")
             }
         }
     }

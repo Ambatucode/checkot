@@ -1,6 +1,7 @@
 package com.app.checkot.viewmodel
 
 import android.app.Application
+import android.util.Log
 import com.app.checkot.model.*
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,6 +15,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class CarViewModel(application: Application) : AndroidViewModel(application) {
+    private val TAG = "CarViewModel"
     private val auth = Firebase.auth
     private val firestore: FirebaseFirestore = Firebase.firestore
 
@@ -23,16 +25,22 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
+    /** True once the first savedCars snapshot (success or error) has arrived. */
+    private val _savedCarsLoaded = MutableStateFlow(false)
+    val savedCarsLoaded: StateFlow<Boolean> = _savedCarsLoaded
+
     private var listenerRegistration: com.google.firebase.firestore.ListenerRegistration? = null
 
     init {
         auth.addAuthStateListener { firebaseAuth ->
             val user = firebaseAuth.currentUser
             if (user != null) {
+                _savedCarsLoaded.value = false
                 loadSavedCars(user.uid)
             } else {
                 listenerRegistration?.remove()
                 _savedCars.value = emptyList()
+                _savedCarsLoaded.value = true
             }
         }
     }
@@ -42,24 +50,32 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
         listenerRegistration = firestore.collection("users").document(uid)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    println("Failed to listen for saved cars: ${error.message}")
+                    Log.e(TAG, "Failed to listen for saved cars: ${error.message}")
+                    _savedCarsLoaded.value = true
                     return@addSnapshotListener
                 }
                 if (snapshot != null && snapshot.exists()) {
                     val userData = snapshot.toObject(CarWashUser::class.java)
                     _savedCars.value = userData?.savedCars ?: emptyList()
                 }
+                _savedCarsLoaded.value = true
             }
     }
 
-    fun addCar(car: Car) {
+    fun addCar(car: Car, onResult: (success: Boolean, error: String?) -> Unit = { _, _ -> }) {
         viewModelScope.launch {
             _isLoading.value = true
-            val user = auth.currentUser ?: return@launch
+            val user = auth.currentUser
+            if (user == null) {
+                _isLoading.value = false
+                onResult(false, "You're not signed in.")
+                return@launch
+            }
             try {
                 val currentCars = _savedCars.value.toMutableList()
                 if (currentCars.size >= 5) {
-                    println("Car limit reached. Cannot add more than 5 cars.")
+                    Log.d(TAG, "Car limit reached. Cannot add more than 5 cars.")
+                    onResult(false, "You can only save up to 5 cars per account.")
                     return@launch
                 }
 
@@ -69,8 +85,10 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
 
                 firestore.collection("users").document(user.uid).update("savedCars", currentCars).await()
                 _savedCars.value = currentCars
+                onResult(true, null)
             } catch (e: Exception) {
-                println("Failed to add car: ${e.message}")
+                Log.e(TAG, "Failed to add car: ${e.message}")
+                onResult(false, "Couldn't save the car. Check your connection and try again.")
             } finally {
                 _isLoading.value = false
             }
@@ -88,7 +106,7 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
                 firestore.collection("users").document(user.uid).update("savedCars", currentCars).await()
                 _savedCars.value = currentCars
             } catch (e: Exception) {
-                println("Failed to delete car: ${e.message}")
+                Log.e(TAG, "Failed to delete car: ${e.message}")
             } finally {
                 _isLoading.value = false
             }

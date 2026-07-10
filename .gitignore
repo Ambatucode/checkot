@@ -19,3 +19,7 @@ google-services.json
 
 # Claude Code working directory
 /.claude/
+
+# Firebase service-account key used by FCMSender — grants push-send
+# credentials, must never be committed
+app/src/main/res/raw/service_account.json
