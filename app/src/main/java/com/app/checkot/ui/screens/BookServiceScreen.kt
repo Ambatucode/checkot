@@ -48,15 +48,18 @@ fun BookServiceScreen(
     // Available services from shop's customization
     var availableServices by remember { mutableStateOf<List<AvailableService>>(emptyList()) }
     var loadingServices by remember { mutableStateOf(true) }
+    var servicesLoadError by remember { mutableStateOf<String?>(null) }
 
     // Real-time listener for shop services — updates instantly when owner changes services
     DisposableEffect(shopId) {
         if (shopId.isEmpty()) return@DisposableEffect onDispose {}
         loadingServices = true
+        servicesLoadError = null
         val listener = firestore.collection("shop_services").document(shopId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     println("❌ Services listener error: ${error.message}")
+                    servicesLoadError = "Could not load services. Check your connection."
                     loadingServices = false
                     return@addSnapshotListener
                 }
@@ -247,7 +250,27 @@ fun BookServiceScreen(
                             }
                         }
                     }
-                    if (availableServices.isEmpty() && !loadingServices) {
+                    if (servicesLoadError != null) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Warning, contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onErrorContainer)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(servicesLoadError!!, style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onErrorContainer)
+                                }
+                            }
+                        }
+                    } else if (availableServices.isEmpty() && !loadingServices) {
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),

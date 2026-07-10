@@ -16,3 +16,6 @@ local.properties
 google-services.json
 /.idea/appInsightsSettings.xml
 /.idea/deploymentTargetSelector.xml
+
+# Claude Code working directory
+/.claude/

@@ -46,6 +46,7 @@ fun HomeScreen(
     // Load shops from Firestore
     var shopList by remember { mutableStateOf<List<CarWashShop>>(emptyList()) }
     var loadingShops by remember { mutableStateOf(true) }
+    var loadError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
@@ -65,7 +66,10 @@ fun HomeScreen(
                 }
             } catch (e: Exception) {
                 println("❌ Failed to load shops: ${e.message}")
-                withContext(Dispatchers.Main) { loadingShops = false }
+                withContext(Dispatchers.Main) {
+                    loadError = "Could not load shops. Check your connection."
+                    loadingShops = false
+                }
             }
         }
     }
@@ -199,6 +203,26 @@ fun HomeScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                }
+            }
+
+            if (loadError != null) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Warning, contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onErrorContainer)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(loadError!!, style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer)
+                        }
                     }
                 }
             }

@@ -554,71 +554,202 @@ fun OwnerRevenueTab(adminViewModel: AdminViewModel, paddingValues: PaddingValues
     val totalRevenue = filteredBookings.sumOf { it.price }
     val bookingCount = filteredBookings.size
     val averagePerBooking = if (bookingCount > 0) totalRevenue / bookingCount else 0.0
-    Column(
+    // The whole tab is one LazyColumn: the analytics sections below the stat
+    // cards don't fit a phone viewport, so the tab body itself must scroll.
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(paddingValues)
-            .padding(16.dp)
+            .padding(paddingValues),
+        contentPadding = PaddingValues(16.dp)
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            listOf("Today", "Week", "Month").forEachIndexed { index, period ->
-                FilterChip(
-                    selected = when (selectedPeriod) {
-                        "today" -> index == 0
-                        "week" -> index == 1
-                        "month" -> index == 2
-                        else -> false
-                    },
-                    onClick = { selectedPeriod = when (index) { 0 -> "today"; 1 -> "week"; 2 -> "month"; else -> "today" } },
-                    label = { Text(period) },
-                    modifier = Modifier.padding(horizontal = 4.dp)
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(24.dp))
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        ) {
-            Column(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = "Total Revenue", style = MaterialTheme.typography.titleLarge)
-                Text(text = "₱${String.format("%,.2f", totalRevenue)}", style = MaterialTheme.typography.displaySmall)
-                Text(text = "${bookingCount} completed bookings", style = MaterialTheme.typography.bodyLarge)
-            }
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Card(modifier = Modifier.weight(1f)) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.ShowChart, contentDescription = null)
-                    Text(text = "₱${String.format("%,.0f", averagePerBooking)}", style = MaterialTheme.typography.headlineSmall)
-                    Text(text = "Avg/Booking", style = MaterialTheme.typography.bodySmall)
-                }
-            }
-            val pendingRevenue = allBookings.filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED }.sumOf { it.price }
-            Card(modifier = Modifier.weight(1f)) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.HourglassEmpty, contentDescription = null)
-                    Text(text = "₱${String.format("%,.0f", pendingRevenue)}", style = MaterialTheme.typography.headlineSmall)
-                    Text(text = "Pending", style = MaterialTheme.typography.bodySmall)
+        item {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                listOf("Today", "Week", "Month").forEachIndexed { index, period ->
+                    FilterChip(
+                        selected = when (selectedPeriod) {
+                            "today" -> index == 0
+                            "week" -> index == 1
+                            "month" -> index == 2
+                            else -> false
+                        },
+                        onClick = { selectedPeriod = when (index) { 0 -> "today"; 1 -> "week"; 2 -> "month"; else -> "today" } },
+                        label = { Text(period) },
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
                 }
             }
         }
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(text = "Recent Transactions", style = MaterialTheme.typography.titleLarge)
-        Spacer(modifier = Modifier.height(8.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(
-                items = filteredBookings.take(10),
-                key = { it.bookingId }
-            ) { booking ->
-                TransactionItem(booking = booking)
+        item {
+            Spacer(modifier = Modifier.height(24.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = "Total Revenue", style = MaterialTheme.typography.titleLarge)
+                    Text(text = "₱${String.format("%,.2f", totalRevenue)}", style = MaterialTheme.typography.displaySmall)
+                    Text(text = "${bookingCount} completed bookings", style = MaterialTheme.typography.bodyLarge)
+                }
             }
-            if (filteredBookings.isEmpty()) {
-                item {
-                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        Text("No completed bookings for this period")
+        }
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Card(modifier = Modifier.weight(1f)) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.ShowChart, contentDescription = null)
+                        Text(text = "₱${String.format("%,.0f", averagePerBooking)}", style = MaterialTheme.typography.headlineSmall)
+                        Text(text = "Avg/Booking", style = MaterialTheme.typography.bodySmall)
                     }
+                }
+                val pendingRevenue = allBookings.filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED }.sumOf { it.price }
+                Card(modifier = Modifier.weight(1f)) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.HourglassEmpty, contentDescription = null)
+                        Text(text = "₱${String.format("%,.0f", pendingRevenue)}", style = MaterialTheme.typography.headlineSmall)
+                        Text(text = "Pending", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                val todayCarCount = allBookings.count {
+                    it.status == BookingStatus.COMPLETED && it.completedAt != null && it.completedAt > now - oneDay
+                }
+                Card(modifier = Modifier.weight(1f)) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.DirectionsCar, contentDescription = null)
+                        Text(text = todayCarCount.toString(), style = MaterialTheme.typography.headlineSmall)
+                        Text(text = "Cars Today", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+        item {
+            // Average Service Duration
+            val completedWithDurations = allBookings.filter {
+                it.status == BookingStatus.COMPLETED && it.inProgressAt != null && it.completedAt != null
+            }
+            val avgDurationMin = if (completedWithDurations.isNotEmpty()) {
+                completedWithDurations.sumOf { it.completedAt!! - it.inProgressAt!! } / completedWithDurations.size / 60000
+            } else 0L
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Average Service Duration", style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                        Text(
+                            text = if (avgDurationMin > 0) "${avgDurationMin} min" else "N/A",
+                            style = MaterialTheme.typography.headlineSmall
+                        )
+                    }
+                }
+            }
+        }
+        item {
+            // Peak Hours
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(text = "Peak Hours", style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(8.dp))
+            val hourLabels = listOf("8AM","9AM","10AM","11AM","12PM","1PM","2PM","3PM","4PM","5PM")
+            val hourCounts = hourLabels.mapIndexed { i, _ ->
+                val hour = i + 8
+                allBookings.count { b ->
+                    try {
+                        val parts = b.timeSlot.split(" ")
+                        val t = parts[0].split(":")
+                        var h = t[0].toInt()
+                        if (parts[1] == "PM" && h != 12) h += 12
+                        if (parts[1] == "AM" && h == 12) h = 0
+                        h == hour
+                    } catch (e: Exception) { false }
+                }
+            }
+            val maxHourCount = hourCounts.maxOrNull()?.coerceAtLeast(1) ?: 1
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    hourLabels.forEachIndexed { i, label ->
+                        val count = hourCounts[i]
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(label, style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.width(40.dp),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(18.dp)
+                            ) {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .fillMaxWidth(fraction = count.toFloat() / maxHourCount),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = MaterialTheme.shapes.small
+                                ) {}
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(count.toString(), style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.width(24.dp))
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            // Service Type Breakdown
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(text = "Service Breakdown", style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(8.dp))
+            val serviceCounts = filteredBookings
+                .flatMap { it.services.map { s -> s.displayName } }
+                .groupingBy { it }.eachCount()
+                .toList().sortedByDescending { it.second }
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    if (serviceCounts.isEmpty()) {
+                        Text("No completed bookings for this period",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                    } else {
+                        serviceCounts.forEach { (name, count) ->
+                            val pct = (count.toFloat() / filteredBookings.size * 100).toInt()
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(name, style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.weight(1f))
+                                Text("$count ($pct%)", style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(text = "Recent Transactions", style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        items(
+            items = filteredBookings.take(10),
+            key = { it.bookingId }
+        ) { booking ->
+            TransactionItem(booking = booking)
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        if (filteredBookings.isEmpty()) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    Text("No completed bookings for this period")
                 }
             }
         }
