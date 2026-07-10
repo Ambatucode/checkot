@@ -293,10 +293,14 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
         }
         try {
             println("🔥 Attempting to load users...")
-            val snapshot = firestore.collection("users").get().await()
-
-            val usersList = snapshot.documents.mapNotNull { it.toObject(CarWashUser::class.java) }
-                .filter { userIds.contains(it.userId) }
+            // Firestore whereIn() caps out at 10 values per query, so batch
+            // in chunks instead of fetching the entire users collection.
+            val usersList = userIds.chunked(10).flatMap { chunk ->
+                firestore.collection("users")
+                    .whereIn("userId", chunk)
+                    .get().await()
+                    .documents.mapNotNull { it.toObject(CarWashUser::class.java) }
+            }
 
             _allUsers.value = usersList
             println("🔥 Total users loaded: ${usersList.size}")
