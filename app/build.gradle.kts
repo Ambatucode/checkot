@@ -119,5 +119,8 @@ dependencies {
 
     implementation("com.google.firebase:firebase-messaging-ktx")
     implementation("com.google.android.gms:play-services-base:18.10.0")
-    implementation("com.google.auth:google-auth-library-oauth2-http:1.49.0")
+    // Kept at 1.23.0: 1.30+ pulls io.grpc 1.70.x, which clashes with the
+    // grpc 1.57.x that firebase-firestore ships and crashes at runtime
+    // (NoClassDefFoundError: io.grpc.InternalGlobalInterceptors).
+    implementation("com.google.auth:google-auth-library-oauth2-http:1.23.0")
 }
