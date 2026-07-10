@@ -158,7 +158,7 @@ fun OwnerBookingsTab(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(48.dp),
+                            .padding(32.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {

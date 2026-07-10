@@ -71,7 +71,7 @@ fun OwnerSignupScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(24.dp),
+            .padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(

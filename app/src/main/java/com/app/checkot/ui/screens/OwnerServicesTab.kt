@@ -211,7 +211,7 @@ fun OwnerServicesTab(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .padding(48.dp),
+                    .padding(32.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
