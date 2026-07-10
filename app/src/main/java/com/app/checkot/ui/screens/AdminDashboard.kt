@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.app.checkot.ui.components.ConfirmDialog
 
 private enum class AdminDialogType { APPROVE, REJECT }
 
@@ -111,22 +112,19 @@ fun AdminDashboard(
 
     // Logout Dialog
     if (showLogoutDialog) {
-        AlertDialog(
-            onDismissRequest = { showLogoutDialog = false },
-            title = { Text("Logout") },
-            text = { Text("Are you sure you want to logout?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showLogoutDialog = false
-                    authViewModel.signOut()
-                    navController.navigate("login") {
-                        popUpTo(0)
-                    }
-                }) { Text("Yes") }
+        ConfirmDialog(
+            title = "Logout",
+            text = "Are you sure you want to logout?",
+            confirmLabel = "Yes",
+            dismissLabel = "No",
+            onConfirm = {
+                showLogoutDialog = false
+                authViewModel.signOut()
+                navController.navigate("login") {
+                    popUpTo(0)
+                }
             },
-            dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) { Text("No") }
-            }
+            onDismiss = { showLogoutDialog = false }
         )
     }
 }

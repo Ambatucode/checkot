@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
+import com.app.checkot.ui.components.ConfirmDialog
 
 // FIXED BOOKINGS TAB
 @Composable
@@ -232,135 +233,77 @@ fun OwnerBookingCard(
     var showCancelConfirmedDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    fun runAction(action: () -> Unit) {
+        scope.launch {
+            isProcessing = true
+            action()
+            kotlinx.coroutines.delay(2000)
+            isProcessing = false
+        }
+    }
+
     if (showApproveDialog) {
-        AlertDialog(
-            onDismissRequest = { showApproveDialog = false },
-            title = { Text("Approve Booking") },
-            text = { Text("Are you sure you want to approve this booking? The customer will be notified.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showApproveDialog = false
-                    scope.launch {
-                        isProcessing = true
-                        onApprove()
-                        kotlinx.coroutines.delay(2000)
-                        isProcessing = false
-                    }
-                }) { Text("Yes, Approve") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showApproveDialog = false }) { Text("Cancel") }
-            }
+        ConfirmDialog(
+            title = "Approve Booking",
+            text = "Are you sure you want to approve this booking? The customer will be notified.",
+            confirmLabel = "Yes, Approve",
+            onConfirm = { showApproveDialog = false; runAction(onApprove) },
+            onDismiss = { showApproveDialog = false }
         )
     }
 
     if (showRejectDialog) {
-        AlertDialog(
-            onDismissRequest = { showRejectDialog = false },
-            title = { Text("Reject Booking") },
-            text = { Text("Are you sure you want to reject this booking? This action cannot be undone.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showRejectDialog = false
-                    scope.launch {
-                        isProcessing = true
-                        onReject()
-                        kotlinx.coroutines.delay(2000)
-                        isProcessing = false
-                    }
-                }) { Text("Yes, Reject", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRejectDialog = false }) { Text("Cancel") }
-            }
+        ConfirmDialog(
+            title = "Reject Booking",
+            text = "Are you sure you want to reject this booking? This action cannot be undone.",
+            confirmLabel = "Yes, Reject",
+            confirmColor = MaterialTheme.colorScheme.error,
+            onConfirm = { showRejectDialog = false; runAction(onReject) },
+            onDismiss = { showRejectDialog = false }
         )
     }
 
     if (showStartDialog) {
-        AlertDialog(
-            onDismissRequest = { showStartDialog = false },
-            title = { Text("Start Service") },
-            text = { Text("Are you sure you want to start this service? The customer will be notified that their car is now being worked on.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showStartDialog = false
-                    scope.launch {
-                        isProcessing = true
-                        onStart()
-                        kotlinx.coroutines.delay(2000)
-                        isProcessing = false
-                    }
-                }) { Text("Yes, Start") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showStartDialog = false }) { Text("Cancel") }
-            }
+        ConfirmDialog(
+            title = "Start Service",
+            text = "Are you sure you want to start this service? The customer will be notified that their car is now being worked on.",
+            confirmLabel = "Yes, Start",
+            onConfirm = { showStartDialog = false; runAction(onStart) },
+            onDismiss = { showStartDialog = false }
         )
     }
 
     if (showCompleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showCompleteDialog = false },
-            title = { Text("Complete Booking") },
-            text = { Text("Are you sure you want to mark this booking as completed? Please ensure the service is fully done.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showCompleteDialog = false
-                    scope.launch {
-                        isProcessing = true
-                        onComplete()
-                        kotlinx.coroutines.delay(2000)
-                        isProcessing = false
-                    }
-                }) { Text("Yes, Complete") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCompleteDialog = false }) { Text("Cancel") }
-            }
+        ConfirmDialog(
+            title = "Complete Booking",
+            text = "Are you sure you want to mark this booking as completed? Please ensure the service is fully done.",
+            confirmLabel = "Yes, Complete",
+            onConfirm = { showCompleteDialog = false; runAction(onComplete) },
+            onDismiss = { showCompleteDialog = false }
         )
     }
 
     if (showNoShowDialog) {
-        AlertDialog(
-            onDismissRequest = { showNoShowDialog = false },
-            title = { Text("Mark as No Show") },
-            text = { Text("The customer didn't arrive for their ${booking.timeSlot} slot. This will cancel the booking and notify the customer.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showNoShowDialog = false
-                    scope.launch {
-                        isProcessing = true
-                        onNoShow()
-                        kotlinx.coroutines.delay(2000)
-                        isProcessing = false
-                    }
-                }) { Text("Mark No Show", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showNoShowDialog = false }) { Text("Go Back") }
-            }
+        ConfirmDialog(
+            title = "Mark as No Show",
+            text = "The customer didn't arrive for their ${booking.timeSlot} slot. This will cancel the booking and notify the customer.",
+            confirmLabel = "Mark No Show",
+            confirmColor = MaterialTheme.colorScheme.error,
+            dismissLabel = "Go Back",
+            onConfirm = { showNoShowDialog = false; runAction(onNoShow) },
+            onDismiss = { showNoShowDialog = false }
         )
     }
 
     if (showCancelConfirmedDialog) {
-        AlertDialog(
-            onDismissRequest = { showCancelConfirmedDialog = false },
-            title = { Text("Cancel Booking") },
-            text = { Text("Cancel this confirmed booking? The customer will be notified.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showCancelConfirmedDialog = false
-                    scope.launch {
-                        isProcessing = true
-                        onReject()
-                        kotlinx.coroutines.delay(2000)
-                        isProcessing = false
-                    }
-                }) { Text("Cancel Booking", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCancelConfirmedDialog = false }) { Text("Go Back") }
-            }
+        ConfirmDialog(
+            title = "Cancel Booking",
+            text = "Cancel this confirmed booking? The customer will be notified.",
+            confirmLabel = "Cancel Booking",
+            confirmColor = MaterialTheme.colorScheme.error,
+            dismissLabel = "Go Back",
+            onConfirm = { showCancelConfirmedDialog = false; runAction(onReject) },
+            onDismiss = { showCancelConfirmedDialog = false }
         )
     }
 

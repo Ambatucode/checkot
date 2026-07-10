@@ -16,6 +16,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
@@ -51,7 +52,8 @@ fun ConfirmDialog(
     confirmLabel: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
-    dismissLabel: String = "Cancel"
+    dismissLabel: String = "Cancel",
+    confirmColor: Color = Color.Unspecified
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -59,7 +61,7 @@ fun ConfirmDialog(
         text = { Text(text) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text(confirmLabel)
+                Text(confirmLabel, color = confirmColor)
             }
         },
         dismissButton = {

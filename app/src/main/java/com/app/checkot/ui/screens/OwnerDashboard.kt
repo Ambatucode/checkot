@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
+import com.app.checkot.ui.components.ConfirmDialog
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OwnerDashboard(
@@ -226,32 +227,21 @@ fun OwnerDashboard(
     }
     // Logout Confirmation Dialog
     if (showLogoutDialog) {
-        AlertDialog(
-            onDismissRequest = { showLogoutDialog = false },
-            title = { Text("Logout") },
-            text = { Text("Are you sure you want to logout?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        authViewModel.signOut()
-                        ownerViewModel.logout {
-                            showLogoutDialog = false
-                            navController.navigate("login") {
-                                popUpTo(0) // Clears all screens from back stack
-                            }
-                        }
+        ConfirmDialog(
+            title = "Logout",
+            text = "Are you sure you want to logout?",
+            confirmLabel = "Yes",
+            dismissLabel = "No",
+            onConfirm = {
+                authViewModel.signOut()
+                ownerViewModel.logout {
+                    showLogoutDialog = false
+                    navController.navigate("login") {
+                        popUpTo(0) // Clears all screens from back stack
                     }
-                ) {
-                    Text("Yes")
                 }
             },
-            dismissButton = {
-                TextButton(
-                    onClick = { showLogoutDialog = false }
-                ) {
-                    Text("No")
-                }
-            }
+            onDismiss = { showLogoutDialog = false }
         )
     }
 }

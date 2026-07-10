@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.app.checkot.ui.components.BackTopAppBar
+import com.app.checkot.ui.components.ConfirmDialog
 import com.app.checkot.ui.components.DetailRow
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -99,30 +100,21 @@ fun BookingDetailsScreen(
         return
     }
     if (showCancelDialog) {
-        AlertDialog(
-            onDismissRequest = { showCancelDialog = false },
-            title = { Text("Cancel Booking") },
-            text = { Text("Are you sure you want to cancel this booking? This action cannot be undone.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            isCancelling = true
-                            bookingViewModel.cancelBooking(booking.bookingId)
-                            isCancelling = false
-                            showCancelDialog = false
-                            navController.popBackStack()
-                        }
-                    }
-                ) {
-                    Text("Yes, Cancel")
+        ConfirmDialog(
+            title = "Cancel Booking",
+            text = "Are you sure you want to cancel this booking? This action cannot be undone.",
+            confirmLabel = "Yes, Cancel",
+            dismissLabel = "No",
+            onConfirm = {
+                scope.launch {
+                    isCancelling = true
+                    bookingViewModel.cancelBooking(booking.bookingId)
+                    isCancelling = false
+                    showCancelDialog = false
+                    navController.popBackStack()
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showCancelDialog = false }) {
-                    Text("No")
-                }
-            }
+            onDismiss = { showCancelDialog = false }
         )
     }
     Scaffold(
