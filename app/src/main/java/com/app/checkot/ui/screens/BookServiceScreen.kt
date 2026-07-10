@@ -26,6 +26,8 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.tasks.await
+import com.app.checkot.ui.components.BackTopAppBar
+import com.app.checkot.ui.components.DetailRow
 
 data class AvailableService(
     val config: CustomServiceConfig,
@@ -101,7 +103,7 @@ fun BookServiceScreen(
         val selectedAvails = availableServices.filter { selectedServiceConfigs.contains(it.config.serviceName) }
         selectedAvails.sumOf { avail ->
             if (avail.config.isCustom) 60 // default 1hr for custom services
-            else parseServiceDuration(avail.serviceType?.duration ?: "30 mins")
+            else BookingUtils.parseDurationMinutes(avail.serviceType?.duration ?: "30 mins")
         }.coerceAtLeast(30)
     }
 
@@ -200,15 +202,11 @@ fun BookServiceScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Book Car Wash") },
-                navigationIcon = {
-                    IconButton(onClick = { 
-                        if (navController.previousBackStackEntry != null) {
-                            navController.popBackStack(Screen.Home.route, inclusive = false)
-                        }
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            BackTopAppBar(
+                title = "Book Car Wash",
+                onBack = {
+                    if (navController.previousBackStackEntry != null) {
+                        navController.popBackStack(Screen.Home.route, inclusive = false)
                     }
                 }
             )
@@ -451,13 +449,13 @@ fun BookServiceScreen(
                                     style = MaterialTheme.typography.titleMedium
                                 )
                                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                                SummaryRow("Services:", selectedNames)
-                                SummaryRow("Car:", "${selectedCar?.brand} ${selectedCar?.model} (${selectedCar?.plateNumber})")
-                                SummaryRow("Date:", DateUtils.formatDate(selectedDate))
-                                SummaryRow("Time:", selectedTimeSlot)
-                                SummaryRow("Total Price:", "₱${totalPrice}")
+                                DetailRow("Services:", selectedNames, singleLine = false)
+                                DetailRow("Car:", "${selectedCar?.brand} ${selectedCar?.model} (${selectedCar?.plateNumber})", singleLine = false)
+                                DetailRow("Date:", DateUtils.formatDate(selectedDate), singleLine = false)
+                                DetailRow("Time:", selectedTimeSlot, singleLine = false)
+                                DetailRow("Total Price:", "₱${totalPrice}", singleLine = false)
                                 if (notes.isNotBlank()) {
-                                    SummaryRow("Notes:", notes)
+                                    DetailRow("Notes:", notes, singleLine = false)
                                 }
                             }
                         }
@@ -676,35 +674,4 @@ fun TimeSlotCard(
             }
         }
     }
-}
-@Composable
-fun SummaryRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-    ) {
-        Text(
-            text = label,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-        )
-        Text(
-            text = value,
-            modifier = Modifier.weight(2f),
-            style = MaterialTheme.typography.bodyMedium
-        )
-    }
-}
-
-private fun parseServiceDuration(duration: String): Int = when {
-    duration.contains("hour") -> {
-        val hours = duration.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 1.0
-        (hours * 60).toInt()
-    }
-    duration.contains("min") -> {
-        duration.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 30
-    }
-    else -> 30
 }

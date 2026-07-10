@@ -23,6 +23,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.app.checkot.ui.components.BackTopAppBar
+import com.app.checkot.ui.components.DetailRow
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
@@ -57,7 +59,7 @@ fun BookingDetailsScreen(
                 val position = if (index != -1) index + 1 else -1
                 val ahead = if (index > 0) sorted.subList(0, index) else emptyList()
                 val estimated = ahead.sumOf { b ->
-                    b.services.sumOf { s -> parseDuration(s.duration) }
+                    b.services.sumOf { s -> BookingUtils.parseDurationMinutes(s.duration) }
                 }
                 queueInfo = QueueInfo(position, estimated, sorted.size)
             }
@@ -125,13 +127,9 @@ fun BookingDetailsScreen(
     }
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Booking Details") },
-                navigationIcon = {
-                    IconButton(onClick = { if(navController.previousBackStackEntry != null) navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
+            BackTopAppBar(
+                title = "Booking Details",
+                onBack = { if (navController.previousBackStackEntry != null) navController.popBackStack() }
             )
         }
     ) { paddingValues ->
@@ -333,12 +331,12 @@ fun BookingDetailsScreen(
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        DetailRow("Shop", shopName.ifEmpty { booking.shopId.takeLast(6).uppercase() })
-                        DetailRow("Services", booking.displayServiceNames())
-                        DetailRow("Duration", booking.services.map { it.duration }.distinct().joinToString(" + "))
-                        DetailRow("Price", "₱${booking.price}")
+                        DetailRow("Shop:", shopName.ifEmpty { booking.shopId.takeLast(6).uppercase() })
+                        DetailRow("Services:", booking.displayServiceNames())
+                        DetailRow("Duration:", booking.services.map { it.duration }.distinct().joinToString(" + "))
+                        DetailRow("Price:", "₱${booking.price}")
                         if (booking.notes.isNotBlank()) {
-                             DetailRow("Special Requests", booking.notes)
+                             DetailRow("Special Requests:", booking.notes)
                         }
                     }
                 }
@@ -376,10 +374,10 @@ fun BookingDetailsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         val carDetails = booking.carDetails.split(" - ")
                         if (carDetails.size == 2) {
-                            DetailRow("Car", carDetails[0])
-                            DetailRow("Plate Number", carDetails[1])
+                            DetailRow("Car:", carDetails[0])
+                            DetailRow("Plate Number:", carDetails[1])
                         } else {
-                            DetailRow("Car", booking.carDetails)
+                            DetailRow("Car:", booking.carDetails)
                         }
                     }
                 }
@@ -415,8 +413,8 @@ fun BookingDetailsScreen(
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        DetailRow("Date", DateUtils.formatDate(booking.bookingDate))
-                        DetailRow("Time", booking.timeSlot)
+                        DetailRow("Date:", DateUtils.formatDate(booking.bookingDate))
+                        DetailRow("Time:", booking.timeSlot)
                     }
                 }
             }
@@ -452,19 +450,19 @@ fun BookingDetailsScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         if (booking.createdAt > 0) {
-                            DetailRow("Created", DateUtils.formatDateTime(booking.createdAt))
+                            DetailRow("Created:", DateUtils.formatDateTime(booking.createdAt))
                         }
                         booking.confirmedAt?.let {
-                            DetailRow("Confirmed", DateUtils.formatDateTime(it))
+                            DetailRow("Confirmed:", DateUtils.formatDateTime(it))
                         }
                         booking.inProgressAt?.let {
-                            DetailRow("In Progress", DateUtils.formatDateTime(it))
+                            DetailRow("In Progress:", DateUtils.formatDateTime(it))
                         }
                         booking.completedAt?.let {
-                            DetailRow("Completed", DateUtils.formatDateTime(it))
+                            DetailRow("Completed:", DateUtils.formatDateTime(it))
                         }
                         booking.cancelledAt?.let {
-                            DetailRow("Cancelled", DateUtils.formatDateTime(it))
+                            DetailRow("Cancelled:", DateUtils.formatDateTime(it))
                         }
                     }
                 }
@@ -495,30 +493,6 @@ fun BookingDetailsScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-fun DetailRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-    ) {
-        Text(
-            text = "$label:",
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-            maxLines = 1
-        )
-        Text(
-            text = value,
-            modifier = Modifier.weight(2f),
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-        )
     }
 }
 
@@ -757,15 +731,4 @@ fun QueuePositionCard(queueInfo: QueueInfo, status: BookingStatus) {
             )
         }
     }
-}
-
-private fun parseDuration(duration: String): Int = when {
-    duration.contains("hour") -> {
-        val hours = duration.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 1.0
-        (hours * 60).toInt()
-    }
-    duration.contains("min") -> {
-        duration.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 30
-    }
-    else -> 30
 }

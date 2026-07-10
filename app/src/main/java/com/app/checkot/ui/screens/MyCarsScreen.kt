@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
+import com.app.checkot.ui.components.BackTopAppBar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyCarsScreen(
@@ -30,13 +31,9 @@ fun MyCarsScreen(
     val scope = rememberCoroutineScope()
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("My Cars") },
-                navigationIcon = {
-                    IconButton(onClick = { if(navController.previousBackStackEntry != null) navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            BackTopAppBar(
+                title = "My Cars",
+                onBack = { if (navController.previousBackStackEntry != null) navController.popBackStack() },
                 actions = {
                     IconButton(onClick = { navController.navigate("add_car") }) {
                         Icon(Icons.Default.Add, contentDescription = "Add Car")
