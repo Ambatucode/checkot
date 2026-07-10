@@ -79,7 +79,7 @@ fun AddCarScreen(
                         Icons.Default.DirectionsCar,
                         contentDescription = null,
                         modifier = Modifier.size(40.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }

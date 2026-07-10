@@ -291,7 +291,7 @@ fun ShopCard(
                         Icons.Default.LocalCarWash,
                         contentDescription = null,
                         modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }
