@@ -24,12 +24,12 @@ import kotlinx.coroutines.launch
 fun OwnerDashboard(
     navController: NavController,
     authViewModel: AuthViewModel,
-    adminViewModel: AdminViewModel = viewModel()
+    ownerViewModel: OwnerDashboardViewModel = viewModel()
 ) {
     var selectedTab by remember { mutableStateOf(0) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val saveResult by adminViewModel.saveResult.collectAsState()
+    val saveResult by ownerViewModel.saveResult.collectAsState()
 
     LaunchedEffect(saveResult) {
         saveResult?.let {
@@ -37,7 +37,7 @@ fun OwnerDashboard(
         }
     }
 
-    val shopCust by adminViewModel.shopCustomization.collectAsState()
+    val shopCust by ownerViewModel.shopCustomization.collectAsState()
     val shopStatus = shopCust.status
 
     Scaffold(
@@ -48,7 +48,7 @@ fun OwnerDashboard(
                 title = { 
                     Column {
                         Text("Owner Dashboard", style = MaterialTheme.typography.titleMedium)
-                        val shopCust = adminViewModel.shopCustomization.collectAsState().value
+                        val shopCust = ownerViewModel.shopCustomization.collectAsState().value
                         if (shopCust.shopName.isNotEmpty()) {
                             Text(shopCust.shopName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                         }
@@ -133,10 +133,10 @@ fun OwnerDashboard(
                     }
                     // Show tabs normally
                     when (selectedTab) {
-                        0 -> OwnerBookingsTab(navController, adminViewModel, PaddingValues(0.dp))
-                        1 -> OwnerCustomersTab(adminViewModel, PaddingValues(0.dp))
-                        2 -> OwnerRevenueTab(adminViewModel, PaddingValues(0.dp))
-                        3 -> OwnerServicesTab(adminViewModel, PaddingValues(0.dp))
+                        0 -> OwnerBookingsTab(navController, ownerViewModel, PaddingValues(0.dp))
+                        1 -> OwnerCustomersTab(ownerViewModel, PaddingValues(0.dp))
+                        2 -> OwnerRevenueTab(ownerViewModel, PaddingValues(0.dp))
+                        3 -> OwnerServicesTab(ownerViewModel, PaddingValues(0.dp))
                     }
                 }
                 "rejected" -> {
@@ -214,10 +214,10 @@ fun OwnerDashboard(
                 else -> {
                     // Active — normal dashboard, no banner
                     when (selectedTab) {
-                        0 -> OwnerBookingsTab(navController, adminViewModel, PaddingValues(0.dp))
-                        1 -> OwnerCustomersTab(adminViewModel, PaddingValues(0.dp))
-                        2 -> OwnerRevenueTab(adminViewModel, PaddingValues(0.dp))
-                        3 -> OwnerServicesTab(adminViewModel, PaddingValues(0.dp))
+                        0 -> OwnerBookingsTab(navController, ownerViewModel, PaddingValues(0.dp))
+                        1 -> OwnerCustomersTab(ownerViewModel, PaddingValues(0.dp))
+                        2 -> OwnerRevenueTab(ownerViewModel, PaddingValues(0.dp))
+                        3 -> OwnerServicesTab(ownerViewModel, PaddingValues(0.dp))
                     }
                 }
             }
@@ -233,7 +233,7 @@ fun OwnerDashboard(
                 TextButton(
                     onClick = {
                         authViewModel.signOut()
-                        adminViewModel.logout {
+                        ownerViewModel.logout {
                             showLogoutDialog = false
                             navController.navigate("login") {
                                 popUpTo(0) // Clears all screens from back stack
@@ -258,14 +258,14 @@ fun OwnerDashboard(
 @Composable
 fun OwnerBookingsTab(
     navController: NavController,
-    adminViewModel: AdminViewModel,
+    ownerViewModel: OwnerDashboardViewModel,
     paddingValues: PaddingValues
 ) {
-    val allBookings by adminViewModel.allBookings.collectAsState()
+    val allBookings by ownerViewModel.allBookings.collectAsState()
     var filter by remember { mutableStateOf("all") }
     // FORCE REFRESH WHEN TAB OPENS
     LaunchedEffect(Unit) {
-        adminViewModel.forceRefresh()
+        ownerViewModel.forceRefresh()
     }
     val filteredBookings = when (filter) {
         "pending" -> allBookings.filter { it.status == BookingStatus.PENDING }.sortedBy { it.createdAt }
@@ -275,7 +275,7 @@ fun OwnerBookingsTab(
         else -> allBookings
     }
     // Customer name lookup + queue positions (must be outside LazyColumn)
-    val users by adminViewModel.allUsers.collectAsState()
+    val users by ownerViewModel.allUsers.collectAsState()
     val customerNames = remember(users) {
         users.associate { it.userId to it.fullName }
     }
@@ -425,18 +425,18 @@ fun OwnerBookingsTab(
                         booking = booking,
                         customerName = customerNames[booking.userId] ?: "",
                         queuePosition = queuePositions[booking.bookingId] ?: 0,
-                        onNoShow = { adminViewModel.markNoShow(booking.bookingId) },
+                        onNoShow = { ownerViewModel.markNoShow(booking.bookingId) },
                         onApprove = {
-                            adminViewModel.updateBookingStatus(booking.bookingId, BookingStatus.CONFIRMED)
+                            ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.CONFIRMED)
                         },
                         onReject = {
-                            adminViewModel.updateBookingStatus(booking.bookingId, BookingStatus.CANCELLED)
+                            ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.CANCELLED)
                         },
                         onStart = {
-                            adminViewModel.updateBookingStatus(booking.bookingId, BookingStatus.IN_PROGRESS)
+                            ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.IN_PROGRESS)
                         },
                         onComplete = {
-                            adminViewModel.updateBookingStatus(booking.bookingId, BookingStatus.COMPLETED)
+                            ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.COMPLETED)
                         }
                     )
                 }
@@ -447,10 +447,10 @@ fun OwnerBookingsTab(
 // Customers Tab
 @Composable
 fun OwnerCustomersTab(
-    adminViewModel: AdminViewModel,
+    ownerViewModel: OwnerDashboardViewModel,
     paddingValues: PaddingValues
 ) {
-    val allUsers by adminViewModel.allUsers.collectAsState()
+    val allUsers by ownerViewModel.allUsers.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
     val filteredUsers = if (searchQuery.isEmpty()) {
         allUsers
@@ -538,8 +538,8 @@ fun CustomerCard(user: CarWashUser) {
 }
 // Revenue Tab
 @Composable
-fun OwnerRevenueTab(adminViewModel: AdminViewModel, paddingValues: PaddingValues) {
-    val allBookings by adminViewModel.allBookings.collectAsState()
+fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: PaddingValues) {
+    val allBookings by ownerViewModel.allBookings.collectAsState()
     var selectedPeriod by remember { mutableStateOf("today") }
     val now = System.currentTimeMillis()
     val oneDay = 86400000
@@ -1151,11 +1151,11 @@ fun StatsBadge(label: String, count: Int, color: androidx.compose.ui.graphics.Co
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OwnerServicesTab(
-    adminViewModel: AdminViewModel,
+    ownerViewModel: OwnerDashboardViewModel,
     paddingValues: PaddingValues
 ) {
-    val customization by adminViewModel.shopCustomization.collectAsState()
-    val allBookings by adminViewModel.allBookings.collectAsState()
+    val customization by ownerViewModel.shopCustomization.collectAsState()
+    val allBookings by ownerViewModel.allBookings.collectAsState()
     var editedServices by remember { mutableStateOf<List<CustomServiceConfig>>(customization.services) }
     var bayCountText by remember { mutableStateOf(customization.bayCount.toString()) }
     var showAddDropdown by remember { mutableStateOf(false) }
@@ -1433,7 +1433,7 @@ fun OwnerServicesTab(
                         services = editedServices,
                         bayCount = bayCount
                     )
-                    adminViewModel.saveShopCustomization(updated)
+                    ownerViewModel.saveShopCustomization(updated)
                     scope.launch {
                         kotlinx.coroutines.delay(1500)
                         isSavingServices = false

@@ -19,16 +19,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
-class AdminViewModel(application: Application) : AndroidViewModel(application) {
+class OwnerDashboardViewModel(application: Application) : AndroidViewModel(application) {
     private val firestore: FirebaseFirestore = Firebase.firestore
     private val appContext = application.applicationContext
-    
+
     private val _allBookings = MutableStateFlow<List<Booking>>(emptyList())
     val allBookings: StateFlow<List<Booking>> = _allBookings
-    
+
     private val _allUsers = MutableStateFlow<List<CarWashUser>>(emptyList())
     val allUsers: StateFlow<List<CarWashUser>> = _allUsers
-    
+
     private val _currentOwnerShopId = MutableStateFlow<String?>(null)
 
     private val _shopCustomization = MutableStateFlow(ShopCustomization())
@@ -42,7 +42,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
     private var authStateListener: com.google.firebase.auth.FirebaseAuth.AuthStateListener? = null
 
     init {
-        println("🔥 AdminViewModel initialized")
+        println("🔥 OwnerDashboardViewModel initialized")
         // Auth listener handles both initial load and re-login to a different user
         authStateListener = com.google.firebase.auth.FirebaseAuth.AuthStateListener { firebaseAuth ->
             val currentUser = firebaseAuth.currentUser
@@ -69,7 +69,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
         }
         Firebase.auth.addAuthStateListener(authStateListener!!)
     }
-    
+
     private fun loadOwnerContext() {
         viewModelScope.launch {
             val user = Firebase.auth.currentUser ?: return@launch
@@ -149,7 +149,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
 
                 val bookingsList = snapshot?.documents?.mapNotNull { it.toObject(Booking::class.java) }
                     ?: emptyList()
-                
+
                 _allBookings.value = bookingsList
                 println("🔥 Bookings updated in real-time: ${bookingsList.size}")
 
@@ -294,10 +294,10 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
         try {
             println("🔥 Attempting to load users...")
             val snapshot = firestore.collection("users").get().await()
-            
+
             val usersList = snapshot.documents.mapNotNull { it.toObject(CarWashUser::class.java) }
                 .filter { userIds.contains(it.userId) }
-                
+
             _allUsers.value = usersList
             println("🔥 Total users loaded: ${usersList.size}")
         } catch (e: Exception) {

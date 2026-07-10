@@ -7,7 +7,7 @@ import com.app.checkot.model.ServiceType
 /**
  * Shared booking-slot math. Previously duplicated (with slight drift) across
  * BookingViewModel.createBooking, BookingViewModel.fetchAvailableTimeSlots,
- * and AdminViewModel.autoCancelStaleBookings.
+ * and OwnerDashboardViewModel.autoCancelStaleBookings.
  */
 object BookingUtils {
 
