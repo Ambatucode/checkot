@@ -29,13 +29,15 @@ fun OwnerCustomersTab(
     val allUsers by ownerViewModel.allUsers.collectAsState()
     val allUsersLoaded by ownerViewModel.allUsersLoaded.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
-    val filteredUsers = if (searchQuery.isEmpty()) {
-        allUsers
-    } else {
-        allUsers.filter {
-            it.fullName.contains(searchQuery, ignoreCase = true) ||
-                    it.email.contains(searchQuery, ignoreCase = true) ||
-                    it.phoneNumber.contains(searchQuery, ignoreCase = true)
+    val filteredUsers = remember(allUsers, searchQuery) {
+        if (searchQuery.isEmpty()) {
+            allUsers
+        } else {
+            allUsers.filter {
+                it.fullName.contains(searchQuery, ignoreCase = true) ||
+                        it.email.contains(searchQuery, ignoreCase = true) ||
+                        it.phoneNumber.contains(searchQuery, ignoreCase = true)
+            }
         }
     }
     Column(

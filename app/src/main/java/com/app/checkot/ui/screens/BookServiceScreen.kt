@@ -307,7 +307,7 @@ fun BookServiceScreen(
                             }
                         }
                     } else {
-                        items(availableServices) { avail ->
+                        items(availableServices, key = { it.config.serviceName }) { avail ->
                             val isSelected = selectedServiceConfigs.contains(avail.config.serviceName)
                             val displayPrice = if (avail.config.customPrice > 0) avail.config.customPrice
                                                else avail.serviceType?.price ?: 0.0
@@ -363,7 +363,7 @@ fun BookServiceScreen(
                             }
                         }
                     } else {
-                        items(savedCars) { car ->
+                        items(savedCars, key = { it.carId }) { car ->
                             CarSelectionCard(
                                 car = car,
                                 isSelected = selectedCar?.carId == car.carId,
@@ -416,7 +416,7 @@ fun BookServiceScreen(
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
                     }
-                    items(availableTimeSlots) { slot ->
+                    items(availableTimeSlots, key = { it.slot }) { slot ->
                         TimeSlotCard(
                             slot = slot,
                             isSelected = selectedTimeSlot == slot.slot,

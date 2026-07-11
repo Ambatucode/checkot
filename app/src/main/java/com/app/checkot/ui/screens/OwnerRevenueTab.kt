@@ -31,11 +31,13 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
     val oneDay = 86400000
     val oneWeek = oneDay * 7
     val oneMonth = oneDay * 30
-    val filteredBookings = when (selectedPeriod) {
-        "today" -> allBookings.filter { it.createdAt > now - oneDay && it.status == BookingStatus.COMPLETED }
-        "week" -> allBookings.filter { it.createdAt > now - oneWeek && it.status == BookingStatus.COMPLETED }
-        "month" -> allBookings.filter { it.createdAt > now - oneMonth && it.status == BookingStatus.COMPLETED }
-        else -> allBookings.filter { it.status == BookingStatus.COMPLETED }
+    val filteredBookings = remember(allBookings, selectedPeriod) {
+        when (selectedPeriod) {
+            "today" -> allBookings.filter { it.createdAt > now - oneDay && it.status == BookingStatus.COMPLETED }
+            "week" -> allBookings.filter { it.createdAt > now - oneWeek && it.status == BookingStatus.COMPLETED }
+            "month" -> allBookings.filter { it.createdAt > now - oneMonth && it.status == BookingStatus.COMPLETED }
+            else -> allBookings.filter { it.status == BookingStatus.COMPLETED }
+        }
     }
     val totalRevenue = filteredBookings.sumOf { it.price }
     val bookingCount = filteredBookings.size

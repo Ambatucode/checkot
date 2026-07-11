@@ -35,12 +35,14 @@ fun OwnerBookingsTab(
     LaunchedEffect(Unit) {
         ownerViewModel.forceRefresh()
     }
-    val filteredBookings = when (filter) {
-        "pending" -> allBookings.filter { it.status == BookingStatus.PENDING }.sortedBy { it.createdAt }
-        "confirmed" -> allBookings.filter { it.status == BookingStatus.CONFIRMED }.sortedBy { it.createdAt }
-        "in_progress" -> allBookings.filter { it.status == BookingStatus.IN_PROGRESS }
-        "completed" -> allBookings.filter { it.status == BookingStatus.COMPLETED }
-        else -> allBookings
+    val filteredBookings = remember(allBookings, filter) {
+        when (filter) {
+            "pending" -> allBookings.filter { it.status == BookingStatus.PENDING }.sortedBy { it.createdAt }
+            "confirmed" -> allBookings.filter { it.status == BookingStatus.CONFIRMED }.sortedBy { it.createdAt }
+            "in_progress" -> allBookings.filter { it.status == BookingStatus.IN_PROGRESS }
+            "completed" -> allBookings.filter { it.status == BookingStatus.COMPLETED }
+            else -> allBookings
+        }
     }
     // Customer name lookup + queue positions (must be outside LazyColumn)
     val users by ownerViewModel.allUsers.collectAsState()

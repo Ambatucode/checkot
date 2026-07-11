@@ -30,10 +30,10 @@ fun MyBookingsScreen(
     val bookings by bookingViewModel.userBookings.collectAsState()
     val bookingsLoaded by bookingViewModel.userBookingsLoaded.collectAsState()
     var selectedTab by remember { mutableStateOf(0) }
-    val pendingBookings = bookings.filter { it.status == BookingStatus.PENDING }
-    val confirmedBookings = bookings.filter { it.status == BookingStatus.CONFIRMED }
-    val completedBookings = bookings.filter { it.status == BookingStatus.COMPLETED }
-    val cancelledBookings = bookings.filter { it.status == BookingStatus.CANCELLED }
+    val pendingBookings = remember(bookings) { bookings.filter { it.status == BookingStatus.PENDING } }
+    val confirmedBookings = remember(bookings) { bookings.filter { it.status == BookingStatus.CONFIRMED } }
+    val completedBookings = remember(bookings) { bookings.filter { it.status == BookingStatus.COMPLETED } }
+    val cancelledBookings = remember(bookings) { bookings.filter { it.status == BookingStatus.CANCELLED } }
     Scaffold(
         topBar = {
             BackTopAppBar(

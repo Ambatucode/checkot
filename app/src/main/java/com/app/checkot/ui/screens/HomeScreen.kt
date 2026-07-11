@@ -254,7 +254,7 @@ fun HomeScreen(
                     BookingCard(
                         booking = booking,
                         onClick = { navController.navigate("booking_details/${booking.bookingId}") },
-                        shopNameMap = shopNameMap
+                        shopName = shopNameMap[booking.shopId] ?: "Shop"
                     )
                 }
             }
@@ -321,7 +321,9 @@ fun ShopCard(
 fun BookingCard(
     booking: Booking,
     onClick: () -> Unit,
-    shopNameMap: Map<String, String> = emptyMap(),
+    // Resolved shop name instead of a Map param: Map is an unstable type in
+    // Compose and made every card recompose whenever the parent did.
+    shopName: String = "Shop",
     bookingViewModel: BookingViewModel = viewModel()
 ) {
     var queueInfo by remember { mutableStateOf(QueueInfo()) }
@@ -364,7 +366,6 @@ fun BookingCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val shopName = shopNameMap[booking.shopId] ?: "Shop"
                 Text(
                     text = shopName,
                     style = MaterialTheme.typography.labelMedium,

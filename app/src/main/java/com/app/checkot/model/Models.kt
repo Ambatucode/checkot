@@ -1,5 +1,12 @@
 package com.app.checkot.model
 
+import androidx.compose.runtime.Immutable
+
+// The @Immutable annotations tell the Compose compiler these classes never
+// change after construction (Firestore always builds fresh instances), which
+// makes list cards skippable — without them the List<> fields mark every
+// model unstable and every visible card recomposes on any snapshot update.
+@Immutable
 data class CarWashUser(
     val userId: String = "",
     val fullName: String = "",
@@ -8,16 +15,18 @@ data class CarWashUser(
     val createdAt: Long = 0,
     val role: String = "customer", // "customer" or "owner"
     val ownedShopId: String? = null, // Only used if role == "owner"
-    var defaultCar: Car? = null,
+    val defaultCar: Car? = null,
     val savedCars: List<Car> = emptyList(),
     val shopCustomization: ShopCustomization? = null // Owner-only
 )
 
+@Immutable
 data class CarWashShop(
     val shopId: String = "",
     val name: String = "",
     val address: String = ""
 )
+@Immutable
 data class Car(
     val carId: String = "",
     val plateNumber: String = "",
@@ -26,6 +35,7 @@ data class Car(
     val color: String = "",
     val isDefault: Boolean = false
 )
+@Immutable
 data class Booking(
     val bookingId: String = "",
     val shopId: String = "",
@@ -61,16 +71,19 @@ enum class BookingStatus(val displayName: String) {
     COMPLETED("Completed"),
     CANCELLED("Cancelled")
 }
+@Immutable
 data class TimeSlot(
     val slot: String,
     val available: Boolean = true
 )
+@Immutable
 data class QueueInfo(
     val position: Int = -1,
     val estimatedWaitMinutes: Int = 0,
     val totalInQueue: Int = 0
 )
 
+@Immutable
 data class ShopCustomization(
     val shopName: String = "",
     val shopAddress: String = "",
@@ -85,6 +98,7 @@ data class ShopCustomization(
     val ownerFcmToken: String = "" // FCM token for sending notifications to the owner
 )
 
+@Immutable
 data class CustomServiceConfig(
     val serviceName: String = "", // Maps to ServiceType.name, or custom ID
     val displayName: String = "",
