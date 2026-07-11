@@ -33,6 +33,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.app.checkot.viewmodel.AuthViewModel
 import com.app.checkot.viewmodel.RoleLoadState
@@ -148,13 +149,40 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private val loadingTaglines = listOf(
+    "Getting your ride ready...",
+    "Warming up the hose...",
+    "Sudsing things up...",
+    "Making your car shine...",
+    "Queuing up the clean...",
+    "One spotless ride coming up...",
+    "Bubbles incoming...",
+    "Prepping the wash bay...",
+    "Your car deserves this...",
+    "Almost there, just like your car wash..."
+)
+
 @Composable
 private fun RoleLoadingScreen() {
+    val tagline = remember { loadingTaglines.random() }
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
         contentAlignment = Alignment.Center
     ) {
-        CircularProgressIndicator(color = Color(0xFF00BFA5))
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            CircularProgressIndicator(color = Color(0xFF00BFA5))
+            Text(
+                text = tagline,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
