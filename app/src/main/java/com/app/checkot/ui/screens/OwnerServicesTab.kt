@@ -20,6 +20,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 
+const val MIN_SERVICE_DURATION_MIN = 20
+const val MAX_SERVICE_DURATION_MIN = 180
+
+/** Built-in default duration for a predefined service; 0 for custom services. */
+private fun defaultDurationMinutes(config: CustomServiceConfig): Int =
+    ServiceType.values().find { it.name == config.serviceName }
+        ?.let { BookingUtils.parseDurationMinutes(it.duration) } ?: 0
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OwnerServicesTab(
@@ -34,6 +42,8 @@ fun OwnerServicesTab(
     var showCustomNameDialog by remember { mutableStateOf(false) }
     var customServiceNameInput by remember { mutableStateOf("") }
     var isSavingServices by remember { mutableStateOf(false) }
+    // Services whose duration field currently holds invalid/empty text
+    var invalidDurationKeys by remember { mutableStateOf(setOf<String>()) }
     val scope = rememberCoroutineScope()
     val maxServices = 15
 
@@ -43,12 +53,21 @@ fun OwnerServicesTab(
         config.customPrice > 5000 ||
         (config.isCustom && config.customPrice == 0.0)
     }
+    // A duration is invalid if the field text is invalid, or the effective
+    // value (saved value, else the built-in default) is outside 20..180
+    val hasInvalidDuration = invalidDurationKeys.isNotEmpty() || editedServices.any { config ->
+        val effective = if (config.durationMinutes > 0) config.durationMinutes
+                        else defaultDurationMinutes(config)
+        effective < MIN_SERVICE_DURATION_MIN || effective > MAX_SERVICE_DURATION_MIN
+    }
     val bayCountChanged = bayCountText.toIntOrNull() != customization.bayCount
-    val canSave = (editedServices != customization.services || bayCountChanged) && !hasInvalidPrice
+    val canSave = (editedServices != customization.services || bayCountChanged) &&
+        !hasInvalidPrice && !hasInvalidDuration
 
     LaunchedEffect(customization) {
         editedServices = customization.services
         bayCountText = customization.bayCount.toString()
+        invalidDurationKeys = emptySet()
     }
 
     val atMaxLimit = editedServices.size >= maxServices
@@ -179,7 +198,8 @@ fun OwnerServicesTab(
                                 editedServices = editedServices + CustomServiceConfig(
                                     serviceName = type.name,
                                     displayName = type.displayName,
-                                    customPrice = type.price
+                                    customPrice = type.price,
+                                    durationMinutes = BookingUtils.parseDurationMinutes(type.duration)
                                 )
                                 showAddDropdown = false
                             }
@@ -274,7 +294,18 @@ fun OwnerServicesTab(
                                 if (it.serviceName == config.serviceName) it.copy(customName = newName, displayName = newName) else it
                             }
                         },
+                        onDurationInput = { parsed ->
+                            if (parsed != null) {
+                                invalidDurationKeys = invalidDurationKeys - config.serviceName
+                                editedServices = editedServices.map {
+                                    if (it.serviceName == config.serviceName) it.copy(durationMinutes = parsed) else it
+                                }
+                            } else {
+                                invalidDurationKeys = invalidDurationKeys + config.serviceName
+                            }
+                        },
                         onDelete = {
+                            invalidDurationKeys = invalidDurationKeys - config.serviceName
                             editedServices = editedServices.filter { it.serviceName != config.serviceName }
                         }
                     )
@@ -291,6 +322,7 @@ fun OwnerServicesTab(
             OutlinedButton(
                 onClick = {
                     editedServices = customization.services
+                    invalidDurationKeys = emptySet()
                 },
                 modifier = Modifier.weight(1f),
                 shape = MaterialTheme.shapes.medium
@@ -301,8 +333,14 @@ fun OwnerServicesTab(
                 onClick = {
                     isSavingServices = true
                     val bayCount = bayCountText.toIntOrNull() ?: customization.bayCount
+                    // Persist the effective duration for legacy services the
+                    // owner didn't touch (their field shows the default)
+                    val normalizedServices = editedServices.map { config ->
+                        if (config.durationMinutes > 0) config
+                        else config.copy(durationMinutes = defaultDurationMinutes(config))
+                    }
                     val updated = customization.copy(
-                        services = editedServices,
+                        services = normalizedServices,
                         bayCount = bayCount
                     )
                     ownerViewModel.saveShopCustomization(updated)
@@ -334,11 +372,22 @@ fun ServiceConfigCard(
     deleteReason: String? = null,
     onPriceChange: (Double) -> Unit,
     onNameChange: (String) -> Unit = {},
+    onDurationInput: (Int?) -> Unit = {}, // valid minutes, or null while the field is invalid/empty
     onDelete: () -> Unit
 ) {
     val defaultPrice = ServiceType.values().find { it.name == config.serviceName }?.price ?: 0.0
+    val defaultDurationMin = defaultDurationMinutes(config)
     var priceText by remember(config.customPrice) {
         mutableStateOf(if (config.customPrice > 0) config.customPrice.toString() else "")
+    }
+    var durationText by remember(config.durationMinutes) {
+        mutableStateOf(
+            when {
+                config.durationMinutes > 0 -> config.durationMinutes.toString()
+                defaultDurationMin > 0 -> defaultDurationMin.toString()
+                else -> ""
+            }
+        )
     }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -488,6 +537,50 @@ fun ServiceConfigCard(
                         modifier = Modifier.padding(start = 8.dp, top = 4.dp)
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            val durationValid = durationText.toIntOrNull()
+                ?.let { it in MIN_SERVICE_DURATION_MIN..MAX_SERVICE_DURATION_MIN } == true
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Duration (mins):",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                OutlinedTextField(
+                    value = durationText,
+                    onValueChange = { input ->
+                        // Whole numbers only — digits, no decimals or signs
+                        val filtered = input.filter { it.isDigit() }.take(3)
+                        durationText = filtered
+                        val parsed = filtered.toIntOrNull()
+                        onDurationInput(
+                            if (parsed != null && parsed in MIN_SERVICE_DURATION_MIN..MAX_SERVICE_DURATION_MIN) parsed
+                            else null
+                        )
+                    },
+                    modifier = Modifier.weight(1f).padding(start = 8.dp),
+                    singleLine = true,
+                    isError = !durationValid,
+                    placeholder = { Text(if (defaultDurationMin > 0) "$defaultDurationMin" else "e.g. 45") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    ),
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    shape = MaterialTheme.shapes.small
+                )
+            }
+            if (!durationValid) {
+                Text(
+                    "Please enter a valid duration between 20 and 180 minutes",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                )
             }
         }
     }

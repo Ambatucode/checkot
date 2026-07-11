@@ -104,7 +104,8 @@ data class CustomServiceConfig(
     val displayName: String = "",
     val customPrice: Double = 0.0, // 0 = use default from ServiceType
     val isCustom: Boolean = false, // true for owner-created "Others" services
-    val customName: String = "" // Custom name for "Others" services
+    val customName: String = "", // Custom name for "Others" services
+    val durationMinutes: Int = 0 // 0 = not set; legacy docs fall back to the ServiceType default
 )
 
 /**
