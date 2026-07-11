@@ -14,10 +14,12 @@ import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
 
 sealed class AuthState {
     object Authenticated : AuthState()
@@ -25,6 +27,17 @@ sealed class AuthState {
     object Loading : AuthState()
     data class Error(val message: String) : AuthState()
 }
+
+// Gates the UI at startup: no screen may render until the signed-in user's
+// role is confirmed from Firestore, otherwise a fast tap can reach screens
+// outside the user's role (RBAC violation).
+sealed class RoleLoadState {
+    object Loading : RoleLoadState()
+    object Ready : RoleLoadState()
+    data class Error(val message: String) : RoleLoadState()
+}
+
+private const val ROLE_FETCH_TIMEOUT_MS = 10_000L
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val TAG = "AuthViewModel"
@@ -58,6 +71,13 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
+
+    // Starts as Loading when a Firebase session is cached, because the role
+    // must be re-fetched before any role-gated screen is composed.
+    private val _roleLoadState = MutableStateFlow<RoleLoadState>(
+        if (auth.currentUser != null) RoleLoadState.Loading else RoleLoadState.Ready
+    )
+    val roleLoadState: StateFlow<RoleLoadState> = _roleLoadState
 
     init {
         if (auth.currentUser != null) {
@@ -206,6 +226,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         auth.signOut()
         _authState.value = AuthState.Unauthenticated
         _currentUserData.value = null
+        _roleLoadState.value = RoleLoadState.Ready
     }
 
     fun resetPassword(email: String) {
@@ -221,18 +242,33 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loadUserData() {
         viewModelScope.launch {
-            val user = auth.currentUser ?: return@launch
+            val user = auth.currentUser ?: run {
+                _roleLoadState.value = RoleLoadState.Ready
+                return@launch
+            }
+            _roleLoadState.value = RoleLoadState.Loading
             try {
-                val snapshot = firestore.collection("users").document(user.uid).get().await()
+                val snapshot = withTimeout(ROLE_FETCH_TIMEOUT_MS) {
+                    firestore.collection("users").document(user.uid).get().await()
+                }
                 val userData = snapshot.toObject(CarWashUser::class.java)
                 _currentUserData.value = userData
                 // Upload FCM token for ALL users (customers AND owners)
                 // so the Cloud Function can send push notifications to anyone
                 if (userData != null) {
                     uploadFcmToken(userData.userId)
+                    _roleLoadState.value = RoleLoadState.Ready
+                } else {
+                    // Missing profile means unknown role — must not fall through
+                    // to the default (customer) UI.
+                    _roleLoadState.value = RoleLoadState.Error("Your account profile could not be found.")
                 }
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "Role fetch timed out after ${ROLE_FETCH_TIMEOUT_MS}ms")
+                _roleLoadState.value = RoleLoadState.Error("Loading your account timed out. Check your connection and try again.")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load user data: ${e.message}")
+                _roleLoadState.value = RoleLoadState.Error("Couldn't load your account. Check your connection and try again.")
             }
         }
     }
