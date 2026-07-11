@@ -102,12 +102,16 @@ fun BookServiceScreen(
         }
     }
 
-    // Calculate total duration from selected services
+    // Calculate total duration from selected services — prefer the duration
+    // the owner configured; fall back to built-in defaults for legacy configs
     val totalDurationMinutes = remember(selectedServiceConfigs, availableServices) {
         val selectedAvails = availableServices.filter { selectedServiceConfigs.contains(it.config.serviceName) }
         selectedAvails.sumOf { avail ->
-            if (avail.config.isCustom) 60 // default 1hr for custom services
-            else BookingUtils.parseDurationMinutes(avail.serviceType?.duration ?: "30 mins")
+            when {
+                avail.config.durationMinutes > 0 -> avail.config.durationMinutes
+                avail.serviceType != null -> BookingUtils.parseDurationMinutes(avail.serviceType.duration)
+                else -> 60 // legacy custom service with no configured duration
+            }
         }.coerceAtLeast(30)
     }
 
@@ -511,7 +515,12 @@ fun BookServiceScreen(
                                 isCreating = true
                                 val selectedAvails = availableServices.filter { selectedServiceConfigs.contains(it.config.serviceName) }
                                 val serviceTypes = selectedAvails.map { it.serviceType ?: ServiceType.CUSTOM }
-                                val customNames = selectedAvails.filter { it.config.isCustom }.map { it.config.customName }
+                                // Custom = anything without a matching ServiceType. Detect via
+                                // serviceType == null (not config.isCustom): legacy shop docs
+                                // stored the flag under the wrong field name, so it reads false
+                                // and the custom name was silently dropped from the booking.
+                                val customNames = selectedAvails.filter { it.serviceType == null }
+                                    .map { it.config.customName.ifBlank { it.config.displayName } }
                                 val totalPrice = selectedAvails.sumOf {
                                     if (it.config.customPrice > 0) it.config.customPrice
                                     else it.serviceType?.price ?: 0.0
@@ -526,6 +535,7 @@ fun BookServiceScreen(
                                     bookingDate = selectedDate,
                                     timeSlot = selectedTimeSlot,
                                     price = totalPrice,
+                                    durationMinutes = totalDurationMinutes,
                                     notes = notes,
                                     status = BookingStatus.PENDING
                                 )

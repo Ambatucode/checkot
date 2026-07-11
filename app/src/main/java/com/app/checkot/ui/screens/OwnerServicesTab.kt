@@ -28,6 +28,21 @@ private fun defaultDurationMinutes(config: CustomServiceConfig): Int =
     ServiceType.values().find { it.name == config.serviceName }
         ?.let { BookingUtils.parseDurationMinutes(it.duration) } ?: 0
 
+/**
+ * Repairs legacy configs whose isCustom flag was lost by the old Firestore
+ * field-name mismatch (stored as "custom", read as "isCustom"): a service
+ * with no matching ServiceType is custom by definition. Saving persists the
+ * repaired flag under the correct field name.
+ */
+private fun normalizeConfigs(services: List<CustomServiceConfig>): List<CustomServiceConfig> =
+    services.map { config ->
+        val isCustom = config.isCustom || ServiceType.values().none { it.name == config.serviceName }
+        config.copy(
+            isCustom = isCustom,
+            customName = if (isCustom && config.customName.isBlank()) config.displayName else config.customName
+        )
+    }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OwnerServicesTab(
@@ -36,7 +51,7 @@ fun OwnerServicesTab(
 ) {
     val customization by ownerViewModel.shopCustomization.collectAsState()
     val allBookings by ownerViewModel.allBookings.collectAsState()
-    var editedServices by remember { mutableStateOf<List<CustomServiceConfig>>(customization.services) }
+    var editedServices by remember { mutableStateOf<List<CustomServiceConfig>>(normalizeConfigs(customization.services)) }
     var bayCountText by remember { mutableStateOf(customization.bayCount.toString()) }
     var showAddDropdown by remember { mutableStateOf(false) }
     var showCustomNameDialog by remember { mutableStateOf(false) }
@@ -65,7 +80,7 @@ fun OwnerServicesTab(
         !hasInvalidPrice && !hasInvalidDuration
 
     LaunchedEffect(customization) {
-        editedServices = customization.services
+        editedServices = normalizeConfigs(customization.services)
         bayCountText = customization.bayCount.toString()
         invalidDurationKeys = emptySet()
     }
@@ -321,7 +336,7 @@ fun OwnerServicesTab(
         ) {
             OutlinedButton(
                 onClick = {
-                    editedServices = customization.services
+                    editedServices = normalizeConfigs(customization.services)
                     invalidDurationKeys = emptySet()
                 },
                 modifier = Modifier.weight(1f),

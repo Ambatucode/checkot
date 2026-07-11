@@ -342,7 +342,7 @@ fun BookingCard(
                 val position = if (index != -1) index + 1 else -1
                 val ahead = if (index > 0) sorted.subList(0, index) else emptyList()
                 val estimated = ahead.sumOf { b ->
-                    b.services.sumOf { s -> BookingUtils.parseDurationMinutes(s.duration) }
+                    BookingUtils.bookingDurationMinutes(b)
                 }
                 queueInfo = QueueInfo(position, estimated, sorted.size)
             }

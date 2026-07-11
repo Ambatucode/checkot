@@ -1,6 +1,7 @@
 package com.app.checkot.model
 
 import androidx.compose.runtime.Immutable
+import com.google.firebase.firestore.PropertyName
 
 // The @Immutable annotations tell the Compose compiler these classes never
 // change after construction (Firestore always builds fresh instances), which
@@ -33,6 +34,11 @@ data class Car(
     val model: String = "",
     val brand: String = "",
     val color: String = "",
+    // @PropertyName keeps the Firestore field named "isDefault": without it
+    // Kotlin's is-prefixed getter makes Firestore WRITE the field as
+    // "default" but READ it back as "isDefault", so the flag silently
+    // becomes false after every round-trip.
+    @get:PropertyName("isDefault")
     val isDefault: Boolean = false
 )
 @Immutable
@@ -48,6 +54,7 @@ data class Booking(
     val timeSlot: String = "",
     val status: BookingStatus = BookingStatus.PENDING,
     val price: Double = 0.0,
+    val durationMinutes: Int = 0, // total estimated duration snapshot at booking time; 0 = legacy booking
     val notes: String = "",
     val createdAt: Long = 0,
     val confirmedAt: Long? = null,
@@ -103,6 +110,11 @@ data class CustomServiceConfig(
     val serviceName: String = "", // Maps to ServiceType.name, or custom ID
     val displayName: String = "",
     val customPrice: Double = 0.0, // 0 = use default from ServiceType
+    // See Car.isDefault: without @PropertyName this was saved as "custom"
+    // and read back as "isCustom", so the flag was ALWAYS false after a
+    // Firestore round-trip — which dropped custom service names from
+    // bookings ("Custom Service" shown instead of the real name).
+    @get:PropertyName("isCustom")
     val isCustom: Boolean = false, // true for owner-created "Others" services
     val customName: String = "", // Custom name for "Others" services
     val durationMinutes: Int = 0 // 0 = not set; legacy docs fall back to the ServiceType default

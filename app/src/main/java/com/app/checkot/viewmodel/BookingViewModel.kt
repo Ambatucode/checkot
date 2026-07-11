@@ -143,7 +143,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     status = BookingStatus.PENDING
                 )
                 val startMin = BookingUtils.parseTimeSlotToMinutesSince9AM(booking.timeSlot)
-                val endMin = startMin + BookingUtils.totalDurationMinutes(booking.services)
+                val endMin = startMin + BookingUtils.bookingDurationMinutes(newBooking)
 
                 try {
                     BookingLedgerService.reserveAndCreateBooking(firestore, bookingDoc, newBooking, startMin, endMin)

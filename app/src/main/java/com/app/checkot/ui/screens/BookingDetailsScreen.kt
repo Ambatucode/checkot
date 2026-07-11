@@ -22,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.app.checkot.ui.components.BackTopAppBar
 import com.app.checkot.ui.components.ConfirmDialog
@@ -60,7 +61,7 @@ fun BookingDetailsScreen(
                 val position = if (index != -1) index + 1 else -1
                 val ahead = if (index > 0) sorted.subList(0, index) else emptyList()
                 val estimated = ahead.sumOf { b ->
-                    b.services.sumOf { s -> BookingUtils.parseDurationMinutes(s.duration) }
+                    BookingUtils.bookingDurationMinutes(b)
                 }
                 queueInfo = QueueInfo(position, estimated, sorted.size)
             }
@@ -325,7 +326,13 @@ fun BookingDetailsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         DetailRow("Shop:", shopName.ifEmpty { booking.shopId.takeLast(6).uppercase() })
                         DetailRow("Services:", booking.displayServiceNames())
-                        DetailRow("Duration:", booking.services.map { it.duration }.distinct().joinToString(" + "))
+                        val totalMin = BookingUtils.bookingDurationMinutes(booking)
+                        val durationText = when {
+                            totalMin >= 60 && totalMin % 60 > 0 -> "${totalMin / 60}h ${totalMin % 60}m"
+                            totalMin >= 60 -> "${totalMin / 60}h"
+                            else -> "$totalMin mins"
+                        }
+                        DetailRow("Duration:", durationText)
                         DetailRow("Price:", "₱${booking.price}")
                         if (booking.notes.isNotBlank()) {
                              DetailRow("Special Requests:", booking.notes)
@@ -656,11 +663,12 @@ fun QueuePositionCard(queueInfo: QueueInfo, status: BookingStatus) {
                 )
             }
 
-            // Large position number
+            // Large position number — explicit white: primary (teal) was
+            // invisible against the teal primaryContainer card
             Text(
                 text = "#${queueInfo.position}",
                 style = MaterialTheme.typography.displayMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = Color.White,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
             )
 

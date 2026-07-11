@@ -47,6 +47,15 @@ object BookingUtils {
         services.sumOf { parseDurationMinutes(it.duration) }
 
     /**
+     * Effective duration of a booking: the owner-configured total snapshotted
+     * at creation, falling back to the built-in ServiceType defaults for
+     * legacy bookings created before durations were stored.
+     */
+    fun bookingDurationMinutes(booking: Booking): Int =
+        if (booking.durationMinutes > 0) booking.durationMinutes
+        else totalDurationMinutes(booking.services)
+
+    /**
      * Assigns each booking to the lowest-numbered free bay using first-fit
      * interval scheduling. Bookings are sorted by start time first — first-fit
      * is only guaranteed to find a valid assignment (when one exists) if
