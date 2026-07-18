@@ -38,7 +38,8 @@ private enum class BookingFilter(
     PENDING("Pending", Icons.Default.HourglassEmpty, BookingStatus.PENDING, oldestFirst = true),
     CONFIRMED("Confirmed", Icons.Default.CheckCircle, BookingStatus.CONFIRMED, oldestFirst = true),
     IN_PROGRESS("In Progress", Icons.Default.Build, BookingStatus.IN_PROGRESS),
-    COMPLETED("Completed", Icons.Default.DoneAll, BookingStatus.COMPLETED);
+    COMPLETED("Completed", Icons.Default.DoneAll, BookingStatus.COMPLETED),
+    CANCELLED("Cancelled", Icons.Default.Cancel, BookingStatus.CANCELLED);
 
     fun applyTo(bookings: List<Booking>): List<Booking> {
         val matched = if (status == null) bookings else bookings.filter { it.status == status }

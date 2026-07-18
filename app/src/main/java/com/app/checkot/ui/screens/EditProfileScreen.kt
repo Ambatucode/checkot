@@ -25,7 +25,8 @@ import com.app.checkot.ui.components.BackTopAppBar
 fun EditProfileScreen(
     navController: NavController,
     authViewModel: AuthViewModel = viewModel(),
-    profileViewModel: ProfileViewModel = viewModel()
+    profileViewModel: ProfileViewModel = viewModel(),
+    bookingViewModel: BookingViewModel = viewModel()
 ) {
     val userData by authViewModel.currentUserData.collectAsState()
     val scope = rememberCoroutineScope()
@@ -33,6 +34,21 @@ fun EditProfileScreen(
     var phoneNumber by remember { mutableStateOf(userData?.phoneNumber ?: "") }
     var isLoading by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf<String?>(null) }
+
+    // Identity is locked while a booking is live: the owner reads the customer's
+    // *current* name and phone for active jobs (OwnerBookingsTab looks names up
+    // from the live users list), so changing them mid-service would desync the
+    // owner's view. Editing reopens once every booking is completed or cancelled.
+    val userBookings by bookingViewModel.userBookings.collectAsState()
+    val bookingsLoaded by bookingViewModel.userBookingsLoaded.collectAsState()
+    val hasActiveBooking = remember(userBookings) {
+        userBookings.any {
+            it.status == BookingStatus.PENDING ||
+                it.status == BookingStatus.CONFIRMED ||
+                it.status == BookingStatus.IN_PROGRESS
+        }
+    }
+    val canEditIdentity = bookingsLoaded && !hasActiveBooking
     Scaffold(
         topBar = {
             BackTopAppBar(
@@ -56,7 +72,7 @@ fun EditProfileScreen(
                                 }
                             }
                         },
-                        enabled = !isLoading
+                        enabled = !isLoading && canEditIdentity
                     ) {
                         if (isLoading) {
                             CircularProgressIndicator(modifier = Modifier.size(24.dp))
@@ -90,6 +106,33 @@ fun EditProfileScreen(
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
+            // Lock notice: name/phone can't change during an active booking
+            if (hasActiveBooking) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Your name and phone number are locked while you have an active booking. You can edit them once the booking is completed or cancelled.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
             // Form Fields in Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -109,7 +152,8 @@ fun EditProfileScreen(
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        singleLine = true
+                        singleLine = true,
+                        enabled = canEditIdentity
                     )
                     // Phone Number Field
                     OutlinedTextField(
@@ -119,7 +163,8 @@ fun EditProfileScreen(
                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        singleLine = true
+                        singleLine = true,
+                        enabled = canEditIdentity
                     )
                     // Email (read-only)
                     OutlinedTextField(
@@ -159,7 +204,7 @@ fun EditProfileScreen(
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.medium,
-                enabled = !isLoading
+                enabled = !isLoading && canEditIdentity
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
