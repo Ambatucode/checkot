@@ -21,23 +21,47 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 
+/**
+ * Revenue reporting period. Boundaries are calendar-based — since midnight,
+ * since the start of the week, since the 1st of the month — not a rolling
+ * 24h/7d/30d window. An owner asking "what did I make today?" means since
+ * midnight, so the totals line up with their till at close of day.
+ */
+private enum class RevenuePeriod(val label: String) {
+    TODAY("Today"),
+    WEEK("Week"),
+    MONTH("Month");
+
+    /** Start-of-period timestamp in the device's local time zone. */
+    fun startOf(now: Long): Long {
+        val cal = java.util.Calendar.getInstance().apply {
+            timeInMillis = now
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        when (this) {
+            TODAY -> {}
+            WEEK -> cal.set(java.util.Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
+            MONTH -> cal.set(java.util.Calendar.DAY_OF_MONTH, 1)
+        }
+        return cal.timeInMillis
+    }
+}
+
 // Revenue Tab
 @Composable
 fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: PaddingValues) {
     val allBookings by ownerViewModel.allBookings.collectAsState()
     val allBookingsLoaded by ownerViewModel.allBookingsLoaded.collectAsState()
-    var selectedPeriod by remember { mutableStateOf("today") }
+    var selectedPeriod by remember { mutableStateOf(RevenuePeriod.TODAY) }
     val now = System.currentTimeMillis()
-    val oneDay = 86400000
-    val oneWeek = oneDay * 7
-    val oneMonth = oneDay * 30
     val filteredBookings = remember(allBookings, selectedPeriod) {
-        when (selectedPeriod) {
-            "today" -> allBookings.filter { it.createdAt > now - oneDay && it.status == BookingStatus.COMPLETED }
-            "week" -> allBookings.filter { it.createdAt > now - oneWeek && it.status == BookingStatus.COMPLETED }
-            "month" -> allBookings.filter { it.createdAt > now - oneMonth && it.status == BookingStatus.COMPLETED }
-            else -> allBookings.filter { it.status == BookingStatus.COMPLETED }
-        }
+        // Revenue is earned when a wash is completed, not when it was booked, so
+        // the period is measured against completedAt.
+        val cutoff = selectedPeriod.startOf(now)
+        allBookings.filter { it.status == BookingStatus.COMPLETED && (it.completedAt ?: 0L) >= cutoff }
     }
     val totalRevenue = filteredBookings.sumOf { it.price }
     val bookingCount = filteredBookings.size
@@ -51,18 +75,25 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
         contentPadding = PaddingValues(16.dp)
     ) {
         item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                listOf("Today", "Week", "Month").forEachIndexed { index, period ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+            ) {
+                RevenuePeriod.entries.forEach { period ->
+                    val isSelected = selectedPeriod == period
                     FilterChip(
-                        selected = when (selectedPeriod) {
-                            "today" -> index == 0
-                            "week" -> index == 1
-                            "month" -> index == 2
-                            else -> false
-                        },
-                        onClick = { selectedPeriod = when (index) { 0 -> "today"; 1 -> "week"; 2 -> "month"; else -> "today" } },
-                        label = { Text(period) },
-                        modifier = Modifier.padding(horizontal = 4.dp)
+                        selected = isSelected,
+                        onClick = { selectedPeriod = period },
+                        leadingIcon = if (isSelected) {
+                            {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        } else null,
+                        label = { Text(period.label) }
                     )
                 }
             }
@@ -98,8 +129,9 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
                         Text(text = "Pending", style = MaterialTheme.typography.bodySmall)
                     }
                 }
+                val startOfToday = RevenuePeriod.TODAY.startOf(now)
                 val todayCarCount = allBookings.count {
-                    it.status == BookingStatus.COMPLETED && it.completedAt != null && it.completedAt > now - oneDay
+                    it.status == BookingStatus.COMPLETED && it.completedAt != null && it.completedAt >= startOfToday
                 }
                 Card(modifier = Modifier.weight(1f)) {
                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -193,7 +225,7 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
             Text(text = "Service Breakdown", style = MaterialTheme.typography.titleLarge)
             Spacer(modifier = Modifier.height(8.dp))
             val serviceCounts = filteredBookings
-                .flatMap { it.services.map { s -> s.displayName } }
+                .flatMap { it.resolvedServiceNames() }
                 .groupingBy { it }.eachCount()
                 .toList().sortedByDescending { it.second }
             Card(modifier = Modifier.fillMaxWidth()) {

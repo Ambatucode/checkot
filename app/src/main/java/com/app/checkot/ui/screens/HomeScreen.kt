@@ -91,7 +91,7 @@ fun HomeScreen(
                 )
                 NavigationBarItem(
                     selected = false,
-                    onClick = { navController.navigate("bookings") },
+                    onClick = { navController.navigate("my_bookings") },
                     icon = { Icon(Icons.Default.Bookmark, contentDescription = "Bookings") },
                     label = { Text("Bookings") }
                 )

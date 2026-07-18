@@ -143,10 +143,15 @@ data class DaySlotLedger(
     val entries: List<DaySlotEntry> = emptyList()
 )
 
-/** Returns the formatted service names, replacing "Custom Service" with actual custom names */
-fun Booking.displayServiceNames(): String {
+/**
+ * Per-service display names, replacing each CUSTOM entry with its actual custom
+ * name from [Booking.customServiceNames]. Trailing custom names with no matching
+ * CUSTOM slot (legacy bookings) are appended so none are lost. This is the
+ * source of truth for turning a booking's services into human-readable names.
+ */
+fun Booking.resolvedServiceNames(): List<String> {
     var customCounter = 0
-    val result = services.joinToString(", ") { service ->
+    val names = services.map { service ->
         if (service == ServiceType.CUSTOM) {
             val name = customServiceNames.getOrElse(customCounter) { service.displayName }
             customCounter++
@@ -156,11 +161,14 @@ fun Booking.displayServiceNames(): String {
         }
     }
     // Append unmatched custom names (for old bookings)
-    if (customCounter < customServiceNames.size) {
-        val extra = customServiceNames.drop(customCounter).joinToString(", ")
-        return "$result, $extra"
+    return if (customCounter < customServiceNames.size) {
+        names + customServiceNames.drop(customCounter)
+    } else {
+        names
     }
-    return result
 }
+
+/** Returns the formatted service names, replacing "Custom Service" with actual custom names */
+fun Booking.displayServiceNames(): String = resolvedServiceNames().joinToString(", ")
 
 

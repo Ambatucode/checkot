@@ -32,6 +32,7 @@ fun MyBookingsScreen(
     var selectedTab by remember { mutableStateOf(0) }
     val pendingBookings = remember(bookings) { bookings.filter { it.status == BookingStatus.PENDING } }
     val confirmedBookings = remember(bookings) { bookings.filter { it.status == BookingStatus.CONFIRMED } }
+    val inProgressBookings = remember(bookings) { bookings.filter { it.status == BookingStatus.IN_PROGRESS } }
     val completedBookings = remember(bookings) { bookings.filter { it.status == BookingStatus.COMPLETED } }
     val cancelledBookings = remember(bookings) { bookings.filter { it.status == BookingStatus.CANCELLED } }
     Scaffold(
@@ -120,11 +121,23 @@ fun MyBookingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 divider = {}
             ) {
-                listOf("All", "Pending", "Confirmed", "Completed", "Cancelled").forEachIndexed { index, title ->
+                val tabDefs = listOf(
+                    "All" to bookings.size,
+                    "Pending" to pendingBookings.size,
+                    "Confirmed" to confirmedBookings.size,
+                    "In Progress" to inProgressBookings.size,
+                    "Completed" to completedBookings.size,
+                    "Cancelled" to cancelledBookings.size
+                )
+                tabDefs.forEachIndexed { index, (title, count) ->
                     Tab(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
-                        text = { Text(title) }
+                        text = {
+                            Text(
+                                text = if (count > 0) "$title ($count)" else title
+                            )
+                        }
                     )
                 }
             }
@@ -132,8 +145,9 @@ fun MyBookingsScreen(
                 0 -> bookings
                 1 -> pendingBookings
                 2 -> confirmedBookings
-                3 -> completedBookings
-                4 -> cancelledBookings
+                3 -> inProgressBookings
+                4 -> completedBookings
+                5 -> cancelledBookings
                 else -> bookings
             }
             if (!bookingsLoaded) {

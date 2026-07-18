@@ -727,7 +727,7 @@ fun QueuePositionCard(queueInfo: QueueInfo, status: BookingStatus) {
                     else -> ""
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                color = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
     }

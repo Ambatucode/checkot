@@ -4,9 +4,11 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -14,12 +16,37 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 import com.app.checkot.ui.components.ConfirmDialog
+
+/**
+ * The bookings filter. Each entry owns its label, icon and matching rule, so the
+ * chip row and the filtering below can never disagree about what is selected.
+ */
+private enum class BookingFilter(
+    val label: String,
+    val icon: ImageVector,
+    private val status: BookingStatus?,
+    private val oldestFirst: Boolean = false
+) {
+    ALL("All", Icons.Default.AllInclusive, null),
+    PENDING("Pending", Icons.Default.HourglassEmpty, BookingStatus.PENDING, oldestFirst = true),
+    CONFIRMED("Confirmed", Icons.Default.CheckCircle, BookingStatus.CONFIRMED, oldestFirst = true),
+    IN_PROGRESS("In Progress", Icons.Default.Build, BookingStatus.IN_PROGRESS),
+    COMPLETED("Completed", Icons.Default.DoneAll, BookingStatus.COMPLETED);
+
+    fun applyTo(bookings: List<Booking>): List<Booking> {
+        val matched = if (status == null) bookings else bookings.filter { it.status == status }
+        // Queues are worked front to back, so the two actionable filters surface
+        // the longest-waiting booking first.
+        return if (oldestFirst) matched.sortedBy { it.createdAt } else matched
+    }
+}
 
 // FIXED BOOKINGS TAB
 @Composable
@@ -30,19 +57,13 @@ fun OwnerBookingsTab(
 ) {
     val allBookings by ownerViewModel.allBookings.collectAsState()
     val allBookingsLoaded by ownerViewModel.allBookingsLoaded.collectAsState()
-    var filter by remember { mutableStateOf("all") }
+    var filter by remember { mutableStateOf(BookingFilter.ALL) }
     // FORCE REFRESH WHEN TAB OPENS
     LaunchedEffect(Unit) {
         ownerViewModel.forceRefresh()
     }
     val filteredBookings = remember(allBookings, filter) {
-        when (filter) {
-            "pending" -> allBookings.filter { it.status == BookingStatus.PENDING }.sortedBy { it.createdAt }
-            "confirmed" -> allBookings.filter { it.status == BookingStatus.CONFIRMED }.sortedBy { it.createdAt }
-            "in_progress" -> allBookings.filter { it.status == BookingStatus.IN_PROGRESS }
-            "completed" -> allBookings.filter { it.status == BookingStatus.COMPLETED }
-            else -> allBookings
-        }
+        filter.applyTo(allBookings)
     }
     // Customer name lookup + queue positions (must be outside LazyColumn)
     val users by ownerViewModel.allUsers.collectAsState()
@@ -87,66 +108,36 @@ fun OwnerBookingsTab(
                         completed > cal.timeInMillis - 86400000
                     } ?: false
                 }
-                StatsBadge(label = "Pending", count = pendingCount, color = MaterialTheme.colorScheme.secondary)
+                // Three distinct hues, not three shades of teal. Coral marks the
+                // queue that needs action (pending bookings auto-cancel after 2h),
+                // teal is work in flight, sparkle is settled.
+                StatsBadge(label = "Pending", count = pendingCount, color = MaterialTheme.colorScheme.error)
                 StatsBadge(label = "Active", count = confirmedCount + inProgressCount, color = MaterialTheme.colorScheme.primary)
                 StatsBadge(label = "Done Today", count = todayCompleted, color = MaterialTheme.colorScheme.tertiary)
             }
         }
-        // Filter Chips
-        PrimaryScrollableTabRow(
-            selectedTabIndex = when (filter) {
-                "all" -> 0
-                "pending" -> 1
-                "confirmed" -> 2
-                "in_progress" -> 3
-                "completed" -> 4
-                else -> 0
-            },
-            modifier = Modifier.fillMaxWidth(),
-            edgePadding = 16.dp,
-            divider = {}
+        // Filter Chips — the chip's own selected state is the only selection
+        // indicator; a TabRow here used to draw a second, competing one.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val filterLabels = listOf("All", "Pending", "Confirmed", "In Progress", "Completed")
-            val filterIcons = listOf(
-                Icons.Default.AllInclusive,
-                Icons.Default.HourglassEmpty,
-                Icons.Default.CheckCircle,
-                Icons.Default.Build,
-                Icons.Default.DoneAll
-            )
-            filterLabels.forEachIndexed { index, label ->
-                val isSelected = when (filter) {
-                    "all" -> index == 0
-                    "pending" -> index == 1
-                    "confirmed" -> index == 2
-                    "in_progress" -> index == 3
-                    "completed" -> index == 4
-                    else -> false
-                }
+            BookingFilter.entries.forEach { entry ->
+                val isSelected = filter == entry
                 FilterChip(
                     selected = isSelected,
-                    onClick = {
-                        filter = when (index) {
-                            0 -> "all"
-                            1 -> "pending"
-                            2 -> "confirmed"
-                            3 -> "in_progress"
-                            4 -> "completed"
-                            else -> "all"
-                        }
+                    onClick = { filter = entry },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = if (isSelected) Icons.Default.Check else entry.icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
                     },
-                    label = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = filterIcons[index],
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(label)
-                        }
-                    },
-                    modifier = Modifier.padding(horizontal = 4.dp)
+                    label = { Text(entry.label) }
                 )
             }
         }

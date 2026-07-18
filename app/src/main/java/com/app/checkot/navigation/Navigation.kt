@@ -19,7 +19,6 @@ sealed class Screen(val route: String) {
     object Profile : Screen("profile")
     object BookService : Screen("book_service")
     object BookServiceWithType : Screen("book_service/{serviceType}")
-    object Bookings : Screen("bookings")
     object BookingDetails : Screen("booking_details/{bookingId}")
     object Cars : Screen("cars")
     object AddCar : Screen("add_car")
@@ -140,12 +139,6 @@ fun NavigationGraph(
                 carViewModel = carViewModel,
                 shopId = shopId,
                 preselectedService = serviceType?.let { ServiceType.valueOf(it) }
-            )
-        }
-        composable(Screen.Bookings.route) {
-            BookingsScreen(
-                navController = navController,
-                bookingViewModel = bookingViewModel
             )
         }
         composable(Screen.BookingDetails.route) { backStackEntry ->
