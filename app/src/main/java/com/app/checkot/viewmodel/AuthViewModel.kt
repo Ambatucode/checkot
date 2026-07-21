@@ -45,18 +45,29 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val firestore: FirebaseFirestore = Firebase.firestore
     private val appContext = application.applicationContext
 
-    // Upload the FCM token to Firestore for shop owners
-    private fun uploadFcmToken(userId: String) {
+    // Upload the FCM token to Firestore for every signed-in user.
+    // If the user is an owner, ALSO refresh shop_services/{shopId}.ownerFcmToken
+    // here (not only when the owner opens their dashboard) so client→owner and
+    // admin→owner pushes always target a fresh token.
+    private fun uploadFcmToken(userId: String, ownedShopId: String? = null) {
         FirebaseMessaging.getInstance().token
             .addOnSuccessListener { token ->
+                // merge (not update) so the write survives a missing doc and
+                // isn't rejected by field-shape rules.
                 firestore.collection("users").document(userId)
-                    .update("fcmToken", token)
+                    .set(mapOf("fcmToken" to token), com.google.firebase.firestore.SetOptions.merge())
                     .addOnSuccessListener {
                         Log.d(TAG, "✅ FCM token saved to Firestore")
                     }
                     .addOnFailureListener { e ->
                         Log.e(TAG, "Failed to upload FCM token: ${e.message}")
                     }
+                if (!ownedShopId.isNullOrEmpty()) {
+                    firestore.collection("shop_services").document(ownedShopId)
+                        .set(mapOf("ownerFcmToken" to token), com.google.firebase.firestore.SetOptions.merge())
+                        .addOnSuccessListener { Log.d(TAG, "✅ Owner FCM token refreshed on shop_services/$ownedShopId") }
+                        .addOnFailureListener { e -> Log.e(TAG, "Failed to refresh owner token: ${e.message}") }
+                }
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Failed to get FCM token: ${e.message}")
@@ -88,7 +99,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             FirebaseMessaging.getInstance().token
                 .addOnSuccessListener { token ->
                     firestore.collection("users").document(auth.currentUser!!.uid)
-                        .update("fcmToken", token)
+                        .set(mapOf("fcmToken" to token), com.google.firebase.firestore.SetOptions.merge())
                         .addOnSuccessListener { Log.d(TAG, "✅ AuthVM: FCM token saved on init") }
                         .addOnFailureListener { e -> Log.e(TAG, "❌ AuthVM: Failed to save token: ${e.message}") }
                 }
@@ -256,7 +267,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 // Upload FCM token for ALL users (customers AND owners)
                 // so the Cloud Function can send push notifications to anyone
                 if (userData != null) {
-                    uploadFcmToken(userData.userId)
+                    // Pass ownedShopId so owners also refresh shop_services.ownerFcmToken.
+                    uploadFcmToken(userData.userId, userData.ownedShopId)
                     _roleLoadState.value = RoleLoadState.Ready
                 } else {
                     // Missing profile means unknown role — must not fall through

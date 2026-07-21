@@ -17,8 +17,18 @@
 # Keep service classes (FCM, NotificationHelper) from being obfuscated
 -keep class com.app.checkot.service.** { *; }
 
-# Keep Google Auth classes used for generating FCM tokens
+# Keep Google Auth classes used for generating FCM tokens, plus the transitive
+# libraries it drives at runtime (HTTP client + JSON). Without these, R8 strips
+# them on release builds and getAccessToken() throws NoClassDefFoundError, so
+# every push silently fails in release.
 -keep class com.google.auth.** { *; }
+-keep class com.google.api.client.** { *; }
+-keep class com.google.api.** { *; }
+-keep class com.google.gson.** { *; }
+-keep class com.google.http.client.** { *; }
+-dontwarn com.google.api.client.**
+-dontwarn com.google.auth.**
+-dontwarn org.apache.http.**
 
 # Keep Firebase SDK internals needed for deserialization
 -keep class com.google.firebase.** { *; }

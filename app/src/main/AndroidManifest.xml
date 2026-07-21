@@ -28,10 +28,12 @@
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="checkot_bookings" />
 
-        <!-- Set custom default icon. This is used when no icon is set for incoming notification messages. -->
+        <!-- Set custom default icon. This is used when no icon is set for incoming notification messages.
+             Must be a white silhouette (see drawable/ic_notification.xml) — a colored icon
+             renders as a solid white square in the status bar. -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@android:drawable/ic_dialog_info" />
+            android:resource="@drawable/ic_notification" />
 
         <activity
             android:name=".MainActivity"

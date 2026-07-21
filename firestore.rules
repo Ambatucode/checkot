@@ -89,10 +89,14 @@ service cloud.firestore {
       // Users can update their own profile
       // Cannot change: role, userId, ownedShopId (prevents privilege escalation)
       // savedCars is capped to match the app's own 5-car limit
+      // savedCars is capped ONLY when present, so an fcmToken-only write (or
+      // any account that never seeded savedCars, e.g. admins) isn't rejected
+      // by evaluating .size() on a missing field.
       allow update: if isSignedIn()
         && request.auth.uid == userId
         && isNotChanging(['role', 'userId', 'ownedShopId'])
-        && request.resource.data.savedCars.size() <= 5;
+        && (!('savedCars' in request.resource.data)
+            || request.resource.data.savedCars.size() <= 5);
 
       // --- DELETE ---
       // Nobody can delete accounts from the client
@@ -194,7 +198,12 @@ service cloud.firestore {
         && request.resource.data.bayCount <= 10)
         || (isAdmin()
           && request.resource.data.diff(resource.data)
-            .affectedKeys().hasOnly(['status']));
+            .affectedKeys().hasOnly(['status']))
+        // Owner may refresh only their FCM token without re-validating the
+        // whole shop doc (services/bayCount), so token writes aren't rejected.
+        || (ownsShop(shopId)
+          && request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['ownerFcmToken']));
 
       // --- DELETE ---
       // Nobody deletes shops from the client

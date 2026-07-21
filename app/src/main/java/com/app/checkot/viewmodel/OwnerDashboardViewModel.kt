@@ -96,9 +96,11 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                     // Upload FCM token to both users and shop_services so clients can send notifications
                     com.google.firebase.messaging.FirebaseMessaging.getInstance().token
                         .addOnSuccessListener { token ->
-                            // Save to users/{uid} (for other uses)
+                            // Save to users/{uid} (for other uses).
+                            // merge, not update, so a missing doc / field-shape
+                            // rule doesn't reject the token write.
                             firestore.collection("users").document(user.uid)
-                                .update("fcmToken", token)
+                                .set(mapOf("fcmToken" to token), com.google.firebase.firestore.SetOptions.merge())
                             // Save to shop_services/{shopId} (for client-to-owner notifications)
                             if (shopId != null) {
                                 firestore.collection("shop_services").document(shopId)

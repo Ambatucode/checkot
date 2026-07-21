@@ -3,6 +3,8 @@ package com.app.checkot
 import com.app.checkot.service.NotificationHelper
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -18,19 +20,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
 import com.app.checkot.navigation.NavigationGraph
@@ -51,11 +57,23 @@ class MainActivity : ComponentActivity() {
 
     private var pendingBookingId by mutableStateOf<String?>(null)
     private var navReady by mutableStateOf(false)
+    // Source of truth for whether the OS will actually SHOW our notifications.
+    // Covers both the POST_NOTIFICATIONS permission (Android 13+) and the user
+    // toggling the app/channel off in Settings. Starts true to avoid flashing
+    // the prompt before the first check runs.
+    private var notificationsEnabled by mutableStateOf(true)
+    // Don't re-nag within a session once the user dismisses the prompt.
+    private var notifPromptDismissed by mutableStateOf(false)
+    // While the system permission dialog is up, skip the onResume re-check so we
+    // don't flash our own prompt underneath it.
+    private var permissionRequestInFlight = false
     private lateinit var connectivityObserver: ConnectivityObserver
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
+        permissionRequestInFlight = false
+        notificationsEnabled = areNotificationsEnabled()
         if (isGranted) {
             println("✅ Notification permission granted")
         } else {
@@ -142,8 +160,30 @@ class MainActivity : ComponentActivity() {
                 if (!isOnline) {
                     NoInternetScreen(onRetry = { connectivityObserver.refresh() })
                 }
+
+                // Notifications are core to bookings. If the OS won't show them
+                // (permission denied or the channel switched off), prompt the
+                // user to fix it — otherwise pushes are silently dropped.
+                if (!notificationsEnabled && !notifPromptDismissed) {
+                    EnableNotificationsDialog(
+                        onEnable = {
+                            notifPromptDismissed = true
+                            openNotificationSettings()
+                        },
+                        onDismiss = { notifPromptDismissed = true }
+                    )
+                }
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Re-check whenever we return to the foreground — e.g. back from the
+        // system notification settings, or after the user toggled the app off.
+        if (!permissionRequestInFlight) {
+            notificationsEnabled = areNotificationsEnabled()
         }
     }
 
@@ -171,8 +211,39 @@ class MainActivity : ComponentActivity() {
                     Manifest.permission.POST_NOTIFICATIONS
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
+                // First launch / not yet decided → show the system dialog.
+                // If the user permanently denied earlier, launch() returns denied
+                // instantly and the onResume check surfaces our settings prompt.
+                permissionRequestInFlight = true
                 requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                notificationsEnabled = areNotificationsEnabled()
             }
+        } else {
+            // Pre-13: no runtime permission, but the user can still disable the
+            // app's notifications in Settings — reflect that.
+            notificationsEnabled = areNotificationsEnabled()
+        }
+    }
+
+    private fun areNotificationsEnabled(): Boolean =
+        NotificationManagerCompat.from(this).areNotificationsEnabled()
+
+    /** Deep-link straight to this app's notification settings screen. */
+    private fun openNotificationSettings() {
+        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            // Some OEMs lack the per-app notification screen — fall back to the
+            // app details page, where notifications can still be re-enabled.
+            startActivity(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.fromParts("package", packageName, null)
+                )
+            )
         }
     }
 }
@@ -261,6 +332,34 @@ private fun NoInternetScreen(onRetry: () -> Unit) {
             }
         }
     }
+}
+
+@Composable
+private fun EnableNotificationsDialog(onEnable: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                imageVector = Icons.Default.Notifications,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        },
+        title = { Text("Turn on notifications") },
+        text = {
+            Text(
+                "CHECKOT needs notification access to alert you about booking " +
+                "updates — confirmations, status changes, and new bookings. " +
+                "Without it, these alerts won't show up on your phone."
+            )
+        },
+        confirmButton = {
+            Button(onClick = onEnable) { Text("Enable") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Not now") }
+        }
+    )
 }
 
 @Composable

@@ -13,6 +13,7 @@ object NotificationHelper {
     private const val CHANNEL_ID = "checkot_bookings"
     private const val CHANNEL_NAME = "Booking Updates"
     private const val CHANNEL_DESC = "Notifications for booking status updates and new bookings"
+    private val notificationIdCounter = java.util.concurrent.atomic.AtomicInteger(0)
 
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -31,7 +32,7 @@ object NotificationHelper {
 
     fun showBookingCreatedNotification(context: Context, serviceSummary: String) {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(com.app.checkot.R.drawable.ic_notification)
             .setContentTitle("Booking Pending!")
             .setContentText("Your booking for $serviceSummary has been submitted.")
             .setStyle(NotificationCompat.BigTextStyle()
@@ -40,7 +41,7 @@ object NotificationHelper {
             .setAutoCancel(true)
             .build()
         val manager = context.getSystemService(NotificationManager::class.java)
-        manager.notify(System.currentTimeMillis().toInt(), notification)
+        manager.notify(notificationIdCounter.incrementAndGet(), notification)
     }
 
     fun showStatusChangeNotification(context: Context, serviceSummary: String, newStatus: BookingStatus) {
@@ -64,7 +65,7 @@ object NotificationHelper {
             else -> return
         }
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(com.app.checkot.R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -72,13 +73,13 @@ object NotificationHelper {
             .setAutoCancel(true)
             .build()
         val manager = context.getSystemService(NotificationManager::class.java)
-        manager.notify(System.currentTimeMillis().toInt(), notification)
+        manager.notify(notificationIdCounter.incrementAndGet(), notification)
     }
 
     fun showNewBookingForOwnerNotification(context: Context, serviceSummary: String, carDetails: String) {
         val body = "New booking received: $serviceSummary — $carDetails"
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(com.app.checkot.R.drawable.ic_notification)
             .setContentTitle("New Booking Received!")
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -86,7 +87,7 @@ object NotificationHelper {
             .setAutoCancel(true)
             .build()
         val manager = context.getSystemService(NotificationManager::class.java)
-        manager.notify(System.currentTimeMillis().toInt(), notification)
+        manager.notify(notificationIdCounter.incrementAndGet(), notification)
     }
 
     /**
@@ -94,7 +95,7 @@ object NotificationHelper {
      */
     fun showFCMNotification(context: Context, title: String, body: String, pendingIntent: PendingIntent? = null) {
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(com.app.checkot.R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -105,6 +106,6 @@ object NotificationHelper {
         }
         val notification = builder.build()
         val manager = context.getSystemService(NotificationManager::class.java)
-        manager.notify(System.currentTimeMillis().toInt(), notification)
+        manager.notify(notificationIdCounter.incrementAndGet(), notification)
     }
 }

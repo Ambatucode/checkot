@@ -9,11 +9,15 @@ import android.graphics.Color
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.google.firebase.auth.ktx.auth
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import java.util.concurrent.atomic.AtomicInteger
 
 class MyFirebaseMessagingService : FirebaseMessagingService() {
 
@@ -22,6 +26,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         private const val CHANNEL_ID = "checkot_bookings"
         private const val CHANNEL_NAME = "Booking Updates"
         private const val CHANNEL_DESC = "Notifications for booking status updates and new bookings"
+        private val notificationIdCounter = AtomicInteger(0)
     }
 
     override fun onCreate() {
@@ -56,9 +61,14 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     private fun saveFcmToken(token: String) {
+        // onNewToken can fire while signed out (fresh install, token rotation).
+        // We can't write without a uid, so the login path (AuthViewModel /
+        // OwnerDashboardViewModel) re-uploads the current token after sign-in.
         val user = Firebase.auth.currentUser ?: return
+        // merge (not update) so the write succeeds even if the user doc doesn't
+        // exist yet and doesn't get rejected by field-shape rules.
         Firebase.firestore.collection("users").document(user.uid)
-            .update("fcmToken", token)
+            .set(mapOf("fcmToken" to token), SetOptions.merge())
             .addOnSuccessListener { Log.d(TAG, "FCM token saved to Firestore") }
             .addOnFailureListener { Log.e(TAG, "Failed to save FCM token: ${it.message}") }
     }
@@ -122,7 +132,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     // ----------------------------------------------------------------
     private fun showNotification(title: String, body: String, bookingId: String?) {
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(com.app.checkot.R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)
@@ -143,23 +153,16 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         )
         builder.setContentIntent(pending)
 
+        // Use bookingId hash so the same booking updates the same notification;
+        // fall back to a counter for messages without a bookingId.
+        val notificationId = bookingId?.hashCode() ?: notificationIdCounter.incrementAndGet()
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(System.currentTimeMillis().toInt(), builder.build())
+        manager.notify(notificationId, builder.build())
     }
 
     // ----------------------------------------------------------------
     //  FOREGROUND CHECK
     // ----------------------------------------------------------------
-    private fun isAppInForeground(): Boolean {
-        val am = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-        val running = am.runningAppProcesses ?: return false
-        for (proc in running) {
-            if (proc.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND &&
-                proc.pkgList.contains(packageName)
-            ) {
-                return true
-            }
-        }
-        return false
-    }
+    private fun isAppInForeground(): Boolean =
+        ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 }
