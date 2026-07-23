@@ -53,6 +53,13 @@ fun BookServiceScreen(
     var availableServices by remember { mutableStateOf<List<AvailableService>>(emptyList()) }
     var loadingServices by remember { mutableStateOf(true) }
     var servicesLoadError by remember { mutableStateOf<String?>(null) }
+    // Shop's working hours (minutes since midnight); defaults match the legacy 9–4 window
+    var shopOpenMinutes by remember { mutableStateOf(540) }
+    var shopCloseMinutes by remember { mutableStateOf(960) }
+    // Shop location for the map (0 = not set)
+    var shopLatitude by remember { mutableStateOf(0.0) }
+    var shopLongitude by remember { mutableStateOf(0.0) }
+    var shopDisplayName by remember { mutableStateOf("Shop") }
 
     // Real-time listener for shop services — updates instantly when owner changes services
     DisposableEffect(shopId) {
@@ -70,6 +77,11 @@ fun BookServiceScreen(
                 val customization = snapshot?.toObject(ShopCustomization::class.java)
                 val services = mutableListOf<AvailableService>()
                 if (customization != null) {
+                    shopOpenMinutes = customization.openMinutes
+                    shopCloseMinutes = customization.closeMinutes
+                    shopLatitude = customization.latitude
+                    shopLongitude = customization.longitude
+                    if (customization.shopName.isNotBlank()) shopDisplayName = customization.shopName
                     for (config in customization.services) {
                         val type = if (!config.isCustom) {
                             ServiceType.values().find { it.name == config.serviceName }
@@ -115,8 +127,10 @@ fun BookServiceScreen(
         }.coerceAtLeast(30)
     }
 
-    LaunchedEffect(selectedDate, shopId, totalDurationMinutes) {
-        bookingViewModel.fetchAvailableTimeSlots(selectedDate, shopId, totalDurationMinutes)
+    LaunchedEffect(selectedDate, shopId, totalDurationMinutes, shopOpenMinutes, shopCloseMinutes) {
+        bookingViewModel.fetchAvailableTimeSlots(
+            selectedDate, shopId, totalDurationMinutes, shopOpenMinutes, shopCloseMinutes
+        )
     }
     // Date picker state
     val datePickerState = rememberDatePickerState(
@@ -236,6 +250,38 @@ fun BookServiceScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Shop location — shown before booking so clients can see/navigate there
+                if (shopLatitude != 0.0 || shopLongitude != 0.0) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.Place,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Shop Location",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                com.app.checkot.ui.components.ShopLocationView(
+                                    latitude = shopLatitude,
+                                    longitude = shopLongitude,
+                                    shopName = shopDisplayName
+                                )
+                            }
+                        }
+                    }
+                }
                 // Step 1: Select Service
                 if (step >= 1) {
                     item {
@@ -320,6 +366,7 @@ fun BookServiceScreen(
                             ShopServiceSelectionCard(
                                 name = displayName,
                                 price = displayPrice,
+                                description = avail.config.description,
                                 isSelected = isSelected,
                                 onSelect = {
                                     selectedServiceConfigs = if (isSelected) {
@@ -580,7 +627,8 @@ fun ShopServiceSelectionCard(
     name: String,
     price: Double,
     isSelected: Boolean,
-    onSelect: () -> Unit
+    onSelect: () -> Unit,
+    description: String = ""
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -600,12 +648,23 @@ fun ShopServiceSelectionCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = name,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f),
-                color = if (isSelected) Color.White else Color.Unspecified
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (isSelected) Color.White else Color.Unspecified
+                )
+                if (description.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isSelected) Color.White.copy(alpha = 0.85f)
+                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = "₱${price}",
                 style = MaterialTheme.typography.titleLarge,

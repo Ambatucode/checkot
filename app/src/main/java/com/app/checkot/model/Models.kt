@@ -25,7 +25,9 @@ data class CarWashUser(
 data class CarWashShop(
     val shopId: String = "",
     val name: String = "",
-    val address: String = ""
+    val address: String = "",
+    val latitude: Double = 0.0,  // 0 = location not set
+    val longitude: Double = 0.0
 )
 @Immutable
 data class Car(
@@ -102,6 +104,14 @@ data class ShopCustomization(
     val logoBase64: String = "",
     val logoMimeType: String = "image/png",
     val services: List<CustomServiceConfig> = emptyList(),
+    // Daily working hours as minutes since midnight. Defaults reproduce the old
+    // hardcoded window (9:00 AM – 4:00 PM). closeMinutes is the last bookable
+    // slot start. Applied to every day.
+    val openMinutes: Int = 540,  // 9:00 AM
+    val closeMinutes: Int = 960, // 4:00 PM
+    // Shop location on the map. 0 = not set yet.
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
     val ownerFcmToken: String = "" // FCM token for sending notifications to the owner
 )
 
@@ -117,7 +127,8 @@ data class CustomServiceConfig(
     @get:PropertyName("isCustom")
     val isCustom: Boolean = false, // true for owner-created "Others" services
     val customName: String = "", // Custom name for "Others" services
-    val durationMinutes: Int = 0 // 0 = not set; legacy docs fall back to the ServiceType default
+    val durationMinutes: Int = 0, // 0 = not set; legacy docs fall back to the ServiceType default
+    val description: String = "" // Owner-written detail shown to clients so they know what the service is
 )
 
 /**

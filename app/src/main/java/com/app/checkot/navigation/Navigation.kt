@@ -27,6 +27,7 @@ sealed class Screen(val route: String) {
     object OwnerDashboard : Screen("owner_dashboard")
     object OwnerSignup : Screen("owner_signup")
     object AdminDashboard : Screen("admin_dashboard")
+    object SetShopLocation : Screen("set_shop_location")
 }
 @Composable
 fun NavigationGraph(
@@ -174,6 +175,9 @@ fun NavigationGraph(
                 authViewModel = authViewModel,
                 profileViewModel = profileViewModel
             )
+        }
+        composable(Screen.SetShopLocation.route) {
+            SetShopLocationScreen(navController = navController)
         }
     }
 }

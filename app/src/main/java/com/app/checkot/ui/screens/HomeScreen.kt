@@ -23,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
 import com.app.checkot.utils.BookingUtils
+import com.app.checkot.ui.components.AnimatedStatusIcon
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -546,13 +547,23 @@ fun BookingStatusBadge(status: BookingStatus) {
         shape = MaterialTheme.shapes.small,
         modifier = Modifier.padding(horizontal = 4.dp)
     ) {
-        Text(
-            text = status.displayName,
-            style = MaterialTheme.typography.labelSmall,
-            color = textColor,
-            maxLines = 1,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-        )
+        ) {
+            AnimatedStatusIcon(
+                status = status,
+                tint = textColor,
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = status.displayName,
+                style = MaterialTheme.typography.labelSmall,
+                color = textColor,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
     }
 }

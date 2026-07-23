@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -43,6 +44,7 @@ fun OwnerSignupScreen(
     var confirmPasswordVisible by remember { mutableStateOf(false) }
     var shopName by remember { mutableStateOf("") }
     var shopAddress by remember { mutableStateOf("") }
+    var shopLocation by remember { mutableStateOf<com.google.android.gms.maps.model.LatLng?>(null) }
 
     var firstNameError by remember { mutableStateOf<String?>(null) }
     var lastNameError by remember { mutableStateOf<String?>(null) }
@@ -172,6 +174,44 @@ fun OwnerSignupScreen(
                             color = MaterialTheme.colorScheme.error,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(start = 16.dp)
+                        )
+                    }
+
+                    // Shop location on the map — required. Admins use it to verify
+                    // the shop is real, and clients use it to find/navigate there.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Map,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Shop Location",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Text(
+                        text = "Tap the map to drop your shop's pin, or use your current location.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    com.app.checkot.ui.components.LocationPickerMap(
+                        location = shopLocation,
+                        onLocationChange = { shopLocation = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(220.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                    if (shopLocation == null) {
+                        Text(
+                            text = "Shop location is required",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(start = 4.dp)
                         )
                     }
                 }
@@ -433,6 +473,7 @@ fun OwnerSignupScreen(
                         password == confirmPassword &&
                         trimmedShopName.isNotEmpty() &&
                         trimmedAddress.isNotEmpty() &&
+                        shopLocation != null &&
                         firstNameError == null &&
                         lastNameError == null &&
                         passwordError == null &&
@@ -448,7 +489,9 @@ fun OwnerSignupScreen(
                             fullName = fullMergedName,
                             phoneNumber = "+63${phoneNumber.trim()}",
                             shopName = trimmedShopName,
-                            shopAddress = trimmedAddress
+                            shopAddress = trimmedAddress,
+                            latitude = shopLocation!!.latitude,
+                            longitude = shopLocation!!.longitude
                         )
                     }
                 },
@@ -465,6 +508,7 @@ fun OwnerSignupScreen(
                         password == confirmPassword &&
                         shopName.trim().isNotEmpty() &&
                         shopAddress.trim().isNotEmpty() &&
+                        shopLocation != null &&
                         firstNameError == null &&
                         lastNameError == null &&
                         passwordError == null &&

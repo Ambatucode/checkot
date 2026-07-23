@@ -28,6 +28,36 @@ object BookingUtils {
         return (h - 9) * 60 + m
     }
 
+    /** Formats minutes-since-midnight (e.g. 540) into a "hh:mm AM/PM" slot label ("09:00 AM"). */
+    fun minutesToSlotLabel(minutesSinceMidnight: Int): String {
+        val h = minutesSinceMidnight / 60
+        val m = minutesSinceMidnight % 60
+        val ampm = if (h >= 12) "PM" else "AM"
+        var h12 = h % 12
+        if (h12 == 0) h12 = 12
+        return String.format("%02d:%02d %s", h12, m, ampm)
+    }
+
+    /**
+     * Generates the bookable start-time labels for a shop's working hours.
+     * [openMinutes]/[closeMinutes] are minutes since midnight; closeMinutes is
+     * the last slot start (inclusive). Steps every [stepMinutes] (default 30).
+     */
+    fun generateSlotLabels(
+        openMinutes: Int,
+        closeMinutes: Int,
+        stepMinutes: Int = 30
+    ): List<String> {
+        if (closeMinutes < openMinutes || stepMinutes <= 0) return emptyList()
+        val labels = ArrayList<String>()
+        var t = openMinutes
+        while (t <= closeMinutes) {
+            labels.add(minutesToSlotLabel(t))
+            t += stepMinutes
+        }
+        return labels
+    }
+
     /** Parses a duration string like "45 mins" or "1.5 hours" into minutes. */
     fun parseDurationMinutes(duration: String): Int {
         return when {

@@ -4,6 +4,7 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -100,6 +101,48 @@ fun OwnerDashboard(
         }
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            // Nudge existing owners (who signed up before location was required)
+            // to set their shop pin so clients can find them.
+            val locationMissing = shopCust.latitude == 0.0 && shopCust.longitude == 0.0
+            if (shopCust.status != "rejected" && locationMissing) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { navController.navigate("set_shop_location") },
+                    color = MaterialTheme.colorScheme.tertiaryContainer
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.LocationOff,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Set your shop location",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Text(
+                                "Clients can't see you on the map yet. Tap to drop your shop's pin.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    }
+                }
+            }
             when (shopCust.status) {
                 "pending" -> {
                     // Pending banner
@@ -138,7 +181,7 @@ fun OwnerDashboard(
                         0 -> OwnerBookingsTab(navController, ownerViewModel, PaddingValues(0.dp))
                         1 -> OwnerCustomersTab(ownerViewModel, PaddingValues(0.dp))
                         2 -> OwnerRevenueTab(ownerViewModel, PaddingValues(0.dp))
-                        3 -> OwnerServicesTab(ownerViewModel, PaddingValues(0.dp))
+                        3 -> OwnerServicesTab(ownerViewModel, PaddingValues(0.dp), navController)
                     }
                 }
                 "rejected" -> {
@@ -219,7 +262,7 @@ fun OwnerDashboard(
                         0 -> OwnerBookingsTab(navController, ownerViewModel, PaddingValues(0.dp))
                         1 -> OwnerCustomersTab(ownerViewModel, PaddingValues(0.dp))
                         2 -> OwnerRevenueTab(ownerViewModel, PaddingValues(0.dp))
-                        3 -> OwnerServicesTab(ownerViewModel, PaddingValues(0.dp))
+                        3 -> OwnerServicesTab(ownerViewModel, PaddingValues(0.dp), navController)
                     }
                 }
             }

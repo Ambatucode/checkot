@@ -1,9 +1,18 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("com.google.gms.google-services")
 }
+
+// Google Maps API key is read from local.properties (gitignored) so it is
+// never committed. Missing key → maps render blank but the build still works.
+val mapsApiKey: String = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}.getProperty("MAPS_API_KEY") ?: ""
 
 kotlin {
     compilerOptions {
@@ -23,6 +32,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Injected into AndroidManifest as the Maps API key placeholder.
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     signingConfigs {
@@ -120,6 +132,11 @@ dependencies {
 
     implementation("com.google.firebase:firebase-messaging-ktx")
     implementation("com.google.android.gms:play-services-base:18.10.0")
+
+    // Google Maps — embedded map (owner picker + client view) and current location
+    implementation("com.google.android.gms:play-services-maps:19.0.0")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("com.google.maps.android:maps-compose:6.4.1")
     // Kept at 1.23.0: 1.30+ pulls io.grpc 1.70.x, which clashes with the
     // grpc 1.57.x that firebase-firestore ships and crashes at runtime
     // (NoClassDefFoundError: io.grpc.InternalGlobalInterceptors).

@@ -22,6 +22,14 @@ import kotlinx.coroutines.launch
 
 const val MIN_SERVICE_DURATION_MIN = 20
 const val MAX_SERVICE_DURATION_MIN = 180
+const val MAX_SERVICE_DESCRIPTION_LEN = 150
+// A shop must stay open at least this long — prevents absurdly short windows
+// that would confuse clients (sanity floor for the no-active-bookings case).
+const val MIN_WORKING_WINDOW_MIN = 60
+private const val SLOT_STEP_MIN = 30
+
+/** Rounds [value] up to the next multiple of [step] (e.g. 9:45 → 10:00 on a 30-min grid). */
+private fun ceilToStep(value: Int, step: Int): Int = ((value + step - 1) / step) * step
 
 /** Built-in default duration for a predefined service; 0 for custom services. */
 private fun defaultDurationMinutes(config: CustomServiceConfig): Int =
@@ -47,16 +55,21 @@ private fun normalizeConfigs(services: List<CustomServiceConfig>): List<CustomSe
 @Composable
 fun OwnerServicesTab(
     ownerViewModel: OwnerDashboardViewModel,
-    paddingValues: PaddingValues
+    paddingValues: PaddingValues,
+    navController: NavController
 ) {
     val customization by ownerViewModel.shopCustomization.collectAsState()
     val allBookings by ownerViewModel.allBookings.collectAsState()
     var editedServices by remember { mutableStateOf<List<CustomServiceConfig>>(normalizeConfigs(customization.services)) }
     var bayCountText by remember { mutableStateOf(customization.bayCount.toString()) }
+    var openMinutes by remember { mutableStateOf(customization.openMinutes) }
+    var closeMinutes by remember { mutableStateOf(customization.closeMinutes) }
     var showAddDropdown by remember { mutableStateOf(false) }
     var showCustomNameDialog by remember { mutableStateOf(false) }
     var customServiceNameInput by remember { mutableStateOf("") }
     var isSavingServices by remember { mutableStateOf(false) }
+    // Confirm before applying an hours change (friction against rapid re-saves)
+    var showHoursConfirm by remember { mutableStateOf(false) }
     // Services whose duration field currently holds invalid/empty text
     var invalidDurationKeys by remember { mutableStateOf(setOf<String>()) }
     val scope = rememberCoroutineScope()
@@ -76,18 +89,99 @@ fun OwnerServicesTab(
         effective < MIN_SERVICE_DURATION_MIN || effective > MAX_SERVICE_DURATION_MIN
     }
     val bayCountChanged = bayCountText.toIntOrNull() != customization.bayCount
-    val canSave = (editedServices != customization.services || bayCountChanged) &&
-        !hasInvalidPrice && !hasInvalidDuration
+    // Every service must have a description so clients know what it is.
+    val hasBlankDescription = editedServices.any { it.description.isBlank() }
+
+    // Active bookings constrain how far hours can be narrowed — same spirit as
+    // "can't delete a service that has active bookings". Opening can't move past
+    // the earliest booking's start, and closing must still cover the latest
+    // booking's FINISH time (start + duration) so a service is never cut off.
+    val activeBookingWindow: Pair<Int, Int>? = remember(allBookings) {
+        val active = allBookings.filter { b ->
+            b.status == BookingStatus.PENDING ||
+            b.status == BookingStatus.CONFIRMED ||
+            b.status == BookingStatus.IN_PROGRESS
+        }
+        val ranges = active.mapNotNull { b ->
+            val hm = runCatching { BookingUtils.parseTimeSlotToHourMinute(b.timeSlot) }.getOrNull()
+                ?: return@mapNotNull null
+            val start = hm.first * 60 + hm.second
+            val dur = if (b.durationMinutes > 0) b.durationMinutes else 60 // legacy fallback
+            start to (start + dur)
+        }
+        if (ranges.isEmpty()) null else ranges.minOf { it.first } to ranges.maxOf { it.second }
+    }
+    val earliestBookingStart = activeBookingWindow?.first
+    val latestBookingEnd = activeBookingWindow?.second
+
+    // Guardrails: window must be at least MIN_WORKING_WINDOW_MIN long, opening
+    // can't start after an existing booking, closing can't end before one.
+    val windowValid = closeMinutes - openMinutes >= MIN_WORKING_WINDOW_MIN
+    val openCoversBookings = earliestBookingStart == null || openMinutes <= earliestBookingStart
+    val closeCoversBookings = latestBookingEnd == null || closeMinutes >= latestBookingEnd
+    val hoursValid = windowValid && openCoversBookings && closeCoversBookings
+
+    val hoursChanged = openMinutes != customization.openMinutes || closeMinutes != customization.closeMinutes
+    val canSave = (editedServices != customization.services || bayCountChanged || hoursChanged) &&
+        !hasInvalidPrice && !hasInvalidDuration && !hasBlankDescription && hoursValid
 
     LaunchedEffect(customization) {
         editedServices = normalizeConfigs(customization.services)
         bayCountText = customization.bayCount.toString()
+        openMinutes = customization.openMinutes
+        closeMinutes = customization.closeMinutes
         invalidDurationKeys = emptySet()
     }
 
     val atMaxLimit = editedServices.size >= maxServices
     val availableTypesToAdd = ServiceType.values().filter { type ->
         type != ServiceType.CUSTOM && editedServices.none { it.serviceName == type.name }
+    }
+
+    // Persist the current edits. Shared by the direct-save path and the
+    // hours-change confirmation path.
+    val performSave: () -> Unit = {
+        isSavingServices = true
+        val bayCount = bayCountText.toIntOrNull() ?: customization.bayCount
+        // Persist the effective duration for legacy services the owner didn't
+        // touch (their field shows the default)
+        val normalizedServices = editedServices.map { config ->
+            if (config.durationMinutes > 0) config
+            else config.copy(durationMinutes = defaultDurationMinutes(config))
+        }
+        val updated = customization.copy(
+            services = normalizedServices,
+            bayCount = bayCount,
+            openMinutes = openMinutes,
+            closeMinutes = closeMinutes
+        )
+        ownerViewModel.saveShopCustomization(updated)
+        scope.launch {
+            kotlinx.coroutines.delay(1500)
+            isSavingServices = false
+        }
+    }
+
+    if (showHoursConfirm) {
+        AlertDialog(
+            onDismissRequest = { showHoursConfirm = false },
+            title = { Text("Update working hours?") },
+            text = {
+                Text(
+                    "Your new hours will be ${BookingUtils.minutesToSlotLabel(openMinutes)} – " +
+                    "${BookingUtils.minutesToSlotLabel(closeMinutes)}.\n\n" +
+                    "Clients will see the new hours immediately. Continue?"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showHoursConfirm = false; performSave() }) {
+                    Text("Yes, update")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showHoursConfirm = false }) { Text("Cancel") }
+            }
+        )
     }
 
     if (showCustomNameDialog) {
@@ -135,10 +229,64 @@ fun OwnerServicesTab(
             .fillMaxSize()
             .padding(paddingValues)
     ) {
+        // Working hours — one opening/closing time applied to every day.
+        WorkingHoursSection(
+            openMinutes = openMinutes,
+            closeMinutes = closeMinutes,
+            earliestBookingStart = earliestBookingStart,
+            latestBookingEnd = latestBookingEnd,
+            windowValid = windowValid,
+            openCoversBookings = openCoversBookings,
+            closeCoversBookings = closeCoversBookings,
+            onOpenChange = { m ->
+                openMinutes = m
+                // Keep closing at least a full window ahead and past any booking.
+                val minClose = maxOf(
+                    m + MIN_WORKING_WINDOW_MIN,
+                    latestBookingEnd?.let { ceilToStep(it, SLOT_STEP_MIN) } ?: 0
+                )
+                if (closeMinutes < minClose) closeMinutes = minClose
+            },
+            onCloseChange = { closeMinutes = it }
+        )
+
+        // Shop location — opens the map picker. Editable any time (shops relocate).
+        val locationSet = customization.latitude != 0.0 || customization.longitude != 0.0
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Place,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Shop Location", style = MaterialTheme.typography.titleMedium)
+            }
+            Text(
+                text = if (locationSet) "Location set — clients can see your shop on the map."
+                       else "No location set yet. Set it so clients can find you.",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (locationSet) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        else MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+            )
+            OutlinedButton(
+                onClick = { navController.navigate("set_shop_location") },
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(if (locationSet) "Change Location" else "Set Location on Map")
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -204,7 +352,8 @@ fun OwnerServicesTab(
                 }
                 DropdownMenu(
                     expanded = showAddDropdown,
-                    onDismissRequest = { showAddDropdown = false }
+                    onDismissRequest = { showAddDropdown = false },
+                    modifier = Modifier.heightIn(max = 320.dp)
                 ) {
                     availableTypesToAdd.forEach { type ->
                         DropdownMenuItem(
@@ -309,6 +458,11 @@ fun OwnerServicesTab(
                                 if (it.serviceName == config.serviceName) it.copy(customName = newName, displayName = newName) else it
                             }
                         },
+                        onDescriptionChange = { newDesc ->
+                            editedServices = editedServices.map {
+                                if (it.serviceName == config.serviceName) it.copy(description = newDesc) else it
+                            }
+                        },
                         onDurationInput = { parsed ->
                             if (parsed != null) {
                                 invalidDurationKeys = invalidDurationKeys - config.serviceName
@@ -337,6 +491,8 @@ fun OwnerServicesTab(
             OutlinedButton(
                 onClick = {
                     editedServices = normalizeConfigs(customization.services)
+                    openMinutes = customization.openMinutes
+                    closeMinutes = customization.closeMinutes
                     invalidDurationKeys = emptySet()
                 },
                 modifier = Modifier.weight(1f),
@@ -346,23 +502,9 @@ fun OwnerServicesTab(
             }
             Button(
                 onClick = {
-                    isSavingServices = true
-                    val bayCount = bayCountText.toIntOrNull() ?: customization.bayCount
-                    // Persist the effective duration for legacy services the
-                    // owner didn't touch (their field shows the default)
-                    val normalizedServices = editedServices.map { config ->
-                        if (config.durationMinutes > 0) config
-                        else config.copy(durationMinutes = defaultDurationMinutes(config))
-                    }
-                    val updated = customization.copy(
-                        services = normalizedServices,
-                        bayCount = bayCount
-                    )
-                    ownerViewModel.saveShopCustomization(updated)
-                    scope.launch {
-                        kotlinx.coroutines.delay(1500)
-                        isSavingServices = false
-                    }
+                    // Confirm only when the hours actually changed; other edits
+                    // (services, bays) save straight through.
+                    if (hoursChanged) showHoursConfirm = true else performSave()
                 },
                 modifier = Modifier.weight(1f),
                 shape = MaterialTheme.shapes.medium,
@@ -388,6 +530,7 @@ fun ServiceConfigCard(
     onPriceChange: (Double) -> Unit,
     onNameChange: (String) -> Unit = {},
     onDurationInput: (Int?) -> Unit = {}, // valid minutes, or null while the field is invalid/empty
+    onDescriptionChange: (String) -> Unit = {},
     onDelete: () -> Unit
 ) {
     val defaultPrice = ServiceType.values().find { it.name == config.serviceName }?.price ?: 0.0
@@ -595,6 +738,179 @@ fun ServiceConfigCard(
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            val descriptionBlank = config.description.isBlank()
+            OutlinedTextField(
+                value = config.description,
+                onValueChange = { if (it.length <= MAX_SERVICE_DESCRIPTION_LEN) onDescriptionChange(it) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Description") },
+                placeholder = { Text("e.g. Hand wash + tire shine, exterior only") },
+                minLines = 2,
+                maxLines = 4,
+                isError = descriptionBlank,
+                supportingText = {
+                    if (descriptionBlank) {
+                        Text("Add a short detail so clients know what this service includes")
+                    } else {
+                        Text("${config.description.length}/$MAX_SERVICE_DESCRIPTION_LEN")
+                    }
+                },
+                textStyle = MaterialTheme.typography.bodyMedium,
+                shape = MaterialTheme.shapes.small
+            )
+        }
+    }
+}
+
+@Composable
+private fun WorkingHoursSection(
+    openMinutes: Int,
+    closeMinutes: Int,
+    earliestBookingStart: Int?,
+    latestBookingEnd: Int?,
+    windowValid: Boolean,
+    openCoversBookings: Boolean,
+    closeCoversBookings: Boolean,
+    onOpenChange: (Int) -> Unit,
+    onCloseChange: (Int) -> Unit
+) {
+    // 6:00 AM (360) → 9:30 PM (1290) in 30-min steps.
+    val allOptions = remember { (360..1290 step SLOT_STEP_MIN).toList() }
+    // Opening can't be so late there's no room for a full window, and can't
+    // start after an existing booking.
+    val maxOpen = 1290 - MIN_WORKING_WINDOW_MIN
+    val openOptions = allOptions.filter { opt ->
+        opt <= maxOpen && (earliestBookingStart == null || opt <= earliestBookingStart)
+    }
+    // Closing must leave a full window and cover the latest booking's finish.
+    val minClose = maxOf(
+        openMinutes + MIN_WORKING_WINDOW_MIN,
+        latestBookingEnd?.let { ceilToStep(it, SLOT_STEP_MIN) } ?: 0
+    )
+    val closeOptions = allOptions.filter { it >= minClose }
+
+    val errorMsg = when {
+        !windowValid -> "Opening hours must be at least ${MIN_WORKING_WINDOW_MIN / 60} hour long."
+        !openCoversBookings && earliestBookingStart != null ->
+            "You have a booking at ${BookingUtils.minutesToSlotLabel(earliestBookingStart)} — opening can't be later."
+        !closeCoversBookings && latestBookingEnd != null ->
+            "A booked service runs until ${BookingUtils.minutesToSlotLabel(ceilToStep(latestBookingEnd, SLOT_STEP_MIN).coerceAtMost(1290))} — closing can't be earlier."
+        else -> null
+    }
+
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Default.Schedule,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Working Hours", style = MaterialTheme.typography.titleMedium)
+        }
+        Text(
+            "Applied to every day. Clients can only book start times within this window.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TimeDropdown(
+                label = "Opens",
+                valueMinutes = openMinutes,
+                options = openOptions,
+                onSelect = onOpenChange,
+                modifier = Modifier.weight(1f)
+            )
+            TimeDropdown(
+                label = "Closes",
+                valueMinutes = closeMinutes,
+                options = closeOptions,
+                onSelect = onCloseChange,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        if (errorMsg != null) {
+            Text(
+                errorMsg,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        } else if (earliestBookingStart != null) {
+            // Explain why the range is limited when it isn't an error.
+            Text(
+                "Active bookings limit how much you can shorten your hours. Cancel or finish them to shrink further.",
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimeDropdown(
+    label: String,
+    valueMinutes: Int,
+    options: List<Int>,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier
+    ) {
+        OutlinedTextField(
+            value = BookingUtils.minutesToSlotLabel(valueMinutes),
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            label = { Text(label) },
+            leadingIcon = {
+                Icon(
+                    Icons.Default.Schedule,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            textStyle = MaterialTheme.typography.bodyLarge,
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                .fillMaxWidth()
+        )
+        // Cap the height so a long time list scrolls instead of covering the screen.
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 280.dp)
+        ) {
+            options.forEach { m ->
+                val selected = m == valueMinutes
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            BookingUtils.minutesToSlotLabel(m),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (selected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    onClick = { onSelect(m); expanded = false },
+                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                 )
             }
         }

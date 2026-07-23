@@ -42,6 +42,38 @@ class BookingUtilsTest {
         assertEquals(420, BookingUtils.parseTimeSlotToMinutesSince9AM("04:00 PM"))
     }
 
+    // ---- minutesToSlotLabel ----
+
+    @Test
+    fun `minutesToSlotLabel formats morning, noon, afternoon and midnight`() {
+        assertEquals("09:00 AM", BookingUtils.minutesToSlotLabel(540))
+        assertEquals("12:00 PM", BookingUtils.minutesToSlotLabel(720)) // noon stays 12 PM
+        assertEquals("01:00 PM", BookingUtils.minutesToSlotLabel(780))
+        assertEquals("04:00 PM", BookingUtils.minutesToSlotLabel(960))
+        assertEquals("12:30 AM", BookingUtils.minutesToSlotLabel(30))  // midnight stays 12 AM
+    }
+
+    // ---- generateSlotLabels ----
+
+    @Test
+    fun `generateSlotLabels reproduces the legacy 9 to 4 window`() {
+        val slots = BookingUtils.generateSlotLabels(540, 960)
+        assertEquals(15, slots.size)
+        assertEquals("09:00 AM", slots.first())
+        assertEquals("04:00 PM", slots.last())
+    }
+
+    @Test
+    fun `generateSlotLabels honours custom hours and closeMinutes is inclusive`() {
+        val slots = BookingUtils.generateSlotLabels(480, 540) // 8:00 AM – 9:00 AM
+        assertEquals(listOf("08:00 AM", "08:30 AM", "09:00 AM"), slots)
+    }
+
+    @Test
+    fun `generateSlotLabels returns empty when close is before open`() {
+        assertTrue(BookingUtils.generateSlotLabels(960, 540).isEmpty())
+    }
+
     // ---- parseDurationMinutes ----
 
     @Test

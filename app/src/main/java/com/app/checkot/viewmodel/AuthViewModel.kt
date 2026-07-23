@@ -139,7 +139,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         fullName: String,
         phoneNumber: String,
         shopName: String,
-        shopAddress: String
+        shopAddress: String,
+        latitude: Double,
+        longitude: Double
     ) {
         viewModelScope.launch {
             _authState.value = AuthState.Loading
@@ -181,6 +183,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     ownerName = fullName,
                     ownerEmail = email,
                     services = emptyList(), // owner adds services from dashboard
+                    latitude = latitude,
+                    longitude = longitude,
                     ownerFcmToken = fcmToken
                 )
                 firestore.collection("shop_services").document(shopId)

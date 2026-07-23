@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.app.checkot.ui.components.AnimatedStatusIcon
 import com.app.checkot.ui.components.BackTopAppBar
 import com.app.checkot.ui.components.ConfirmDialog
 import com.app.checkot.ui.components.DetailRow
@@ -174,15 +175,8 @@ fun BookingDetailsScreen(
                                 }
                             )
                         }
-                        Icon(
-                            imageVector = when (booking.status) {
-                                BookingStatus.PENDING -> Icons.Default.HourglassEmpty
-                                BookingStatus.CONFIRMED -> Icons.Default.CheckCircle
-                                BookingStatus.IN_PROGRESS -> Icons.Default.Build
-                                BookingStatus.COMPLETED -> Icons.Default.DoneAll
-                                BookingStatus.CANCELLED -> Icons.Default.Cancel
-                            },
-                            contentDescription = null,
+                        AnimatedStatusIcon(
+                            status = booking.status,
                             modifier = Modifier.size(48.dp),
                             tint = when (booking.status) {
                                 BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
@@ -192,6 +186,44 @@ fun BookingDetailsScreen(
                                 BookingStatus.CANCELLED -> MaterialTheme.colorScheme.onErrorContainer
                             }
                         )
+                    }
+                }
+            }
+            // Reassurance banner — once confirmed, the slot is protected: the
+            // shop can't change its hours to drop it, and any change is notified.
+            if (booking.status == BookingStatus.CONFIRMED) {
+                item {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.VerifiedUser,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Your slot is reserved",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "The shop can't change its hours to remove your booking. If anything changes, you'll be notified right away.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
                     }
                 }
             }

@@ -265,18 +265,16 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
         )
     }
 
-    fun fetchAvailableTimeSlots(date: Long, shopId: String, durationMinutes: Int = 60) {
-        // Build raw slots
-        val rawSlots = listOf(
-            TimeSlot("09:00 AM", true), TimeSlot("09:30 AM", true),
-            TimeSlot("10:00 AM", true), TimeSlot("10:30 AM", true),
-            TimeSlot("11:00 AM", true), TimeSlot("11:30 AM", true),
-            TimeSlot("12:00 PM", true), TimeSlot("12:30 PM", true),
-            TimeSlot("01:00 PM", true), TimeSlot("01:30 PM", true),
-            TimeSlot("02:00 PM", true), TimeSlot("02:30 PM", true),
-            TimeSlot("03:00 PM", true), TimeSlot("03:30 PM", true),
-            TimeSlot("04:00 PM", true)
-        )
+    fun fetchAvailableTimeSlots(
+        date: Long,
+        shopId: String,
+        durationMinutes: Int = 60,
+        openMinutes: Int = 540,  // 9:00 AM — shop's opening time
+        closeMinutes: Int = 960  // 4:00 PM — shop's last bookable slot
+    ) {
+        // Build raw slots from the shop's configured working hours.
+        val rawSlots = BookingUtils.generateSlotLabels(openMinutes, closeMinutes)
+            .map { TimeSlot(it, true) }
 
         // Convert "09:00 AM" → minutes since 9:00
         fun slotToMinutes(slot: String): Int = BookingUtils.parseTimeSlotToMinutesSince9AM(slot)
