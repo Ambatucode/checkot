@@ -28,6 +28,7 @@ import com.app.checkot.ui.components.AnimatedStatusIcon
 import com.app.checkot.ui.components.BackTopAppBar
 import com.app.checkot.ui.components.ConfirmDialog
 import com.app.checkot.ui.components.DetailRow
+import com.app.checkot.ui.components.ShopLocationView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
@@ -69,21 +70,25 @@ fun BookingDetailsScreen(
         onDispose { listener.remove() }
     }
 
-    // Load the shop name from Firestore
+    // Load the shop name + map location from Firestore (same doc, one fetch)
     var shopName by remember(booking) { mutableStateOf("") }
+    var shopLatitude by remember(booking) { mutableStateOf(0.0) }
+    var shopLongitude by remember(booking) { mutableStateOf(0.0) }
     LaunchedEffect(booking?.shopId) {
         val shopId = booking?.shopId ?: return@LaunchedEffect
         withContext(Dispatchers.IO) {
             try {
                 val doc = Firebase.firestore.collection("shop_services").document(shopId).get().await()
                 val name = doc.getString("shopName")
-                if (!name.isNullOrEmpty()) {
-                    withContext(Dispatchers.Main) { shopName = name }
-                } else {
-                    withContext(Dispatchers.Main) { shopName = shopId.takeLast(6).uppercase() }
+                val lat = doc.getDouble("latitude") ?: 0.0
+                val lng = doc.getDouble("longitude") ?: 0.0
+                withContext(Dispatchers.Main) {
+                    shopName = if (!name.isNullOrEmpty()) name else shopId.takeLast(6).uppercase()
+                    shopLatitude = lat
+                    shopLongitude = lng
                 }
             } catch (e: Exception) {
-                println("❌ Failed to load shop name: ${e.message}")
+                println("❌ Failed to load shop details: ${e.message}")
                 withContext(Dispatchers.Main) { shopName = shopId.takeLast(6).uppercase() }
             }
         }
@@ -368,6 +373,51 @@ fun BookingDetailsScreen(
                         DetailRow("Price:", "₱${booking.price}")
                         if (booking.notes.isNotBlank()) {
                              DetailRow("Special Requests:", booking.notes)
+                        }
+                    }
+                }
+            }
+            // Shop Location map — shown on every status except Cancelled, so the
+            // client can always navigate there or look the location back up later
+            // (e.g. to rebook). Hidden only when the trip won't happen at all.
+            if (booking.status != BookingStatus.CANCELLED &&
+                (shopLatitude != 0.0 || shopLongitude != 0.0)
+            ) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        elevation = CardDefaults.cardElevation(2.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Place,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Shop Location",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            ShopLocationView(
+                                latitude = shopLatitude,
+                                longitude = shopLongitude,
+                                shopName = shopName.ifEmpty { "Car wash" }
+                            )
                         }
                     }
                 }
