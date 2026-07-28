@@ -162,6 +162,90 @@ booking flow as a "not sure what you need?" helper?
 
 ---
 
+## 6. Real auth (Google + phone OTP) + MFA
+
+**Ask:** real sign-up/login with verified identity — "login with Gmail," phone-number
+SMS OTP, and **required MFA**. Plan only; no code until §6 decisions are locked.
+
+### 6a. Baseline today (`AuthViewModel.kt`)
+- Email + password via Firebase Auth. Phone number is **collected but never verified**
+  (plain string on the `users` doc). Role in Firestore. **No email verification, no OAuth,
+  no MFA.** So this is *adding verified identity + a second factor* on top — not a rewrite.
+
+### 6b. Building blocks
+| # | Feature | Firebase mechanism | Free? |
+|---|---------|-------------------|-------|
+| A | "Login with Gmail" | **Google Sign-In (OAuth)** | ✅ free |
+| B | Verified email | verification link (native) *or* custom 6-digit email OTP | link free; OTP needs email service |
+| C | Phone sign-up/login (SMS OTP) | **Firebase Phone Auth** | 💰 per-SMS |
+| D | Required MFA | Firebase MFA 2nd factor — needs **Identity Platform upgrade** | TOTP free; SMS 2nd factor 💰 |
+
+**Two clarifications:**
+- **"Gmail OTP" ≠ a native feature.** Firebase's Gmail path is **Google Sign-In** (one tap,
+  Google handles the code). A typed 6-digit email code needs a Cloud Function + email service
+  (SendGrid/Mailgun). Recommend **Google Sign-In + email verification link** (free, no infra).
+- **MFA requires upgrading the project to *Firebase Auth with Identity Platform*** (one-click
+  console toggle; free tier 50K MAU, so still $0).
+
+### 6c. Cost reality (for the team)
+- Firebase Auth base: **free to 50K MAU** → $0 for us.
+- Google Sign-In, email verification: **free.**
+- **Phone/SMS OTP: never free** — ~**$0.01–0.06 per SMS** (region-dependent; PH is mid-range),
+  after a **10 SMS/day** free allowance. Requires Blaze (✅ we have it).
+- **MFA: TOTP (authenticator app) = free; SMS 2nd factor = per-SMS on every login.**
+- **Budget insight:** SMS-based *required* MFA = an SMS charge on **every login** (recurring).
+  **TOTP-based MFA = $0 forever.** → strongly prefer **TOTP**.
+- Sources: metacto / RapidNative / Logto Firebase-auth-pricing 2026 guides.
+
+### 6d. Decisions to lock (recommendations)
+1. **Who must have MFA?** → *Recommend required for **owners & admins**, optional for
+   customers.* Owners control shops/revenue, admins approve shops — high-value accounts.
+   Forcing every casual customer through MFA is heavy friction (and SMS cost).
+2. **MFA factor?** → *Recommend **TOTP** (authenticator app) — free.* SMS only if the
+   per-login cost is accepted.
+3. **"Gmail" flow?** → *Recommend **Google Sign-In** + email verification.*
+4. **Phone auth = sign-in method or just verification?** → *Recommend start with phone-number
+   **verification** during signup* (SMS costs money per use).
+
+### 6e. Phased build (after decisions)
+| Phase | What | Notes |
+|-------|------|-------|
+| 0 | Enable providers + **upgrade to Identity Platform**; add test phone numbers | config only |
+| 1 | **Google Sign-In** + account linking | biggest UX win, free |
+| 2 | **Email verification** gate for email/password signups | free |
+| 3 | **Phone number verification** (SMS OTP at signup) | first SMS costs |
+| 4 | **MFA enrollment** (TOTP) — enroll + enter-code flows | needs verified 1st factor |
+| 5 | **MFA enforcement** — owner/admin at login + in Firestore rules | uses `sign_in_second_factor` claim |
+| 6 | **Migration** for existing accounts + testing | see 6g |
+
+### 6f. Data model + rules
+- `users` doc gains: `emailVerified`, `phoneVerified`, `authProvider`
+  (`password`/`google`/`phone`), `mfaEnrolled`.
+- **Firestore rules can enforce MFA** on sensitive actions via
+  `request.auth.token.firebase.sign_in_second_factor != null` (e.g. owner advancing bookings,
+  admin approving shops) → MFA becomes real, not just UI.
+- `AuthViewModel` grows Google/phone/MFA flows; the email+password path stays.
+
+### 6g. Migration & gotchas
+- **Existing users** need a one-time "finish securing your account" prompt (verify email;
+  owners/admins enroll MFA) on next login.
+- **Account linking:** same email via password *and* Google must be **linked** or it errors.
+- **Phone-auth anti-abuse:** wire **Play Integrity/reCAPTCHA** + **test phone numbers** so we
+  can demo without spending SMS.
+- **MFA needs a verified first factor** → Phase 2 must precede Phase 4.
+- **10 SMS/day free** will throttle testing → use test numbers.
+
+### 6h. Open questions for professor/team
+1. MFA required for **everyone**, or **owners/admins-required, customers-optional**?
+2. **TOTP** acceptable, or specifically **SMS** MFA (recurring cost)?
+3. Real **6-digit email OTP** needed, or is **Google Sign-In + email verification** enough?
+
+**Recommended shape for a school project:** Google Sign-In + email verification + phone
+*verification* + **TOTP MFA required for owners/admins** → a genuine "secure auth with MFA"
+demo at **~$0**, no SMS bill per login.
+
+---
+
 ## Open decisions checklist (confirm before coding each item)
 
 - [ ] Theme: status chips dimmed or full brightness?
@@ -170,6 +254,10 @@ booking flow as a "not sure what you need?" helper?
 - [ ] Payment: owner marks paid, or auto on Completed?
 - [ ] Receipt: in-app only, or share-as-image/PDF?
 - [ ] AI: "Check my car" entry point location?
+- [ ] Auth: MFA required for everyone, or owners/admins-required + customers-optional?
+- [ ] Auth: MFA factor — TOTP (free) or SMS (per-login cost)?
+- [ ] Auth: real email OTP, or Google Sign-In + email verification?
+- [ ] Auth: phone as a full sign-in method, or verification-only at signup?
 
 ## Before building the AI feature
 Send the professor one clarifying message confirming the photo → recommendation scope
