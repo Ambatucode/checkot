@@ -64,12 +64,12 @@ async function recordUsage(uid) {
   return newCount;
 }
 
-// Cheap, image-capable, newest Flash-Lite tier — comfortably supported into
-// 2027. To move models later, this one string is the only change needed.
-// If a deploy test ever returns a 404 "model not found", the exact id has
-// changed — check https://ai.google.dev/gemini-api/docs/models for the current
-// string and update it here.
-const MODEL = "gemini-3.5-flash-lite";
+// Cheap, image-capable, current-gen (3.x) model. We use 3.1-flash-lite, NOT
+// 3.5: the 3.5/3.6 flash-lite line forces heavy "thinking" that makes it take
+// 80-90s+ even on a one-word prompt (measured: gemini-flash-lite-latest = 81.9s
+// on plain text) and it timed out. 3.1-flash-lite is the same 3.x generation,
+// answers in <1s, and has good longevity. This one string swaps the model.
+const MODEL = "gemini-3.1-flash-lite";
 
 const GEMINI_URL =
   `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
@@ -174,6 +174,7 @@ exports.checkCar = onCall(
     let response;
     const controller = new AbortController();
     const abortTimer = setTimeout(() => controller.abort(), 90_000);
+    const t0 = Date.now();
     try {
       response = await fetch(GEMINI_URL, {
         method: "POST",
@@ -184,8 +185,12 @@ exports.checkCar = onCall(
         body: JSON.stringify(body),
         signal: controller.signal,
       });
+      console.log(`Gemini responded in ${Date.now() - t0}ms (${MODEL})`);
     } catch (err) {
-      console.error("Network/timeout error calling Gemini:", err);
+      console.error(
+        `Network/timeout error calling Gemini after ${Date.now() - t0}ms:`,
+        err,
+      );
       throw new HttpsError(
         "unavailable",
         "The AI took too long to respond. Please try again.",
