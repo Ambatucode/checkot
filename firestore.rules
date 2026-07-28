@@ -34,12 +34,6 @@ service cloud.firestore {
         && getUserData(request.auth.uid).role == 'admin';
     }
 
-    // Returns true if the request only contains allowed fields
-    function hasOnlyAllowedFields(allowedFields) {
-      return request.resource.data.keys()
-        .hasOnly(allowedFields);
-    }
-
     // Returns true if no forbidden fields are being changed
     function isNotChanging(forbiddenFields) {
       return request.resource.data.diff(resource.data)
@@ -147,15 +141,31 @@ service cloud.firestore {
             .affectedKeys()
             .hasOnly(['status', 'cancelledAt']));
 
+      // --- UPDATE (Customer add-on) ---
+      // Customer can add a paid add-on to their OWN booking while it is
+      // Confirmed or In Progress. Can only change 'price' (increase only) and
+      // 'addOns' — never the status. Price-only, so no bay time is reserved.
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && (resource.data.status == 'CONFIRMED'
+         || resource.data.status == 'IN_PROGRESS')
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.price >= resource.data.price
+        && (request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(['price', 'addOns']));
+
       // --- UPDATE (Owner) ---
       // Owner can advance status for their own shop's bookings
-      // Can only change 'status' and the corresponding timestamp
+      // Can only change 'status', the corresponding timestamp, and the
+      // display-only 'servicedBy' staff name set when starting a service.
       allow update: if ownsShop(resource.data.shopId)
         && (request.resource.data.diff(resource.data)
             .affectedKeys()
             .hasOnly(['status', 'confirmedAt',
                       'inProgressAt', 'completedAt',
-                      'cancelledAt']));
+                      'cancelledAt', 'servicedBy',
+                      'paymentStatus', 'paidAt']));
 
       // --- DELETE ---
       // Nobody can hard-delete bookings from the client

@@ -11,6 +11,11 @@
     <!-- For the owner's "use my current location" button when setting the shop pin -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Saving receipts to public storage on Android 8–9. On 10+ scoped storage
+         (MediaStore) needs no permission, so this is capped at API 28. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
 
 
 

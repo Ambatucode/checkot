@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.app.checkot.ui.components.BackTopAppBar
+import com.app.checkot.ui.components.BookingListSkeleton
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyBookingsScreen(
@@ -81,34 +82,34 @@ fun MyBookingsScreen(
                             Text(
                                 text = "${pendingBookings.size + confirmedBookings.size} item(s)",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
                             )
                         }
                         if (pendingBookings.isNotEmpty()) {
                             QueueItem(
                                 status = "Pending Approval",
                                 count = pendingBookings.size,
-                                color = MaterialTheme.colorScheme.secondary
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.55f)
                             )
                         }
                         if (confirmedBookings.isNotEmpty()) {
                             QueueItem(
                                 status = "Confirmed - Waiting for service",
                                 count = confirmedBookings.size,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         LinearProgressIndicator(
                             progress = { 0.5f },
                             modifier = Modifier.fillMaxWidth(),
-                            color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f)
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
                         )
                         Text(
                             text = "Estimated wait time: 30-45 minutes",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
                             modifier = Modifier.padding(top = 8.dp)
                         )
                     }
@@ -151,12 +152,7 @@ fun MyBookingsScreen(
                 else -> bookings
             }
             if (!bookingsLoaded) {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                }
+                BookingListSkeleton()
             } else if (displayBookings.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -256,13 +252,13 @@ fun QueuePositionCard(
                 Surface(
                     modifier = Modifier.size(80.dp),
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
                             text = if (yourPosition > 0) "1" else "0",
                             style = MaterialTheme.typography.headlineLarge,
-                            color = MaterialTheme.colorScheme.onPrimary
+                            color = MaterialTheme.colorScheme.primaryContainer
                         )
                     }
                 }
@@ -279,14 +275,16 @@ fun QueuePositionCard(
                     Text(
                         text = "Est. time: ${(confirmedCount + pendingCount) * 30} min",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
             LinearProgressIndicator(
                 progress = { if (yourPosition > 0) 0.3f else 0f },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
             )
         }
     }

@@ -4,7 +4,10 @@ import androidx.compose.ui.graphics.Color
 
 // CHECKOT brand identity
 val CheckotTeal = Color(0xFF00BFA5)        // primary action color
-val CheckotTealDark = Color(0xFF00ACC1)    // deeper teal for gradients/containers
+// Same bright teal as CheckotTeal so primaryContainer/secondary cards render as
+// the exact login-button teal. White (onPrimaryContainer) text/icons sit on top
+// so content stands out on the bright teal.
+val CheckotTealDark = Color(0xFF00BFA5)    // unified bright teal (matches primary)
 val CheckotNavy = Color(0xFF0D2B35)        // app background
 val CheckotNavySurface = Color(0xFF163240) // cards/surfaces, lifts off the background
 val CheckotTextPrimary = Color(0xFFFFFFFF)

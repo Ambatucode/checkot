@@ -1,4 +1,5 @@
 package com.app.checkot.ui.screens
+import com.app.checkot.R
 import com.app.checkot.model.*
 import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
@@ -11,8 +12,12 @@ import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -22,8 +27,40 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.unit.dp
+import android.Manifest
+import android.content.ContentValues
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.pdf.PdfDocument
+import android.media.MediaScannerConnection
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.util.Log
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.io.OutputStream
 import com.app.checkot.ui.components.AnimatedStatusIcon
 import com.app.checkot.ui.components.BackTopAppBar
 import com.app.checkot.ui.components.ConfirmDialog
@@ -74,6 +111,10 @@ fun BookingDetailsScreen(
     var shopName by remember(booking) { mutableStateOf("") }
     var shopLatitude by remember(booking) { mutableStateOf(0.0) }
     var shopLongitude by remember(booking) { mutableStateOf(0.0) }
+    var shopServices by remember(booking) { mutableStateOf<List<CustomServiceConfig>>(emptyList()) }
+    var shopLogo by remember(booking) { mutableStateOf<ImageBitmap?>(null) }
+    var showAddOnDialog by remember { mutableStateOf(false) }
+    var showReceipt by remember { mutableStateOf(false) }
     LaunchedEffect(booking?.shopId) {
         val shopId = booking?.shopId ?: return@LaunchedEffect
         withContext(Dispatchers.IO) {
@@ -82,13 +123,25 @@ fun BookingDetailsScreen(
                 val name = doc.getString("shopName")
                 val lat = doc.getDouble("latitude") ?: 0.0
                 val lng = doc.getDouble("longitude") ?: 0.0
+                val customization = doc.toObject(ShopCustomization::class.java)
+                val services = customization?.services ?: emptyList()
+                val logo = customization?.logoBase64?.takeIf { it.isNotEmpty() }?.let {
+                    try {
+                        val bytes = android.util.Base64.decode(it, android.util.Base64.DEFAULT)
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
                 withContext(Dispatchers.Main) {
                     shopName = if (!name.isNullOrEmpty()) name else shopId.takeLast(6).uppercase()
                     shopLatitude = lat
                     shopLongitude = lng
+                    shopServices = services
+                    shopLogo = logo
                 }
             } catch (e: Exception) {
-                println("❌ Failed to load shop details: ${e.message}")
+                println("Failed to load shop details: ${e.message}")
                 withContext(Dispatchers.Main) { shopName = shopId.takeLast(6).uppercase() }
             }
         }
@@ -123,6 +176,55 @@ fun BookingDetailsScreen(
             },
             onDismiss = { showCancelDialog = false }
         )
+    }
+    if (showAddOnDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddOnDialog = false },
+            title = { Text("Add an Add-on") },
+            text = {
+                // Exclude services already on this booking — both the original
+                // services and any add-ons already added — so a client can't
+                // add a duplicate of something they're already paying for.
+                val bookedNames = booking.resolvedServiceNames().toSet()
+                val available = shopServices.filter { config ->
+                    config.displayName !in bookedNames &&
+                        booking.addOns.none { it.startsWith("${config.displayName} - ") }
+                }
+                if (available.isEmpty()) {
+                    Text("You already have all of this shop's services on this booking.")
+                } else {
+                    Column {
+                        Text("Add an extra paid service. It's added to your total — your booked time slot doesn't change.")
+                        Spacer(modifier = Modifier.height(8.dp))
+                        available.forEach { config ->
+                            val addOnPrice = if (config.customPrice > 0) config.customPrice
+                                else (ServiceType.values().find { it.name == config.serviceName }?.price ?: 0.0)
+                            TextButton(
+                                onClick = {
+                                    showAddOnDialog = false
+                                    bookingViewModel.addBookingAddOn(
+                                        booking.bookingId,
+                                        "${config.displayName} - ₱$addOnPrice",
+                                        addOnPrice
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(config.displayName, modifier = Modifier.weight(1f))
+                                Text("₱$addOnPrice", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showAddOnDialog = false }) { Text("Close") }
+            }
+        )
+    }
+    if (showReceipt) {
+        ReceiptDialog(booking = booking, shopName = shopName, shopLogo = shopLogo) { showReceipt = false }
     }
     Scaffold(
         topBar = {
@@ -371,8 +473,50 @@ fun BookingDetailsScreen(
                         }
                         DetailRow("Duration:", durationText)
                         DetailRow("Price:", "₱${booking.price}")
+                        if (booking.servicedBy.isNotBlank()) {
+                            DetailRow("Serviced by:", booking.servicedBy)
+                        }
+                        if (booking.addOns.isNotEmpty()) {
+                            DetailRow("Add-ons:", booking.addOns.joinToString(", "))
+                        }
+                        DetailRow(
+                            "Payment:",
+                            "Cash · " + if (booking.paymentStatus == "paid") "Paid" else "Unpaid"
+                        )
+                        if (booking.paymentStatus == "paid") {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "✓ The shop marked this booking as paid in cash.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedButton(
+                                onClick = { showReceipt = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("View Receipt")
+                            }
+                        }
                         if (booking.notes.isNotBlank()) {
                              DetailRow("Special Requests:", booking.notes)
+                        }
+                        if (booking.status == BookingStatus.CONFIRMED ||
+                            booking.status == BookingStatus.IN_PROGRESS
+                        ) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedButton(
+                                onClick = { showAddOnDialog = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Add an add-on service")
+                            }
                         }
                     }
                 }
@@ -539,6 +683,9 @@ fun BookingDetailsScreen(
                         booking.inProgressAt?.let {
                             DetailRow("In Progress:", DateUtils.formatDateTime(it))
                         }
+                        booking.paidAt?.let {
+                            DetailRow("Paid:", DateUtils.formatDateTime(it))
+                        }
                         booking.completedAt?.let {
                             DetailRow("Completed:", DateUtils.formatDateTime(it))
                         }
@@ -574,6 +721,362 @@ fun BookingDetailsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ReceiptDialog(booking: Booking, shopName: String, shopLogo: ImageBitmap?, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val graphicsLayer = rememberGraphicsLayer()
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    var isSaving by remember { mutableStateOf(false) }
+    var showFormatMenu by remember { mutableStateOf(false) }
+    var pendingPdf by remember { mutableStateOf<Boolean?>(null) }
+
+    fun doSave(asPdf: Boolean) {
+        if (isSaving) return
+        showFormatMenu = false
+        isSaving = true
+        scope.launch {
+            val dest = saveReceipt(context, graphicsLayer, booking, asPdf)
+            Toast.makeText(
+                context,
+                if (dest != null) "Receipt saved to $dest" else "Couldn't save receipt",
+                Toast.LENGTH_SHORT
+            ).show()
+            isSaving = false
+        }
+    }
+
+    // Android 8–9 need WRITE_EXTERNAL_STORAGE to write to public storage; 10+ don't.
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val asPdf = pendingPdf
+        pendingPdf = null
+        when {
+            granted && asPdf != null -> doSave(asPdf)
+            !granted -> Toast.makeText(
+                context, "Storage permission is needed to save the receipt", Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    fun requestSave(asPdf: Boolean) {
+        showFormatMenu = false
+        val needsPermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+            PackageManager.PERMISSION_GRANTED
+        if (needsPermission) {
+            pendingPdf = asPdf
+            permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            doSave(asPdf)
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 640.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column {
+                // Scrollable receipt body — the recorded Column is measured at
+                // full content height inside the scroll, so the capture grabs the
+                // whole receipt regardless of scroll position.
+                Box(
+                    modifier = Modifier
+                        .heightIn(max = 500.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .drawWithContent {
+                                graphicsLayer.record { this@drawWithContent.drawContent() }
+                                drawLayer(graphicsLayer)
+                            }
+                            .background(surfaceColor)
+                            .padding(20.dp)
+                    ) {
+                        ReceiptBody(booking, shopName, shopLogo)
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedButton(
+                            onClick = { showFormatMenu = true },
+                            enabled = !isSaving,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (isSaving) "Saving…" else "Save")
+                        }
+                        DropdownMenu(
+                            expanded = showFormatMenu,
+                            onDismissRequest = { showFormatMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Save as image") },
+                                leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) },
+                                onClick = { requestSave(asPdf = false) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Save as PDF") },
+                                leadingIcon = { Icon(Icons.Default.PictureAsPdf, contentDescription = null) },
+                                onClick = { requestSave(asPdf = true) }
+                            )
+                        }
+                    }
+                    Button(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                        Text("Close")
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The visible/captured receipt content, shared by the dialog and the share image. */
+@Composable
+private fun ReceiptBody(booking: Booking, shopName: String, shopLogo: ImageBitmap?) {
+    // Shop's own logo (if uploaded) — the shop's branding on its receipt.
+    if (shopLogo != null) {
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Image(
+                bitmap = shopLogo,
+                contentDescription = "$shopName logo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+            )
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+    }
+    Text(
+        text = shopName.ifEmpty { "Car Wash" },
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.fillMaxWidth(),
+        textAlign = TextAlign.Center
+    )
+    Text(
+        text = "Booking Receipt",
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        modifier = Modifier.fillMaxWidth(),
+        textAlign = TextAlign.Center
+    )
+    Spacer(modifier = Modifier.height(16.dp))
+    ReceiptRow("Receipt No.", "#" + booking.bookingId.takeLast(8).uppercase())
+    val issued = booking.paidAt ?: booking.completedAt ?: booking.createdAt
+    ReceiptRow("Date", DateUtils.formatDateTime(issued))
+    ReceiptRow("Car", booking.carDetails)
+    ReceiptRow("Booked for", "${DateUtils.formatDate(booking.bookingDate)} · ${booking.timeSlot}")
+    if (booking.servicedBy.isNotBlank()) {
+        ReceiptRow("Serviced by", booking.servicedBy)
+    }
+    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+    Text("Services", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+    booking.resolvedServiceNames().forEach { name ->
+        Text(
+            "•  $name",
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 2.dp)
+        )
+    }
+    if (booking.addOns.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(10.dp))
+        Text("Add-ons", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        booking.addOns.forEach { label ->
+            val name = label.substringBeforeLast(" - ₱").trim().ifEmpty { label }
+            val amount = label.substringAfterLast("₱", "")
+            ReceiptRow(name, if (amount.isNotEmpty()) "₱$amount" else "")
+        }
+    }
+    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text("Total", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+            "₱${booking.price}",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+    Spacer(modifier = Modifier.height(6.dp))
+    ReceiptRow("Payment", "Cash · " + if (booking.paymentStatus == "paid") "Paid" else "Unpaid")
+    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+    Text("Timeline", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+    if (booking.createdAt > 0) TimelineRow("Booked", booking.createdAt)
+    booking.confirmedAt?.let { TimelineRow("Confirmed", it) }
+    booking.inProgressAt?.let { TimelineRow("In progress", it) }
+    booking.paidAt?.let { TimelineRow("Paid", it) }
+    booking.completedAt?.let { TimelineRow("Completed", it) }
+    booking.cancelledAt?.let { TimelineRow("Cancelled", it) }
+    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+    Text(
+        "System-generated receipt for a cash booking. Not an official BIR receipt.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+        modifier = Modifier.fillMaxWidth(),
+        textAlign = TextAlign.Center
+    )
+    Spacer(modifier = Modifier.height(12.dp))
+    // CHECKOT app branding.
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.logo),
+            contentDescription = null,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            "Powered by CHECKOT",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+/**
+ * Renders the recorded receipt layer to a PNG (→ Gallery/Pictures) or a
+ * single-page PDF (→ Downloads) on the device. Fully on-device — no network.
+ * On Android 10+ this uses scoped MediaStore (no permission); on 8–9 it writes
+ * to public storage (caller must hold WRITE_EXTERNAL_STORAGE first).
+ * Returns the human-readable destination ("Gallery"/"Downloads"), or null on failure.
+ */
+private suspend fun saveReceipt(
+    context: android.content.Context,
+    graphicsLayer: androidx.compose.ui.graphics.layer.GraphicsLayer,
+    booking: Booking,
+    asPdf: Boolean
+): String? {
+    val bitmap: Bitmap = graphicsLayer.toImageBitmap().asAndroidBitmap()
+    return withContext(Dispatchers.IO) {
+        try {
+            val suffix = booking.bookingId.takeLast(8)
+            val displayName = if (asPdf) "receipt_$suffix.pdf" else "receipt_$suffix.png"
+            val mime = if (asPdf) "application/pdf" else "image/png"
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val resolver = context.contentResolver
+                val collection = if (asPdf) MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                                 else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, mime)
+                    put(
+                        MediaStore.MediaColumns.RELATIVE_PATH,
+                        if (asPdf) Environment.DIRECTORY_DOWNLOADS
+                        else Environment.DIRECTORY_PICTURES + "/Checkot"
+                    )
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                val uri = resolver.insert(collection, values) ?: return@withContext null
+                resolver.openOutputStream(uri)?.use { out ->
+                    if (asPdf) writeBitmapToPdf(bitmap, out)
+                    else bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                } ?: return@withContext null
+                values.clear()
+                values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                resolver.update(uri, values, null, null)
+            } else {
+                val dir = Environment.getExternalStoragePublicDirectory(
+                    if (asPdf) Environment.DIRECTORY_DOWNLOADS else Environment.DIRECTORY_PICTURES
+                ).apply { mkdirs() }
+                val file = File(dir, displayName)
+                FileOutputStream(file).use { out ->
+                    if (asPdf) writeBitmapToPdf(bitmap, out)
+                    else bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                }
+                // Make the file visible in the gallery / file managers.
+                MediaScannerConnection.scanFile(context, arrayOf(file.absolutePath), arrayOf(mime), null)
+            }
+            if (asPdf) "Downloads" else "Gallery"
+        } catch (e: Exception) {
+            Log.e("ReceiptSave", "Failed to save receipt: ${e.message}")
+            null
+        }
+    }
+}
+
+/** Draws the captured receipt bitmap onto a single PDF page sized to the image. */
+private fun writeBitmapToPdf(bitmap: Bitmap, out: OutputStream) {
+    // PdfDocument renders on a software canvas, which can't draw HARDWARE-config
+    // bitmaps — the graphicsLayer capture is hardware-backed. Copying a hardware
+    // bitmap straight to ARGB_8888 comes back blank on many devices, so round-trip
+    // through PNG bytes (compress reads the hardware bitmap correctly) to get a
+    // software bitmap that actually holds the pixels.
+    val softwareBitmap = if (bitmap.config == Bitmap.Config.HARDWARE) {
+        val baos = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos)
+        val bytes = baos.toByteArray()
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    } else {
+        bitmap
+    }
+    val document = PdfDocument()
+    val pageInfo = PdfDocument.PageInfo.Builder(softwareBitmap.width, softwareBitmap.height, 1).create()
+    val page = document.startPage(pageInfo)
+    page.canvas.drawColor(android.graphics.Color.WHITE)
+    page.canvas.drawBitmap(softwareBitmap, 0f, 0f, null)
+    document.finishPage(page)
+    document.writeTo(out)
+    document.close()
+    if (softwareBitmap !== bitmap) softwareBitmap.recycle()
+}
+
+@Composable
+private fun ReceiptRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.End
+        )
+    }
+}
+
+@Composable
+private fun TimelineRow(label: String, time: Long) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            DateUtils.formatDateTime(time),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        )
     }
 }
 

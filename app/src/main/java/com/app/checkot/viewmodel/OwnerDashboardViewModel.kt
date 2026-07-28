@@ -334,7 +334,7 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
         loadBookings()
     }
 
-    fun updateBookingStatus(bookingId: String, status: BookingStatus) {
+    fun updateBookingStatus(bookingId: String, status: BookingStatus, servicedBy: String? = null) {
         viewModelScope.launch {
             try {
                 // 1. Get booking details before updating
@@ -370,6 +370,10 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                     BookingStatus.COMPLETED -> updates["completedAt"] = System.currentTimeMillis()
                     BookingStatus.CANCELLED -> updates["cancelledAt"] = System.currentTimeMillis()
                     else -> {}
+                }
+                // Record the assigned staff member (display only) when starting.
+                if (status == BookingStatus.IN_PROGRESS && !servicedBy.isNullOrBlank()) {
+                    updates["servicedBy"] = servicedBy
                 }
 
                 firestore.collection("bookings").document(bookingId)
@@ -416,6 +420,40 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    /**
+     * Marks a booking's cash as received. The owner confirms in-person that the
+     * customer has paid (cash only). Sets paymentStatus=paid + paidAt. Booking
+     * status is untouched.
+     */
+    fun markBookingPaid(bookingId: String) {
+        viewModelScope.launch {
+            try {
+                val doc = firestore.collection("bookings").document(bookingId).get().await()
+                val booking = doc.toObject(Booking::class.java)
+                val ownerShopId = _currentOwnerShopId.value
+                if (booking == null || booking.shopId != ownerShopId) {
+                    Log.e(TAG, "❌ Security: mark-paid on a booking not belonging to this shop. Blocked.")
+                    return@launch
+                }
+                if (booking.paymentStatus == "paid") return@launch
+                if (booking.status != BookingStatus.IN_PROGRESS && booking.status != BookingStatus.COMPLETED) {
+                    Log.e(TAG, "❌ Can only mark paid while In Progress or Completed. Blocked.")
+                    return@launch
+                }
+                firestore.collection("bookings").document(bookingId).update(
+                    mapOf(
+                        "paymentStatus" to "paid",
+                        "paidAt" to System.currentTimeMillis()
+                    )
+                ).await()
+                Log.d(TAG, "✅ Booking $bookingId marked paid")
+                loadBookings()
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Failed to mark paid: ${e.message}")
+            }
+        }
+    }
+
     private val _saveResult = MutableStateFlow<String?>(null)
     val saveResult: StateFlow<String?> = _saveResult
 
@@ -441,11 +479,11 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 val saved = verify.toObject(ShopCustomization::class.java)
                 val savedCount = saved?.services?.size ?: 0
                 _shopCustomization.value = customization
-                _saveResult.value = "✅ Saved: $savedCount services"
+                _saveResult.value = "Saved: $savedCount services"
                 Log.d(TAG, "✅ Save verified: $savedCount services in shop_services/$shopId")
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Failed to save customization: ${e.message}")
-                _saveResult.value = "❌ Error: ${e.message}"
+                _saveResult.value = "Error: ${e.message}"
             }
         }
     }

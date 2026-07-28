@@ -148,7 +148,7 @@ fun CarCard(
                 Surface(
                     modifier = Modifier.size(44.dp),
                     shape = MaterialTheme.shapes.medium,
-                    color = if (car.isDefault) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    color = if (car.isDefault) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f)
                             else MaterialTheme.colorScheme.surfaceVariant
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -156,7 +156,7 @@ fun CarCard(
                             Icons.Default.DirectionsCar,
                             contentDescription = null,
                             modifier = Modifier.size(24.dp),
-                            tint = if (car.isDefault) MaterialTheme.colorScheme.primary
+                            tint = if (car.isDefault) MaterialTheme.colorScheme.onPrimaryContainer
                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                         )
                     }
@@ -165,25 +165,28 @@ fun CarCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "${car.brand} ${car.model}",
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (car.isDefault) MaterialTheme.colorScheme.onPrimaryContainer
+                                else MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = car.plateNumber,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        color = if (car.isDefault) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.95f)
+                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                 }
                 // Badges
                 Column(horizontalAlignment = Alignment.End) {
                     if (car.isDefault) {
                         Surface(
-                            color = MaterialTheme.colorScheme.primary,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
                             shape = MaterialTheme.shapes.small
                         ) {
                             Text(
                                 text = "DEFAULT",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimary,
+                                color = MaterialTheme.colorScheme.primaryContainer,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                             )
                         }
@@ -211,18 +214,21 @@ fun CarCard(
                         Icons.Default.Palette,
                         contentDescription = null,
                         modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                        tint = if (car.isDefault) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
+                               else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = car.color,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        color = if (car.isDefault) MaterialTheme.colorScheme.onPrimaryContainer
+                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
                 }
             }
             HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                color = if (car.isDefault) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.25f)
+                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                 modifier = Modifier.padding(vertical = 10.dp)
             )
             Row(
@@ -232,7 +238,8 @@ fun CarCard(
                 TextButton(
                     onClick = onEdit,
                     colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.primary
+                        contentColor = if (car.isDefault) MaterialTheme.colorScheme.onPrimaryContainer
+                                       else MaterialTheme.colorScheme.primary
                     )
                 ) {
                     Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(18.dp))
@@ -256,7 +263,11 @@ fun CarCard(
                 Button(
                     onClick = onSelect,
                     modifier = Modifier.height(36.dp),
-                    shape = MaterialTheme.shapes.small
+                    shape = MaterialTheme.shapes.small,
+                    colors = if (car.isDefault) ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ) else ButtonDefaults.buttonColors()
                 ) {
                     Text("Select")
                 }

@@ -125,7 +125,7 @@ fun HomeScreen(
                         Text(
                             text = "Welcome back,",
                             style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Text(
                             text = userData?.fullName ?: "Guest",
@@ -136,7 +136,7 @@ fun HomeScreen(
                         Text(
                             text = "Ready to get your car sparkling clean?",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         // Quick action buttons
@@ -147,7 +147,13 @@ fun HomeScreen(
                             OutlinedButton(
                                 onClick = { navController.navigate("my_bookings") },
                                 modifier = Modifier.weight(1f),
-                                shape = MaterialTheme.shapes.medium
+                                shape = MaterialTheme.shapes.medium,
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp, MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                                )
                             ) {
                                 Icon(Icons.Default.Bookmark, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -156,7 +162,13 @@ fun HomeScreen(
                             OutlinedButton(
                                 onClick = { navController.navigate("cars") },
                                 modifier = Modifier.weight(1f),
-                                shape = MaterialTheme.shapes.medium
+                                shape = MaterialTheme.shapes.medium,
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp, MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                                )
                             ) {
                                 Icon(Icons.Default.DirectionsCar, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))

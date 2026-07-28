@@ -62,7 +62,20 @@ data class Booking(
     val confirmedAt: Long? = null,
     val inProgressAt: Long? = null,
     val completedAt: Long? = null,
-    val cancelledAt: Long? = null
+    val cancelledAt: Long? = null,
+    // Staff member assigned when the service is started. Display-only: shown to
+    // the client and owner, never gates bay capacity or scheduling.
+    val servicedBy: String = "",
+    // Paid add-ons appended while the service is in progress. Each entry is a
+    // display label like "Exterior Wax - ₱350". Money only: add-ons bump
+    // `price` but never extend the reserved bay window (keeps the ledger valid).
+    val addOns: List<String> = emptyList(),
+    // --- Payment (cash only) ---
+    val paymentMethod: String = "Cash",
+    // "unpaid" until the owner confirms cash received at the shop.
+    val paymentStatus: String = "unpaid",
+    // Server timestamp when the owner confirmed cash received. null = not yet.
+    val paidAt: Long? = null
 )
 enum class ServiceType(val displayName: String, val price: Double, val duration: String) {
     BASIC_WASH("Basic Wash", 150.0, "30 mins"),
@@ -112,7 +125,10 @@ data class ShopCustomization(
     // Shop location on the map. 0 = not set yet.
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
-    val ownerFcmToken: String = "" // FCM token for sending notifications to the owner
+    val ownerFcmToken: String = "", // FCM token for sending notifications to the owner
+    // Staff the owner can assign to a service when starting it. Display-only —
+    // does not affect bay count or booking capacity.
+    val staffNames: List<String> = emptyList()
 )
 
 @Immutable

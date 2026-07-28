@@ -202,6 +202,42 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * Client adds a paid add-on to their OWN Confirmed/In-Progress booking:
+     * appends [addOnLabel] to addOns and bumps price by [addOnPrice]. Price only —
+     * the reserved bay window/duration is never changed, so the day_slots ledger
+     * stays valid and the extra can't collide with the next booking. The live
+     * bookings listener refreshes the UI automatically.
+     */
+    fun addBookingAddOn(bookingId: String, addOnLabel: String, addOnPrice: Double) {
+        viewModelScope.launch {
+            try {
+                val snapshot = firestore.collection("bookings").document(bookingId).get().await()
+                val booking = snapshot.toObject(Booking::class.java)
+                val uid = auth.currentUser?.uid
+                if (booking == null || booking.userId != uid) {
+                    Log.e(TAG, "❌ Add-on on a booking that isn't yours. Blocked.")
+                    return@launch
+                }
+                if (booking.status != BookingStatus.CONFIRMED && booking.status != BookingStatus.IN_PROGRESS) {
+                    Log.e(TAG, "❌ Add-ons can only be added while Confirmed or In Progress. Blocked.")
+                    return@launch
+                }
+                if (addOnPrice <= 0.0 || addOnLabel.isBlank()) return@launch
+                firestore.collection("bookings").document(bookingId).update(
+                    mapOf(
+                        "price" to (booking.price + addOnPrice),
+                        "addOns" to (booking.addOns + addOnLabel)
+                    )
+                ).await()
+                Log.d(TAG, "✅ Add-on '$addOnLabel' (+₱$addOnPrice) added to $bookingId")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Failed to add add-on: ${e.message}")
+            }
+        }
+    }
+
+
     fun cancelBooking(bookingId: String) {
         viewModelScope.launch {
             try {

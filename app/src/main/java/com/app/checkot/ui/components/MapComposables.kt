@@ -25,6 +25,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -120,6 +124,7 @@ fun ShopLocationView(
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(shopLatLng, 16f)
     }
+    var mapLoaded by remember { mutableStateOf(false) }
     Column(modifier = modifier) {
         Box(
             modifier = Modifier
@@ -129,6 +134,7 @@ fun ShopLocationView(
             GoogleMap(
                 modifier = Modifier.matchParentSize(),
                 cameraPositionState = cameraPositionState,
+                onMapLoaded = { mapLoaded = true },
                 uiSettings = MapUiSettings(
                     scrollGesturesEnabled = false,
                     zoomGesturesEnabled = false,
@@ -142,6 +148,10 @@ fun ShopLocationView(
                     state = rememberMarkerState(key = shopLatLng.toString(), position = shopLatLng),
                     title = shopName
                 )
+            }
+            // Shimmer placeholder over the map until the tiles finish loading.
+            if (!mapLoaded) {
+                MapSkeleton(modifier = Modifier.matchParentSize())
             }
         }
         if (showDirectionsButton) {

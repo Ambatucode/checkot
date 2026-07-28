@@ -58,6 +58,7 @@ fun OwnerBookingsTab(
 ) {
     val allBookings by ownerViewModel.allBookings.collectAsState()
     val allBookingsLoaded by ownerViewModel.allBookingsLoaded.collectAsState()
+    val customization by ownerViewModel.shopCustomization.collectAsState()
     var filter by remember { mutableStateOf(BookingFilter.ALL) }
     // FORCE REFRESH WHEN TAB OPENS
     LaunchedEffect(Unit) {
@@ -198,6 +199,7 @@ fun OwnerBookingsTab(
                         booking = booking,
                         customerName = customerNames[booking.userId] ?: "",
                         queuePosition = queuePositions[booking.bookingId] ?: 0,
+                        staffNames = customization.staffNames,
                         onNoShow = { ownerViewModel.markNoShow(booking.bookingId) },
                         onApprove = {
                             ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.CONFIRMED)
@@ -205,11 +207,14 @@ fun OwnerBookingsTab(
                         onReject = {
                             ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.CANCELLED)
                         },
-                        onStart = {
-                            ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.IN_PROGRESS)
+                        onStart = { staff ->
+                            ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.IN_PROGRESS, staff)
                         },
                         onComplete = {
                             ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.COMPLETED)
+                        },
+                        onMarkPaid = {
+                            ownerViewModel.markBookingPaid(booking.bookingId)
                         }
                     )
                 }
@@ -227,8 +232,10 @@ fun OwnerBookingCard(
     onNoShow: () -> Unit = {},
     onApprove: () -> Unit,
     onReject: () -> Unit,
-    onStart: () -> Unit,
-    onComplete: () -> Unit
+    onStart: (String) -> Unit,
+    onComplete: () -> Unit,
+    onMarkPaid: () -> Unit = {},
+    staffNames: List<String> = emptyList()
 ) {
     var isProcessing by remember { mutableStateOf(false) }
     var showApproveDialog by remember { mutableStateOf(false) }
@@ -237,6 +244,7 @@ fun OwnerBookingCard(
     var showCompleteDialog by remember { mutableStateOf(false) }
     var showNoShowDialog by remember { mutableStateOf(false) }
     var showCancelConfirmedDialog by remember { mutableStateOf(false) }
+    var showMarkPaidDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun runAction(action: () -> Unit) {
@@ -270,12 +278,52 @@ fun OwnerBookingCard(
     }
 
     if (showStartDialog) {
-        ConfirmDialog(
-            title = "Start Service",
-            text = "Are you sure you want to start this service? The customer will be notified that their car is now being worked on.",
-            confirmLabel = "Yes, Start",
-            onConfirm = { showStartDialog = false; runAction(onStart) },
-            onDismiss = { showStartDialog = false }
+        var selectedStaff by remember { mutableStateOf(staffNames.firstOrNull() ?: "") }
+        AlertDialog(
+            onDismissRequest = { showStartDialog = false },
+            title = { Text("Start Service") },
+            text = {
+                Column {
+                    Text("The customer will be notified that their car is now being worked on.")
+                    if (staffNames.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Assign staff (optional):",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        staffNames.forEach { name ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                RadioButton(
+                                    selected = selectedStaff == name,
+                                    onClick = { selectedStaff = name }
+                                )
+                                Text(name)
+                            }
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            RadioButton(
+                                selected = selectedStaff.isEmpty(),
+                                onClick = { selectedStaff = "" }
+                            )
+                            Text("Unassigned")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showStartDialog = false; runAction { onStart(selectedStaff) } }) {
+                    Text("Yes, Start")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartDialog = false }) { Text("Cancel") }
+            }
         )
     }
 
@@ -286,6 +334,41 @@ fun OwnerBookingCard(
             confirmLabel = "Yes, Complete",
             onConfirm = { showCompleteDialog = false; runAction(onComplete) },
             onDismiss = { showCompleteDialog = false }
+        )
+    }
+
+    if (showMarkPaidDialog) {
+        val paidTotal = "₱${"%,.2f".format(booking.price)}"
+        AlertDialog(
+            onDismissRequest = { showMarkPaidDialog = false },
+            icon = {
+                Icon(
+                    Icons.Default.Payments,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = { Text("Confirm cash payment") },
+            text = {
+                Column {
+                    Text("Has the customer paid $paidTotal in cash for this booking?")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Only mark this as paid once you've received the cash. This is recorded on the customer's receipt.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showMarkPaidDialog = false
+                    runAction { onMarkPaid() }
+                }) { Text("Yes, mark as paid") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMarkPaidDialog = false }) { Text("Not yet") }
+            }
         )
     }
 
@@ -532,6 +615,44 @@ fun OwnerBookingCard(
                     )
                 }
             }
+            if (booking.servicedBy.isNotBlank() &&
+                (booking.status == BookingStatus.IN_PROGRESS || booking.status == BookingStatus.COMPLETED)
+            ) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Serviced by ${booking.servicedBy}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+            if (booking.addOns.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                booking.addOns.forEach { addOn ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Add-on: $addOn",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
             if (booking.status == BookingStatus.PENDING) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -576,10 +697,10 @@ fun OwnerBookingCard(
                         modifier = Modifier.weight(1f),
                         enabled = !isProcessing,
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         if (isProcessing) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onSecondary)
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary)
                         } else {
                             Icon(Icons.Default.PlayArrow, contentDescription = "Start Service", modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
@@ -635,6 +756,21 @@ fun OwnerBookingCard(
             }
             if (booking.status == BookingStatus.IN_PROGRESS) {
                 Spacer(modifier = Modifier.height(16.dp))
+                if (booking.paymentStatus == "paid") {
+                    PaymentStatusRow(booking)
+                } else {
+                    OutlinedButton(
+                        onClick = { showMarkPaidDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isProcessing,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.AttachMoney, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Mark Paid")
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = { showCompleteDialog = true },
                     modifier = Modifier.fillMaxWidth(),
@@ -654,7 +790,42 @@ fun OwnerBookingCard(
                     }
                 }
             }
+            if (booking.status == BookingStatus.COMPLETED) {
+                Spacer(modifier = Modifier.height(16.dp))
+                if (booking.paymentStatus == "paid") {
+                    PaymentStatusRow(booking)
+                } else {
+                    OutlinedButton(
+                        onClick = { showMarkPaidDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isProcessing,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.AttachMoney, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Mark Paid")
+                    }
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun PaymentStatusRow(booking: Booking) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            Icons.Default.CheckCircle,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = "Paid (cash)",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 

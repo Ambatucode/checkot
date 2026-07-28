@@ -101,7 +101,7 @@ fun EditProfileScreen(
                     Text(
                         text = userData?.fullName?.first()?.uppercase() ?: "?",
                         style = MaterialTheme.typography.headlineLarge,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }

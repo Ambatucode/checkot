@@ -62,6 +62,8 @@ fun OwnerServicesTab(
     val allBookings by ownerViewModel.allBookings.collectAsState()
     var editedServices by remember { mutableStateOf<List<CustomServiceConfig>>(normalizeConfigs(customization.services)) }
     var bayCountText by remember { mutableStateOf(customization.bayCount.toString()) }
+    var editedStaff by remember { mutableStateOf(customization.staffNames) }
+    var staffNameInput by remember { mutableStateOf("") }
     var openMinutes by remember { mutableStateOf(customization.openMinutes) }
     var closeMinutes by remember { mutableStateOf(customization.closeMinutes) }
     var showAddDropdown by remember { mutableStateOf(false) }
@@ -122,7 +124,8 @@ fun OwnerServicesTab(
     val hoursValid = windowValid && openCoversBookings && closeCoversBookings
 
     val hoursChanged = openMinutes != customization.openMinutes || closeMinutes != customization.closeMinutes
-    val canSave = (editedServices != customization.services || bayCountChanged || hoursChanged) &&
+    val canSave = (editedServices != customization.services || bayCountChanged || hoursChanged ||
+        editedStaff != customization.staffNames) &&
         !hasInvalidPrice && !hasInvalidDuration && !hasBlankDescription && hoursValid
 
     LaunchedEffect(customization) {
@@ -130,6 +133,7 @@ fun OwnerServicesTab(
         bayCountText = customization.bayCount.toString()
         openMinutes = customization.openMinutes
         closeMinutes = customization.closeMinutes
+        editedStaff = customization.staffNames
         invalidDurationKeys = emptySet()
     }
 
@@ -153,7 +157,8 @@ fun OwnerServicesTab(
             services = normalizedServices,
             bayCount = bayCount,
             openMinutes = openMinutes,
-            closeMinutes = closeMinutes
+            closeMinutes = closeMinutes,
+            staffNames = editedStaff
         )
         ownerViewModel.saveShopCustomization(updated)
         scope.launch {
@@ -229,6 +234,9 @@ fun OwnerServicesTab(
             .fillMaxSize()
             .padding(paddingValues)
     ) {
+        LazyColumn(modifier = Modifier.weight(1f)) {
+        item {
+        Column {
         // Working hours — one opening/closing time applied to every day.
         WorkingHoursSection(
             openMinutes = openMinutes,
@@ -278,6 +286,83 @@ fun OwnerServicesTab(
                 Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(if (locationSet) "Change Location" else "Set Location on Map")
+            }
+        }
+
+        // Staff — names the owner can assign when starting a service. Display-only:
+        // shown to the client and owner, never affects bay count or capacity.
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Group,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Staff", style = MaterialTheme.typography.titleMedium)
+            }
+            Text(
+                text = "Add the people who service cars. When you start a service you can assign one, and the client will see who worked on their car.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = staffNameInput,
+                    onValueChange = { if (it.length <= 30) staffNameInput = it },
+                    modifier = Modifier.weight(1f),
+                    label = { Text("Staff name") },
+                    placeholder = { Text("e.g. Juan") },
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.small
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                val trimmedStaff = staffNameInput.trim()
+                val canAddStaff = trimmedStaff.isNotEmpty() &&
+                    editedStaff.none { it.equals(trimmedStaff, ignoreCase = true) } &&
+                    editedStaff.size < 15
+                Button(
+                    onClick = {
+                        editedStaff = editedStaff + trimmedStaff
+                        staffNameInput = ""
+                    },
+                    enabled = canAddStaff,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add staff", modifier = Modifier.size(18.dp))
+                }
+            }
+            editedStaff.forEach { name ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { editedStaff = editedStaff - name }) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Remove $name",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
             }
         }
 
@@ -390,11 +475,15 @@ fun OwnerServicesTab(
             }
         }
 
+        }
+        }
+
         if (editedServices.isEmpty()) {
+            item {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
+                    .fillParentMaxWidth()
+                    .fillParentMaxHeight()
                     .padding(32.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -419,16 +508,13 @@ fun OwnerServicesTab(
                     )
                 }
             }
+            }
         } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(
-                    items = editedServices,
-                    key = { it.serviceName }
-                ) { config ->
+            items(
+                items = editedServices,
+                key = { it.serviceName }
+            ) { config ->
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                     val isInUse = allBookings.any { booking ->
                         val status = booking.status
                         val isActive = status == BookingStatus.PENDING
@@ -479,6 +565,7 @@ fun OwnerServicesTab(
                         }
                     )
                 }
+                }
             }
         }
 
@@ -493,6 +580,7 @@ fun OwnerServicesTab(
                     editedServices = normalizeConfigs(customization.services)
                     openMinutes = customization.openMinutes
                     closeMinutes = customization.closeMinutes
+                    editedStaff = customization.staffNames
                     invalidDurationKeys = emptySet()
                 },
                 modifier = Modifier.weight(1f),

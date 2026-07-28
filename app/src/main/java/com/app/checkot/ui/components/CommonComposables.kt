@@ -1,9 +1,12 @@
 package com.app.checkot.ui.components
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -25,7 +28,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -123,7 +128,7 @@ fun DetailRow(label: String, value: String, singleLine: Boolean = true) {
  *   • PENDING     → hourglass rocks back and forth (waiting to be picked up)
  *   • CONFIRMED   → check pulses (locked in)
  *   • IN_PROGRESS → car-wash icon wiggles side to side (being scrubbed / in the queue)
- *   • COMPLETED   → double-check bounces (done)
+ *   • COMPLETED   → double-check pops once on appear, then rests (nothing left to do)
  *   • CANCELLED   → static (no motion — nothing is happening)
  *
  * Uses only Compose's built-in infinite-transition animations, so there are no
@@ -167,30 +172,41 @@ fun AnimatedStatusIcon(
         label = "tilt"
     )
 
-    // Scale pulse, used by CONFIRMED and COMPLETED.
-    val pulseTarget = when (status) {
-        BookingStatus.CONFIRMED -> 1.2f
-        BookingStatus.COMPLETED -> 1.25f
-        else -> 1f
-    }
+    // Scale pulse — only CONFIRMED keeps pulsing (still waiting on the shop).
     val pulse by transition.animateFloat(
         initialValue = 1f,
-        targetValue = pulseTarget,
+        targetValue = if (status == BookingStatus.CONFIRMED) 1.2f else 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = if (status == BookingStatus.COMPLETED) 500 else 650),
+            animation = tween(durationMillis = 650),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulse"
     )
 
+    // COMPLETED gets a single celebratory pop, then settles and stays still.
+    val completedPop = remember { Animatable(1f) }
+    LaunchedEffect(status) {
+        if (status == BookingStatus.COMPLETED) {
+            completedPop.snapTo(0.6f)
+            completedPop.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessLow
+                )
+            )
+        }
+    }
+
+    val scale = pulse * completedPop.value
     Icon(
         imageVector = icon,
         contentDescription = status.displayName,
         tint = tint,
         modifier = modifier.graphicsLayer {
             rotationZ = wiggle + tilt
-            scaleX = pulse
-            scaleY = pulse
+            scaleX = scale
+            scaleY = scale
         }
     )
 }

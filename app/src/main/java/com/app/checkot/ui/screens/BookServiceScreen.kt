@@ -529,6 +529,7 @@ fun BookServiceScreen(
                                 DetailRow("Date:", DateUtils.formatDate(selectedDate), singleLine = false)
                                 DetailRow("Time:", selectedTimeSlot, singleLine = false)
                                 DetailRow("Total Price:", "₱${totalPrice}", singleLine = false)
+                                DetailRow("Payment:", "Cash — pay at the shop", singleLine = false)
                                 if (notes.isNotBlank()) {
                                     DetailRow("Notes:", notes, singleLine = false)
                                 }
@@ -710,13 +711,13 @@ fun CarSelectionCard(
             }
             if (car.isDefault) {
                 Surface(
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     shape = MaterialTheme.shapes.small
                 ) {
                     Text(
                         text = "DEFAULT",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimary,
+                        color = MaterialTheme.colorScheme.primaryContainer,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                     )
                 }
