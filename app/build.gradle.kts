@@ -95,6 +95,8 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
+    // AI car-check: calls the checkCar Callable Cloud Function (Gemini relay)
+    implementation("com.google.firebase:firebase-functions-ktx")
 
     // AndroidX Core
     implementation("androidx.core:core-ktx:1.18.0")

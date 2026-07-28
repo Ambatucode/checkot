@@ -23,6 +23,7 @@ sealed class Screen(val route: String) {
     object Cars : Screen("cars")
     object AddCar : Screen("add_car")
     object MyBookings : Screen("my_bookings")
+    object CheckCar : Screen("check_car")
     object EditProfile : Screen("edit_profile")
     object OwnerDashboard : Screen("owner_dashboard")
     object OwnerSignup : Screen("owner_signup")
@@ -168,6 +169,9 @@ fun NavigationGraph(
                 navController = navController,
                 bookingViewModel = bookingViewModel
             )
+        }
+        composable(Screen.CheckCar.route) {
+            CheckCarScreen(navController = navController)
         }
         composable(Screen.EditProfile.route) {
             EditProfileScreen(
