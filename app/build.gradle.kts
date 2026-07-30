@@ -95,11 +95,16 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-storage-ktx")
     // AI car-check: calls the checkCar Callable Cloud Function (Gemini relay)
     implementation("com.google.firebase:firebase-functions-ktx")
 
+    // Coil — async image loading + disk/memory caching for shop logos (Storage URLs)
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
     // AndroidX Core
     implementation("androidx.core:core-ktx:1.18.0")
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.fragment:fragment-ktx:1.8.9")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("androidx.lifecycle:lifecycle-process:2.10.0")

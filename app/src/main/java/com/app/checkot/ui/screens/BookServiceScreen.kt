@@ -28,7 +28,17 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.tasks.await
 import com.app.checkot.ui.components.BackTopAppBar
+import com.app.checkot.ui.components.ShopLogo
 import com.app.checkot.ui.components.DetailRow
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.window.Dialog
+import coil.compose.AsyncImage
 
 data class AvailableService(
     val config: CustomServiceConfig,
@@ -60,6 +70,9 @@ fun BookServiceScreen(
     var shopLatitude by remember { mutableStateOf(0.0) }
     var shopLongitude by remember { mutableStateOf(0.0) }
     var shopDisplayName by remember { mutableStateOf("Shop") }
+    var shopLogoUrl by remember { mutableStateOf("") }
+    var shopBannerUrl by remember { mutableStateOf("") }
+    var showLogoViewer by remember { mutableStateOf(false) }
 
     // Real-time listener for shop services — updates instantly when owner changes services
     DisposableEffect(shopId) {
@@ -82,6 +95,8 @@ fun BookServiceScreen(
                     shopLatitude = customization.latitude
                     shopLongitude = customization.longitude
                     if (customization.shopName.isNotBlank()) shopDisplayName = customization.shopName
+                    shopLogoUrl = customization.logoUrl
+                    shopBannerUrl = customization.bannerUrl
                     for (config in customization.services) {
                         val type = if (!config.isCustom) {
                             ServiceType.values().find { it.name == config.serviceName }
@@ -222,6 +237,39 @@ fun BookServiceScreen(
         )
     }
 
+    // Full-view logo dialog — clients tap the shop logo to appreciate it larger.
+    if (showLogoViewer && shopLogoUrl.isNotBlank()) {
+        Dialog(onDismissRequest = { showLogoViewer = false }) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    AsyncImage(
+                        model = shopLogoUrl,
+                        contentDescription = "$shopDisplayName logo",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .size(240.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = shopDisplayName,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(onClick = { showLogoViewer = false }) {
+                        Text("Close")
+                    }
+                }
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             BackTopAppBar(
@@ -250,6 +298,65 @@ fun BookServiceScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Shop header — always a cover: the banner if the owner set one,
+                // else a branded teal→navy placeholder, with the logo + name
+                // overlaid. The logo is tappable so clients can view it larger.
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .then(
+                                if (shopBannerUrl.isBlank())
+                                    Modifier.background(
+                                        Brush.linearGradient(
+                                            listOf(Color(0xFF00BFA5), Color(0xFF0D2B35))
+                                        )
+                                    )
+                                else Modifier
+                            )
+                    ) {
+                        if (shopBannerUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = shopBannerUrl,
+                                contentDescription = "Shop banner",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        // Bottom scrim keeps the logo/name legible over any image.
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        0.45f to Color.Transparent,
+                                        1f to Color.Black.copy(alpha = 0.55f)
+                                    )
+                                )
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(12.dp)
+                        ) {
+                            ShopLogo(
+                                logoUrl = shopLogoUrl,
+                                size = 48.dp,
+                                modifier = Modifier.clickable { showLogoViewer = true }
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = shopDisplayName,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
                 // Shop location — shown before booking so clients can see/navigate there
                 if (shopLatitude != 0.0 || shopLongitude != 0.0) {
                     item {

@@ -24,6 +24,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
 import com.app.checkot.utils.BookingUtils
 import com.app.checkot.ui.components.AnimatedStatusIcon
+import com.app.checkot.ui.components.ShopLogo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,7 +51,12 @@ fun HomeScreen(
                     val status = doc.getString("status") ?: "active"
                     // Only show active shops (pending/rejected are hidden from customers)
                     if (status != "active") return@mapNotNull null
-                    CarWashShop(shopId = doc.id, name = name, address = address)
+                    CarWashShop(
+                        shopId = doc.id,
+                        name = name,
+                        address = address,
+                        logoUrl = doc.getString("logoUrl") ?: ""
+                    )
                 }
                 withContext(Dispatchers.Main) {
                     shopList = shops
@@ -345,20 +351,7 @@ fun ShopCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                modifier = Modifier.size(48.dp),
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Default.LocalCarWash,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
+            ShopLogo(logoUrl = shop.logoUrl, size = 48.dp)
             Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(

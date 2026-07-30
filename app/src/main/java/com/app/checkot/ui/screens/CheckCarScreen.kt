@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.app.checkot.model.ServiceType
 import com.google.firebase.functions.ktx.functions
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.Dispatchers
@@ -59,6 +60,9 @@ fun CheckCarScreen(navController: NavController) {
     var phase by remember { mutableStateOf(Phase.IDLE) }
     var verdict by remember { mutableStateOf("") }
     var reason by remember { mutableStateOf("") }
+    // Where the AI found dirt: "Exterior", "Interior", "Both", or "None".
+    // Drives which "Shops with …" recommendation button(s) we show.
+    var dirtyArea by remember { mutableStateOf("None") }
     var error by remember { mutableStateOf("") }
     // How many checks the user has left today (null until the first result).
     var remaining by remember { mutableStateOf<Int?>(null) }
@@ -67,14 +71,14 @@ fun CheckCarScreen(navController: NavController) {
     fun reset() {
         bitmap = null
         phase = Phase.IDLE
-        verdict = ""; reason = ""; error = ""
+        verdict = ""; reason = ""; error = ""; dirtyArea = "None"
     }
 
     fun onPhotoChosen(bmp: Bitmap?) {
         if (bmp == null) return
         bitmap = bmp
         phase = Phase.IDLE
-        verdict = ""; reason = ""; error = ""
+        verdict = ""; reason = ""; error = ""; dirtyArea = "None"
     }
 
     // Gallery picker — modern photo picker, needs no storage permission.
@@ -113,6 +117,7 @@ fun CheckCarScreen(navController: NavController) {
                     ?: throw IllegalStateException("Unexpected response from the AI.")
                 verdict = (map["verdict"] as? String) ?: "Not a car"
                 reason = (map["reason"] as? String) ?: ""
+                dirtyArea = (map["dirtyArea"] as? String) ?: "None"
                 (map["remaining"] as? Number)?.let { remaining = it.toInt() }
                 (map["dailyLimit"] as? Number)?.let { dailyLimit = it.toInt() }
                 phase = Phase.RESULT
@@ -120,6 +125,22 @@ fun CheckCarScreen(navController: NavController) {
                 error = e.message ?: "Something went wrong. Please try again."
                 phase = Phase.ERROR
             }
+        }
+    }
+
+    // Fetch today's remaining checks when the screen opens, so the count shows
+    // up front instead of only after the first check. Cheap, no Gemini call.
+    LaunchedEffect(Unit) {
+        try {
+            val result = Firebase.functions("asia-southeast1")
+                .getHttpsCallable("getCarCheckUsage")
+                .call()
+                .await()
+            val map = result.data as? Map<*, *>
+            (map?.get("remaining") as? Number)?.let { remaining = it.toInt() }
+            (map?.get("dailyLimit") as? Number)?.let { dailyLimit = it.toInt() }
+        } catch (e: Exception) {
+            // Ignore — the static hint stays as a fallback.
         }
     }
 
@@ -198,8 +219,12 @@ fun CheckCarScreen(navController: NavController) {
                     Text("Choose from gallery")
                 }
                 Spacer(Modifier.height(20.dp))
+                val introLeft = remaining
                 Text(
-                    "You get $DAILY_LIMIT_DISPLAY free AI car checks each day.",
+                    if (introLeft != null)
+                        "$introLeft of $dailyLimit AI car checks left today"
+                    else
+                        "You get $DAILY_LIMIT_DISPLAY free AI car checks each day.",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     textAlign = TextAlign.Center
@@ -269,18 +294,37 @@ fun CheckCarScreen(navController: NavController) {
                         Spacer(Modifier.height(12.dp))
                         DisclaimerBanner()
                         Spacer(Modifier.height(16.dp))
-                        if (verdict == "Needs a wash" || verdict == "Lightly dirty") {
+                        // Recommend shops for the specific area the AI found dirty:
+                        // exterior -> Exterior Wash, interior -> Interior Vacuum.
+                        val recommendExterior = dirtyArea == "Exterior" || dirtyArea == "Both"
+                        val recommendInterior = dirtyArea == "Interior" || dirtyArea == "Both"
+                        if (recommendExterior) {
                             Button(
                                 onClick = {
-                                    navController.navigate("home") {
-                                        popUpTo("home") { inclusive = true }
-                                    }
+                                    navController.navigate(
+                                        "shops_for_service/${ServiceType.EXTERIOR_WASH.name}"
+                                    )
                                 },
                                 modifier = Modifier.fillMaxWidth().height(52.dp)
                             ) {
                                 Icon(Icons.Default.LocalCarWash, contentDescription = null)
                                 Spacer(Modifier.width(8.dp))
-                                Text("Book a wash")
+                                Text("Shops with ${ServiceType.EXTERIOR_WASH.displayName}")
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        if (recommendInterior) {
+                            Button(
+                                onClick = {
+                                    navController.navigate(
+                                        "shops_for_service/${ServiceType.INTERIOR_VACUUM.name}"
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth().height(52.dp)
+                            ) {
+                                Icon(Icons.Default.EventSeat, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Shops with ${ServiceType.INTERIOR_VACUUM.displayName}")
                             }
                             Spacer(Modifier.height(8.dp))
                         }
@@ -375,15 +419,16 @@ private fun DisclaimerBanner() {
             Spacer(Modifier.width(12.dp))
             Column {
                 Text(
-                    "AI can make mistakes",
+                    "AI results may be inaccurate",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(Modifier.height(3.dp))
                 Text(
-                    "This is only a rough guide. Don't let it replace your own eyes " +
-                        "or the shop's assessment when you decide.",
+                    "This automated assessment is provided as a general guide only " +
+                        "and may contain errors. It should not replace your own " +
+                        "judgment or the car wash provider's evaluation.",
                     style = MaterialTheme.typography.bodyMedium
                 )
             }

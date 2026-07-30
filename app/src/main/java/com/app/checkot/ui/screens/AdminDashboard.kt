@@ -19,6 +19,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.app.checkot.ui.components.ConfirmDialog
+import com.app.checkot.ui.components.ShopLogo
+import com.app.checkot.ui.components.ShopLocationView
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 
 private enum class AdminDialogType { APPROVE, REJECT }
 
@@ -318,22 +323,9 @@ private fun PendingShopCard(
         )
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            // Shop header
+            // Shop header — show the shop's actual logo (icon fallback if none).
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    modifier = Modifier.size(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Default.Store,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
+                ShopLogo(logoUrl = shop.logoUrl, size = 48.dp)
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -392,6 +384,46 @@ private fun PendingShopCard(
                     shop.ownerEmail,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+
+            // Location map — lets the admin verify the shop is a real place
+            // before approving (tap Directions to look it up).
+            if (shop.latitude != 0.0 || shop.longitude != 0.0) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Place,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        "Shop Location",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                ShopLocationView(
+                    latitude = shop.latitude,
+                    longitude = shop.longitude,
+                    shopName = shop.shopName
+                )
+            }
+
+            // Banner preview — so the admin can moderate the cover image.
+            if (shop.bannerUrl.isNotBlank()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                AsyncImage(
+                    model = shop.bannerUrl,
+                    contentDescription = "Shop banner",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(12.dp))
                 )
             }
 

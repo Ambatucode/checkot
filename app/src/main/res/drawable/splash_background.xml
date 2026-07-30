@@ -3,7 +3,14 @@
     <!-- Background color - CHECKOT brand navy -->
     <item android:drawable="@color/checkot_navy"/>
 
-    <!-- Your logo - centered -->
+    <!-- Logo, centered at a fixed size. Item width/height need API 23+;
+         app minSdk is 26, so this is safe. -->
     <item
-        android:gravity="center"/>
+        android:width="130dp"
+        android:height="120dp"
+        android:gravity="center">
+        <bitmap
+            android:src="@drawable/checkot_logo"
+            android:gravity="center" />
+    </item>
 </layer-list>

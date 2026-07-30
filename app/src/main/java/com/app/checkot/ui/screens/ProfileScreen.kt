@@ -23,7 +23,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,42 +49,58 @@ fun ProfileScreen(
     var isLoading by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
-    // Logo state for owners
+    // Logo state for owners — the logo lives in Firebase Storage now; we render
+    // it straight from its download URL via Coil (no base64 decode needed).
     val isOwner = userData?.role == "owner"
-    var logoBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var logoError by remember { mutableStateOf<String?>(null) }
     var isSavingLogo by remember { mutableStateOf(false) }
     val shopCustomization by ownerViewModel.shopCustomization.collectAsState()
+    val hasLogo = shopCustomization.logoUrl.isNotBlank()
 
-    // Decode existing logo base64
-    LaunchedEffect(shopCustomization.logoBase64) {
-        val base64 = shopCustomization.logoBase64
-        if (!base64.isNullOrEmpty()) {
-            withContext(Dispatchers.IO) {
-                try {
-                    val bytes = Base64.decode(base64, Base64.DEFAULT)
-                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    withContext(Dispatchers.Main) { logoBitmap = bitmap }
-                } catch (e: Exception) {
-                    println("Failed to decode logo: ${e.message}")
-                }
-            }
-        }
-    }
-
-    // Image picker launcher
+    // Image picker launcher — compresses the pick and uploads it to Storage.
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
-                processSelectedLogo(context, uri, onSuccess = { bitmap, base64 ->
-                    logoBitmap = bitmap
-                    logoError = null
-                    // Save immediately
-                    ownerViewModel.saveLogoBase64(base64, "image/jpeg")
+                isSavingLogo = true
+                logoError = null
+                processSelectedLogo(context, uri, onSuccess = { bytes ->
+                    ownerViewModel.uploadShopLogo(bytes) { success ->
+                        isSavingLogo = false
+                        if (!success) logoError =
+                            "Upload failed. Check your connection and try again."
+                    }
                 }, onError = { error ->
+                    isSavingLogo = false
                     logoError = error
+                })
+            }
+        }
+    }
+
+    // Optional wide cover/banner image for owners.
+    var isSavingBanner by remember { mutableStateOf(false) }
+    var bannerError by remember { mutableStateOf<String?>(null) }
+    val hasBanner = shopCustomization.bannerUrl.isNotBlank()
+
+    val bannerPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                isSavingBanner = true
+                bannerError = null
+                // Banners are wide, so allow more resolution than the logo.
+                processSelectedLogo(context, uri, maxDimension = 1200, onSuccess = { bytes ->
+                    ownerViewModel.uploadShopBanner(bytes) { success ->
+                        isSavingBanner = false
+                        if (!success) bannerError =
+                            "Upload failed. Check your connection and try again."
+                    }
+                }, onError = { error ->
+                    isSavingBanner = false
+                    bannerError = error
                 })
             }
         }
@@ -160,7 +178,7 @@ fun ProfileScreen(
                                     color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.weight(1f)
                                 )
-                                if (logoBitmap != null) {
+                                if (hasLogo) {
                                     TextButton(onClick = { imagePickerLauncher.launch("image/*") }) {
                                         Text("Change", style = MaterialTheme.typography.labelMedium)
                                     }
@@ -176,10 +194,11 @@ fun ProfileScreen(
                                 color = MaterialTheme.colorScheme.surfaceVariant
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    if (logoBitmap != null) {
-                                        Image(
-                                            bitmap = logoBitmap!!.asImageBitmap(),
+                                    if (hasLogo) {
+                                        AsyncImage(
+                                            model = shopCustomization.logoUrl,
                                             contentDescription = "Shop Logo",
+                                            contentScale = ContentScale.Crop,
                                             modifier = Modifier
                                                 .fillMaxSize()
                                                 .clip(RoundedCornerShape(12.dp))
@@ -227,17 +246,128 @@ fun ProfileScreen(
                                     )
                                 } else {
                                     Icon(
-                                        if (logoBitmap != null) Icons.Default.Refresh else Icons.Default.Upload,
+                                        if (hasLogo) Icons.Default.Refresh else Icons.Default.Upload,
                                         contentDescription = null,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text(if (logoBitmap != null) "Upload New Logo" else "Upload Logo")
+                                    Text(if (hasLogo) "Upload New Logo" else "Upload Logo")
                                 }
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "PNG or JPG, max 2MB",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                            )
+                        }
+                    }
+                }
+            }
+            // Owner Banner Card (optional wide cover photo)
+            if (isOwner) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        elevation = CardDefaults.cardElevation(2.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Image,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Shop Banner",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (hasBanner) {
+                                    TextButton(onClick = { bannerPickerLauncher.launch("image/*") }) {
+                                        Text("Change", style = MaterialTheme.typography.labelMedium)
+                                    }
+                                }
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Wide banner preview
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().height(120.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    if (hasBanner) {
+                                        AsyncImage(
+                                            model = shopCustomization.bannerUrl,
+                                            contentDescription = "Shop Banner",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp))
+                                        )
+                                    } else {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Icon(
+                                                Icons.Default.Image,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(40.dp),
+                                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = "No banner yet",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            if (bannerError != null) {
+                                Text(
+                                    text = bannerError!!,
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                            }
+
+                            Button(
+                                onClick = { bannerPickerLauncher.launch("image/*") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.medium,
+                                enabled = !isSavingBanner
+                            ) {
+                                if (isSavingBanner) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        if (hasBanner) Icons.Default.Refresh else Icons.Default.Upload,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(if (hasBanner) "Upload New Banner" else "Upload Banner")
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Wide cover photo shown on your booking page. PNG or JPG.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                             )
@@ -310,24 +440,29 @@ fun ProfileScreen(
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            OutlinedButton(
-                                onClick = { navController.navigate("cars") },
-                                modifier = Modifier.weight(1f),
-                                shape = MaterialTheme.shapes.medium
-                            ) {
-                                Icon(Icons.Default.DirectionsCar, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("My Cars", style = MaterialTheme.typography.labelMedium)
-                            }
-                            OutlinedButton(
-                                onClick = { navController.navigate("my_bookings") },
-                                modifier = Modifier.weight(1f),
-                                shape = MaterialTheme.shapes.medium
-                            ) {
-                                Icon(Icons.Default.Bookmark, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Bookings", style = MaterialTheme.typography.labelMedium)
+                        // Client-only shortcuts. Owners don't book or own cars,
+                        // so these are hidden for them (they keep Edit Profile +
+                        // Logout below).
+                        if (!isOwner) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                OutlinedButton(
+                                    onClick = { navController.navigate("cars") },
+                                    modifier = Modifier.weight(1f),
+                                    shape = MaterialTheme.shapes.medium
+                                ) {
+                                    Icon(Icons.Default.DirectionsCar, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("My Cars", style = MaterialTheme.typography.labelMedium)
+                                }
+                                OutlinedButton(
+                                    onClick = { navController.navigate("my_bookings") },
+                                    modifier = Modifier.weight(1f),
+                                    shape = MaterialTheme.shapes.medium
+                                ) {
+                                    Icon(Icons.Default.Bookmark, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Bookings", style = MaterialTheme.typography.labelMedium)
+                                }
                             }
                         }
                         Button(
@@ -380,7 +515,8 @@ fun ProfileScreen(
 private suspend fun processSelectedLogo(
     context: android.content.Context,
     uri: Uri,
-    onSuccess: (android.graphics.Bitmap, String) -> Unit,
+    maxDimension: Int = 512,
+    onSuccess: (ByteArray) -> Unit,
     onError: (String) -> Unit
 ) {
     withContext(Dispatchers.IO) {
@@ -411,8 +547,7 @@ private suspend fun processSelectedLogo(
                 return@withContext
             }
 
-            // Scale down if too large (max 512px)
-            val maxDimension = 512
+            // Scale down if too large (to maxDimension on the longest side)
             val scale = minOf(
                 maxDimension.toFloat() / original.width,
                 maxDimension.toFloat() / original.height,
@@ -433,13 +568,12 @@ private suspend fun processSelectedLogo(
             val outputStream = ByteArrayOutputStream()
             scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, outputStream)
             val bytes = outputStream.toByteArray()
-            val base64 = Base64.encodeToString(bytes, Base64.DEFAULT)
 
             if (scaled != original) scaled.recycle()
             original.recycle()
 
             withContext(Dispatchers.Main) {
-                onSuccess(scaled, base64)
+                onSuccess(bytes)
             }
         } catch (e: Exception) {
             withContext(Dispatchers.Main) {

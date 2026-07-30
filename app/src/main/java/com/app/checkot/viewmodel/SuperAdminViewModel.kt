@@ -24,7 +24,13 @@ data class ShopWithOwner(
     val ownerId: String = "",
     val ownerName: String = "",
     val ownerEmail: String = "",
-    val createdAt: Long = 0
+    val createdAt: Long = 0,
+    // Shown to the admin during review: the pin lets them verify the location is
+    // a real place, and the logo/banner let them moderate the branding.
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val logoUrl: String = "",
+    val bannerUrl: String = ""
 )
 
 class SuperAdminViewModel(application: Application) : AndroidViewModel(application) {
@@ -62,7 +68,11 @@ class SuperAdminViewModel(application: Application) : AndroidViewModel(applicati
                         ownerId = doc.getString("ownerId") ?: "",
                         ownerName = doc.getString("ownerName") ?: "Unknown",
                         ownerEmail = doc.getString("ownerEmail") ?: "",
-                        createdAt = doc.getLong("createdAt") ?: 0
+                        createdAt = doc.getLong("createdAt") ?: 0,
+                        latitude = doc.getDouble("latitude") ?: 0.0,
+                        longitude = doc.getDouble("longitude") ?: 0.0,
+                        logoUrl = doc.getString("logoUrl") ?: "",
+                        bannerUrl = doc.getString("bannerUrl") ?: ""
                     )
                 }
 

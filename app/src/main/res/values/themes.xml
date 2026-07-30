@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Checkot" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@drawable/splash_background</item>
-        <item name="android:windowFullscreen">true</item>
-        <item name="android:windowContentOverlay">@null</item>
+    <!-- Splash theme (AndroidX core-splashscreen). One controlled splash across
+         all Android versions: navy background + the CHECKOT logo, no white halo.
+         The system masks the icon to a circle; on Android 12+ this replaces the
+         OS default splash. postSplashScreenTheme is applied once the app draws. -->
+    <style name="Theme.Checkot" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/checkot_navy</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/checkot_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.Checkot.App</item>
     </style>
 
     <!-- Your normal app theme (for after splash) -->

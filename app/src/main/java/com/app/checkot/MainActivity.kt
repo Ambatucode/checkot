@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.navigation.compose.rememberNavController
 import com.app.checkot.navigation.NavigationGraph
 import android.content.Intent
@@ -82,7 +83,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        setTheme(R.style.Theme_Checkot_App)
+        // Show the AndroidX splash (navy + logo), then hand off to the app theme.
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         
         handleIntent(intent)

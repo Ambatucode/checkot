@@ -27,7 +27,8 @@ data class CarWashShop(
     val name: String = "",
     val address: String = "",
     val latitude: Double = 0.0,  // 0 = location not set
-    val longitude: Double = 0.0
+    val longitude: Double = 0.0,
+    val logoUrl: String = ""     // Firebase Storage download URL; "" = no logo
 )
 @Immutable
 data class Car(
@@ -78,12 +79,17 @@ data class Booking(
     val paidAt: Long? = null
 )
 enum class ServiceType(val displayName: String, val price: Double, val duration: String) {
-    BASIC_WASH("Basic Wash", 150.0, "30 mins"),
-    PREMIUM_WASH("Premium Wash", 300.0, "45 mins"),
-    DETAILING("Full Detailing", 800.0, "2 hours"),
-    INTERIOR_CLEAN("Interior Clean", 400.0, "1 hour"),
-    EXTERIOR_WAX("Exterior Wax", 350.0, "45 mins"),
-    ENGINE_CLEAN("Engine Clean", 500.0, "1.5 hours"),
+    // Prices (₱) and durations below are sensible PLACEHOLDERS — tweak freely.
+    // The enum NAME (left side) is what's stored in Firestore; the displayName,
+    // price, and duration are read generically everywhere, so changing values
+    // here is safe. Duration strings must stay in the "30 mins" / "1 hour"
+    // format the scheduler's parseDurationMinutes() understands.
+    EXTERIOR_WASH("Exterior Wash", 150.0, "30 mins"),
+    UNDERWASH("Underwash", 200.0, "30 mins"),
+    WAX("Wax", 350.0, "45 mins"),
+    INTERIOR_VACUUM("Interior Vacuum", 200.0, "30 mins"),
+    TIRE_SHINE("Tire Shine", 100.0, "15 mins"),
+    ENGINE_WASH("Engine Wash", 500.0, "1 hour"),
     CUSTOM("Custom Service", 0.0, "N/A")
 }
 enum class BookingStatus(val displayName: String) {
@@ -114,6 +120,12 @@ data class ShopCustomization(
     val ownerName: String = "", // Owner's full name (admin only, not shown to customers)
     val ownerEmail: String = "", // Owner's email (admin only, not shown to customers)
     val bayCount: Int = 1, // How many cars can be serviced simultaneously
+    // Shop logo now lives in Firebase Storage; logoUrl is the download URL saved
+    // here (keeps this doc small). logoBase64/logoMimeType are legacy/unused.
+    val logoUrl: String = "",
+    // Optional wide cover/banner image (Storage download URL). "" = no banner;
+    // the booking screen falls back to the logo + name header.
+    val bannerUrl: String = "",
     val logoBase64: String = "",
     val logoMimeType: String = "image/png",
     val services: List<CustomServiceConfig> = emptyList(),

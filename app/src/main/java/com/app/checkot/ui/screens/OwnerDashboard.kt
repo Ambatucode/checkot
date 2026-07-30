@@ -30,7 +30,6 @@ fun OwnerDashboard(
     ownerViewModel: OwnerDashboardViewModel = viewModel()
 ) {
     var selectedTab by remember { mutableStateOf(0) }
-    var showLogoutDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val saveResult by ownerViewModel.saveResult.collectAsState()
 
@@ -58,12 +57,14 @@ fun OwnerDashboard(
                     }
                 },
                 actions = {
+                    // Opens the shared profile screen (shop logo, contact info,
+                    // Edit Profile, and Logout) — same pattern as the client home.
                     IconButton(
-                        onClick = { showLogoutDialog = true }
+                        onClick = { navController.navigate("profile") }
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Logout,
-                            contentDescription = "Logout"
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Profile"
                         )
                     }
                 }
@@ -267,24 +268,5 @@ fun OwnerDashboard(
                 }
             }
         }
-    }
-    // Logout Confirmation Dialog
-    if (showLogoutDialog) {
-        ConfirmDialog(
-            title = "Logout",
-            text = "Are you sure you want to logout?",
-            confirmLabel = "Yes",
-            dismissLabel = "No",
-            onConfirm = {
-                authViewModel.signOut()
-                ownerViewModel.logout {
-                    showLogoutDialog = false
-                    navController.navigate("login") {
-                        popUpTo(0) // Clears all screens from back stack
-                    }
-                }
-            },
-            onDismiss = { showLogoutDialog = false }
-        )
     }
 }

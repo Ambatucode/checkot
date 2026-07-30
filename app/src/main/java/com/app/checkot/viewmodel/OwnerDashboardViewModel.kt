@@ -15,6 +15,7 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import com.google.firebase.storage.ktx.storage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -488,9 +489,42 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
-    fun saveLogoBase64(base64: String, mimeType: String) {
-        val updated = _shopCustomization.value.copy(logoBase64 = base64, logoMimeType = mimeType)
-        saveShopCustomization(updated)
+    // Uploads the shop logo to Firebase Storage (shop_logos/{uid}/logo.jpg) and
+    // saves its download URL on the shop doc, keeping the Firestore doc small.
+    fun uploadShopLogo(bytes: ByteArray, onResult: (Boolean) -> Unit) {
+        val uid = Firebase.auth.currentUser?.uid
+        if (uid == null) { onResult(false); return }
+        viewModelScope.launch {
+            try {
+                val ref = Firebase.storage.reference.child("shop_logos/$uid/logo.jpg")
+                ref.putBytes(bytes).await()
+                val url = ref.downloadUrl.await().toString()
+                saveShopCustomization(_shopCustomization.value.copy(logoUrl = url))
+                onResult(true)
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Logo upload failed: ${e.message}")
+                onResult(false)
+            }
+        }
+    }
+
+    // Uploads the optional wide cover/banner image to Firebase Storage
+    // (shop_banners/{uid}/banner.jpg) and saves its download URL on the shop doc.
+    fun uploadShopBanner(bytes: ByteArray, onResult: (Boolean) -> Unit) {
+        val uid = Firebase.auth.currentUser?.uid
+        if (uid == null) { onResult(false); return }
+        viewModelScope.launch {
+            try {
+                val ref = Firebase.storage.reference.child("shop_banners/$uid/banner.jpg")
+                ref.putBytes(bytes).await()
+                val url = ref.downloadUrl.await().toString()
+                saveShopCustomization(_shopCustomization.value.copy(bannerUrl = url))
+                onResult(true)
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Banner upload failed: ${e.message}")
+                onResult(false)
+            }
+        }
     }
 
     fun logout(onComplete: () -> Unit) {

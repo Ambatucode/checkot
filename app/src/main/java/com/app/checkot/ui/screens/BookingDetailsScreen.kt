@@ -125,9 +125,12 @@ fun BookingDetailsScreen(
                 val lng = doc.getDouble("longitude") ?: 0.0
                 val customization = doc.toObject(ShopCustomization::class.java)
                 val services = customization?.services ?: emptyList()
-                val logo = customization?.logoBase64?.takeIf { it.isNotEmpty() }?.let {
+                // Logo now lives in Firebase Storage; download it (we're on IO)
+                // and decode to a bitmap so the receipt can be captured with it
+                // present (an async image loader wouldn't be ready at capture time).
+                val logo = customization?.logoUrl?.takeIf { it.isNotEmpty() }?.let {
                     try {
-                        val bytes = android.util.Base64.decode(it, android.util.Base64.DEFAULT)
+                        val bytes = java.net.URL(it).readBytes()
                         BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
                     } catch (e: Exception) {
                         null

@@ -77,15 +77,36 @@ const GEMINI_URL =
 // What we ask Gemini to judge. Kept tight to the agreed scope: cleanliness only
 // (exterior body + visible seats). Scratches, dents, and other damage are
 // explicitly OUT of scope so they aren't mistaken for dirt.
-const PROMPT = `You are a car-wash assistant. Look ONLY at the car's exterior ` +
-  `body/paint and any visible interior seats, and judge ONLY how dirty it is. ` +
-  `"Dirty" means removable grime a wash would clean off — dust, mud, road ` +
-  `film, stains, bird droppings, or water spots. ` +
+const PROMPT = `You are a car-wash assistant. Look at the photo and judge ONLY how ` +
+  `dirty the car is. "Dirty" means removable grime a wash or vacuum would clean ` +
+  `off — dust, mud, road film, stains, crumbs, bird droppings, or water spots. ` +
   `Do NOT treat scratches, scuffs, swirl marks, dents, paint chips, fading, ` +
   `rust, or any physical/cosmetic damage as dirt — those are OUTSIDE what you ` +
   `assess. A car that is scratched or damaged but not dirty is "Clean". ` +
   `Ignore the engine and mechanical parts entirely. ` +
-  `If the image does not clearly show a car, use the "Not a car" verdict. ` +
+  `Also decide WHERE the dirt is and set "dirtyArea": ` +
+  `"Exterior" if the dirty part is the outside body/paint; ` +
+  `"Interior" if the dirty part is the seats/cabin; ` +
+  `"Both" if both are clearly visible AND both are dirty; ` +
+  `"None" if the car is clean, or the image is not a car. ` +
+  `This tool is ONLY for ordinary four-wheeled vehicles that get serviced at ` +
+  `a car wash — cars, SUVs, vans, pickups, and jeepneys. OUT of scope: ` +
+  `motorcycles, tricycles, tuktuks / auto-rickshaws, bicycles, and other two- ` +
+  `or three-wheeled vehicles (even large or enclosed ones); AND very large or ` +
+  `heavy vehicles such as cargo trucks (six or more wheels), trailers, and ` +
+  `buses, which use specialized wash bays. Ordinary pickups and SUVs stay IN ` +
+  `scope. ` +
+  `If the image is not an in-scope four-wheeled vehicle — including a ` +
+  `motorcycle, tricycle, or tuktuk, a large truck or bus, a person, animal, ` +
+  `object, screenshot, meme, or any inappropriate, explicit, or unrelated ` +
+  `content — do NOT describe, rate, or engage with what it shows. Instead set ` +
+  `verdict "Not a car", dirtyArea "None". For a motorcycle, tricycle, tuktuk, ` +
+  `large truck, or bus, make the reason politely explain the tool is for cars ` +
+  `and similar everyday four-wheeled vehicles, e.g. "This tool is for cars and ` +
+  `similar vehicles — motorcycles, tricycles, and large trucks aren't ` +
+  `covered." For anything else, give a short friendly redirect, e.g. "That's ` +
+  `not a car — send me a photo of your actual car so I can check if it needs ` +
+  `a wash." ` +
   `If the main thing you notice is scratches or damage rather than dirt, judge ` +
   `the dirtiness on its own and add a brief note in your reason that ` +
   `scratches/damage are outside this cleanliness check. ` +
@@ -165,8 +186,14 @@ exports.checkCar = onCall(
               enum: ["Clean", "Lightly dirty", "Needs a wash", "Not a car"],
             },
             reason: { type: "string" },
+            // Where the dirt is, so the app can recommend the matching service
+            // (Exterior -> Exterior Wash, Interior -> Interior Vacuum).
+            dirtyArea: {
+              type: "string",
+              enum: ["Exterior", "Interior", "Both", "None"],
+            },
           },
-          required: ["verdict", "reason"],
+          required: ["verdict", "reason", "dirtyArea"],
         },
       },
     };
@@ -209,31 +236,53 @@ exports.checkCar = onCall(
     }
 
     const json = await response.json();
+    const candidate = json && json.candidates && json.candidates[0];
     const text =
-      json &&
-      json.candidates &&
-      json.candidates[0] &&
-      json.candidates[0].content &&
-      json.candidates[0].content.parts &&
-      json.candidates[0].content.parts[0] &&
-      json.candidates[0].content.parts[0].text;
+      candidate &&
+      candidate.content &&
+      candidate.content.parts &&
+      candidate.content.parts[0] &&
+      candidate.content.parts[0].text;
 
-    if (!text) {
+    // Gemini's own safety filter blocks explicit/unsafe images: those come back
+    // with no text and either a promptFeedback.blockReason (input blocked) or a
+    // finishReason that isn't a normal completion. Treat that as a polite
+    // "not a car" redirect instead of surfacing a scary error — and still count
+    // it below, so bad images can't be spammed past the daily limit for free.
+    const blocked =
+      (json && json.promptFeedback && json.promptFeedback.blockReason) ||
+      (candidate &&
+        candidate.finishReason &&
+        candidate.finishReason !== "STOP" &&
+        candidate.finishReason !== "MAX_TOKENS");
+
+    const REDIRECT_REASON =
+      "That doesn't look like a car. Please send a photo of your actual car " +
+      "so I can check if it needs a wash.";
+
+    let parsed;
+    if (text) {
+      try {
+        parsed = JSON.parse(text);
+      } catch (err) {
+        console.error("Gemini returned non-JSON:", text);
+        throw new HttpsError(
+          "internal",
+          "The AI returned an unexpected response. Please try again.",
+        );
+      }
+    } else if (blocked) {
+      console.log(
+        `Gemini blocked the image (${(json.promptFeedback &&
+          json.promptFeedback.blockReason) ||
+          (candidate && candidate.finishReason)}). Sending redirect.`,
+      );
+      parsed = { verdict: "Not a car", dirtyArea: "None", reason: REDIRECT_REASON };
+    } else {
       console.error("Empty Gemini response:", JSON.stringify(json));
       throw new HttpsError(
         "internal",
         "The AI could not analyze that photo. Please try another.",
-      );
-    }
-
-    let parsed;
-    try {
-      parsed = JSON.parse(text);
-    } catch (err) {
-      console.error("Gemini returned non-JSON:", text);
-      throw new HttpsError(
-        "internal",
-        "The AI returned an unexpected response. Please try again.",
       );
     }
 
@@ -244,7 +293,33 @@ exports.checkCar = onCall(
     return {
       verdict: String(parsed.verdict || "Not a car"),
       reason: String(parsed.reason || ""),
+      dirtyArea: String(parsed.dirtyArea || "None"),
       remaining: remaining,
+      dailyLimit: DAILY_LIMIT,
+    };
+  },
+);
+
+// Cheap, Gemini-free endpoint the app calls when the car-check screen opens, so
+// it can show "X of N checks left today" up front instead of only after the
+// first check. Reads the same daily counter but never spends a Gemini call.
+exports.getCarCheckUsage = onCall(
+  {
+    region: "asia-southeast1",
+    memory: "256MiB",
+    timeoutSeconds: 30,
+    maxInstances: 5,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Please sign in to use the car check.",
+      );
+    }
+    const used = await getUsedToday(request.auth.uid);
+    return {
+      remaining: Math.max(0, DAILY_LIMIT - used),
       dailyLimit: DAILY_LIMIT,
     };
   },

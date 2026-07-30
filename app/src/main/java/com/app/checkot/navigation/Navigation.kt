@@ -115,8 +115,11 @@ fun NavigationGraph(
             ProfileScreen(
                 authViewModel = authViewModel,
                 onLogout = {
-                    navController.popBackStack()
-                    navController.navigate(Screen.Login.route)
+                    // Clear the whole back stack so Back can't return to an
+                    // authenticated screen (dashboard/home) after logout.
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
                 },
                 navController = navController
             )
@@ -172,6 +175,13 @@ fun NavigationGraph(
         }
         composable(Screen.CheckCar.route) {
             CheckCarScreen(navController = navController)
+        }
+        composable("shops_for_service/{serviceType}") { backStackEntry ->
+            val serviceType = backStackEntry.arguments?.getString("serviceType") ?: ""
+            ShopsForServiceScreen(
+                navController = navController,
+                serviceTypeName = serviceType
+            )
         }
         composable(Screen.EditProfile.route) {
             EditProfileScreen(
