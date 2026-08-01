@@ -415,7 +415,24 @@ fun ProfileScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text(text = userData?.phoneNumber ?: "No phone number", style = MaterialTheme.typography.bodyMedium)
+                            val phone = userData?.phoneNumber
+                            Text(
+                                text = if (phone.isNullOrBlank()) "No phone number" else phone,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            if (userData?.phoneVerified == true) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(
+                                    Icons.Default.Verified,
+                                    contentDescription = "Verified",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Spacer(modifier = Modifier.weight(1f))
+                            TextButton(onClick = { navController.navigate("phone_verification/change") }) {
+                                Text("Change", style = MaterialTheme.typography.labelMedium)
+                            }
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {

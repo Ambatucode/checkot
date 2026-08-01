@@ -99,6 +99,12 @@ dependencies {
     // AI car-check: calls the checkCar Callable Cloud Function (Gemini relay)
     implementation("com.google.firebase:firebase-functions-ktx")
 
+    // Google Sign-In via Credential Manager (current API; GoogleSignInClient is
+    // deprecated). Phone-auth needs no extra dep — it ships in firebase-auth-ktx.
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+
     // Coil — async image loading + disk/memory caching for shop logos (Storage URLs)
     implementation("io.coil-kt:coil-compose:2.7.0")
 

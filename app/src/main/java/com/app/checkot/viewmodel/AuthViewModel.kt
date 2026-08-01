@@ -1,5 +1,6 @@
 package com.app.checkot.viewmodel
 
+import android.app.Activity
 import android.app.Application
 import android.util.Log
 import com.app.checkot.model.*
@@ -7,11 +8,18 @@ import com.app.checkot.service.NotificationHelper
 import com.app.checkot.service.FCMSender
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.PhoneAuthCredential
+import com.google.firebase.auth.PhoneAuthOptions
+import com.google.firebase.auth.PhoneAuthProvider
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.TimeoutCancellationException
@@ -20,6 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
+import java.util.concurrent.TimeUnit
 
 sealed class AuthState {
     object Authenticated : AuthState()
@@ -35,6 +44,16 @@ sealed class RoleLoadState {
     object Loading : RoleLoadState()
     object Ready : RoleLoadState()
     data class Error(val message: String) : RoleLoadState()
+}
+
+// Drives the phone-verification screen (signup gate + change-number flow).
+sealed class PhoneVerifyState {
+    object Idle : PhoneVerifyState()        // nothing requested yet
+    object Sending : PhoneVerifyState()     // requesting an SMS code
+    object CodeSent : PhoneVerifyState()    // code delivered; awaiting entry
+    object Verifying : PhoneVerifyState()   // confirming the code / linking
+    object Success : PhoneVerifyState()     // number verified + saved
+    data class Error(val message: String) : PhoneVerifyState()
 }
 
 private const val ROLE_FETCH_TIMEOUT_MS = 10_000L
@@ -237,11 +256,154 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Sign in with a Google ID token (obtained via Credential Manager in the UI).
+     * A brand-new Google user has no users/{uid} doc, so we create a "customer"
+     * profile immediately — otherwise loadUserData()'s missing-profile guard would
+     * lock them out with RoleLoadState.Error. phoneVerified starts false so the
+     * phone-verification gate runs before they reach the app.
+     */
+    fun signInWithGoogle(idToken: String) {
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            try {
+                val credential = GoogleAuthProvider.getCredential(idToken, null)
+                val result = auth.signInWithCredential(credential).await()
+                val user = result.user ?: throw Exception("Google sign-in failed")
+                val docRef = firestore.collection("users").document(user.uid)
+                val snapshot = docRef.get().await()
+                if (!snapshot.exists()) {
+                    val userData = CarWashUser(
+                        userId = user.uid,
+                        fullName = user.displayName ?: "",
+                        email = user.email ?: "",
+                        phoneNumber = "",
+                        phoneVerified = false,
+                        createdAt = System.currentTimeMillis(),
+                        role = "customer",
+                        savedCars = emptyList()
+                    )
+                    docRef.set(userData).await()
+                    _currentUserData.value = userData
+                    uploadFcmToken(user.uid)
+                    _roleLoadState.value = RoleLoadState.Ready
+                } else {
+                    loadUserData()
+                }
+                _authState.value = AuthState.Authenticated
+            } catch (e: Exception) {
+                _authState.value = AuthState.Error(e.message ?: "Google sign-in failed")
+            }
+        }
+    }
+
+    // ---- Phone number verification (signup gate + change-number) -------------
+
+    private val _phoneVerifyState = MutableStateFlow<PhoneVerifyState>(PhoneVerifyState.Idle)
+    val phoneVerifyState: StateFlow<PhoneVerifyState> = _phoneVerifyState
+
+    private var storedVerificationId: String? = null
+    private var pendingPhoneE164: String = ""
+    // "signup" -> link the number to the account; "change" -> replace the number.
+    private var pendingMode: String = "signup"
+
+    fun resetPhoneVerify() {
+        _phoneVerifyState.value = PhoneVerifyState.Idle
+        storedVerificationId = null
+    }
+
+    /** True once a code has been sent — keeps the UI on the code step after a bad-code error. */
+    fun hasPendingCode(): Boolean = storedVerificationId != null
+
+    /** Send an SMS code to a full E.164 number (e.g. +639123456789). */
+    fun startPhoneVerification(activity: Activity, phoneE164: String, mode: String) {
+        pendingMode = mode
+        pendingPhoneE164 = phoneE164
+        storedVerificationId = null
+        _phoneVerifyState.value = PhoneVerifyState.Sending
+        val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
+            override fun onVerificationCompleted(credential: PhoneAuthCredential) {
+                // Instant/auto-retrieval on the same device — no code entry needed.
+                applyPhoneCredential(credential)
+            }
+
+            override fun onVerificationFailed(e: FirebaseException) {
+                _phoneVerifyState.value = PhoneVerifyState.Error(mapPhoneError(e))
+            }
+
+            override fun onCodeSent(
+                verificationId: String,
+                token: PhoneAuthProvider.ForceResendingToken
+            ) {
+                storedVerificationId = verificationId
+                _phoneVerifyState.value = PhoneVerifyState.CodeSent
+            }
+        }
+        val options = PhoneAuthOptions.newBuilder(auth)
+            .setPhoneNumber(phoneE164)
+            .setTimeout(60L, TimeUnit.SECONDS)
+            .setActivity(activity)
+            .setCallbacks(callbacks)
+            .build()
+        PhoneAuthProvider.verifyPhoneNumber(options)
+    }
+
+    /** Confirm the 6-digit code the user typed. */
+    fun confirmPhoneCode(code: String) {
+        val vid = storedVerificationId
+        if (vid == null) {
+            _phoneVerifyState.value = PhoneVerifyState.Error("Please request a code first.")
+            return
+        }
+        applyPhoneCredential(PhoneAuthProvider.getCredential(vid, code))
+    }
+
+    // Links (signup) or updates (change) the phone credential on the current
+    // account, then persists phoneNumber + phoneVerified=true. Firebase enforces
+    // one-account-per-number, so a squatted number fails here cleanly.
+    private fun applyPhoneCredential(credential: PhoneAuthCredential) {
+        viewModelScope.launch {
+            _phoneVerifyState.value = PhoneVerifyState.Verifying
+            try {
+                val user = auth.currentUser ?: throw Exception("You're not signed in.")
+                if (pendingMode == "change") {
+                    user.updatePhoneNumber(credential).await()
+                } else {
+                    user.linkWithCredential(credential).await()
+                }
+                firestore.collection("users").document(user.uid)
+                    .set(
+                        mapOf("phoneNumber" to pendingPhoneE164, "phoneVerified" to true),
+                        SetOptions.merge()
+                    ).await()
+                _currentUserData.value = _currentUserData.value
+                    ?.copy(phoneNumber = pendingPhoneE164, phoneVerified = true)
+                _phoneVerifyState.value = PhoneVerifyState.Success
+            } catch (e: Exception) {
+                _phoneVerifyState.value = PhoneVerifyState.Error(mapPhoneError(e))
+            }
+        }
+    }
+
+    private fun mapPhoneError(e: Exception): String = when {
+        e is FirebaseAuthUserCollisionException ->
+            "That number is already linked to another account. Use a different number."
+        e.message?.contains("already in use", ignoreCase = true) == true ->
+            "That number is already linked to another account. Use a different number."
+        e.message?.contains("invalid", ignoreCase = true) == true &&
+            e.message?.contains("code", ignoreCase = true) == true ->
+            "That code isn't right. Check it and try again."
+        e.message?.contains("expired", ignoreCase = true) == true ->
+            "That code expired. Request a new one."
+        else -> e.message ?: "Phone verification failed. Try again."
+    }
+
     fun signOut() {
         auth.signOut()
         _authState.value = AuthState.Unauthenticated
         _currentUserData.value = null
         _roleLoadState.value = RoleLoadState.Ready
+        resetPhoneVerify()
     }
 
     fun resetPassword(email: String) {

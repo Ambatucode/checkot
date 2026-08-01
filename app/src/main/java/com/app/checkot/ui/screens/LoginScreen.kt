@@ -26,11 +26,29 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.app.checkot.ui.components.ConfirmDialog
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import android.content.Context
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.launch
+
+// The web OAuth client id is generated into string resources by the google-services
+// plugin ONLY after google-services.json contains an oauth_client. Resolve it by name
+// at runtime so the app still compiles/runs before that console step is done.
+private fun resolveWebClientId(context: Context): String? {
+    val id = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
+    return if (id != 0) context.getString(id) else null
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,14 +66,62 @@ fun LoginScreen(
     val currentUserData by authViewModel.currentUserData.collectAsState()
     var showResetDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var googleError by remember { mutableStateOf<String?>(null) }
+
+    fun signInWithGoogle() {
+        googleError = null
+        val webClientId = resolveWebClientId(context)
+        if (webClientId == null) {
+            googleError = "Google Sign-In isn't set up yet. Add the app's SHA-1 in Firebase and drop in the new google-services.json."
+            return
+        }
+        val googleIdOption = GetGoogleIdOption.Builder()
+            .setServerClientId(webClientId)
+            .setFilterByAuthorizedAccounts(false) // allow first-time sign-ups, not just saved accounts
+            .setAutoSelectEnabled(false)
+            .build()
+        val request = GetCredentialRequest.Builder().addCredentialOption(googleIdOption).build()
+        val credentialManager = CredentialManager.create(context)
+        scope.launch {
+            try {
+                val result = credentialManager.getCredential(context, request)
+                val cred = result.credential
+                if (cred is CustomCredential &&
+                    cred.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                ) {
+                    val googleCred = GoogleIdTokenCredential.createFrom(cred.data)
+                    authViewModel.signInWithGoogle(googleCred.idToken)
+                } else {
+                    googleError = "Couldn't read your Google account. Try again."
+                }
+            } catch (e: GetCredentialCancellationException) {
+                // User dismissed the sheet on purpose — no error to show.
+            } catch (e: NoCredentialException) {
+                googleError = "No Google account is available on this device. Add a Google account in Settings → Accounts, then try again."
+            } catch (e: GetCredentialException) {
+                googleError = "Google sign-in failed (${e.type}). ${e.message ?: ""}"
+            } catch (e: Exception) {
+                googleError = e.message ?: "Google sign-in failed."
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         authViewModel.clearError()
     }
 
     LaunchedEffect(authState, currentUserData) {
-        if (authState is AuthState.Authenticated && currentUserData != null) {
-            when (currentUserData?.role) {
+        val user = currentUserData
+        if (authState is AuthState.Authenticated && user != null) {
+            // Everyone but admins must have a verified phone before entering the app.
+            if (user.role != "admin" && !user.phoneVerified) {
+                navController.navigate("phone_verification/signup") {
+                    popUpTo("login") { inclusive = true }
+                }
+                return@LaunchedEffect
+            }
+            when (user.role) {
                 "admin" -> navController.navigate("admin_dashboard") {
                     popUpTo("login") { inclusive = true }
                 }
@@ -224,8 +290,57 @@ fun LoginScreen(
             }
         }
         
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Divider with "or"
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            HorizontalDivider(modifier = Modifier.weight(1f))
+            Text(
+                text = "  or  ",
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                fontSize = 13.sp
+            )
+            HorizontalDivider(modifier = Modifier.weight(1f))
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Continue with Google
+        OutlinedButton(
+            onClick = { signInWithGoogle() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(16.dp),
+            enabled = authState != AuthState.Loading
+        ) {
+            Icon(
+                imageVector = Icons.Default.AccountCircle,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "Continue with Google",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+        if (googleError != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = googleError!!,
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 13.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
-        
+
         // Sign Up Link
         Row(
             horizontalArrangement = Arrangement.Center,

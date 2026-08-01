@@ -43,9 +43,13 @@ fun NavigationGraph(
 
     val startDest = remember(authState, currentUser) {
         if (authState is AuthState.Authenticated) {
-            when (currentUser?.role) {
-                "admin" -> Screen.AdminDashboard.route
-                "owner" -> Screen.OwnerDashboard.route
+            val user = currentUser
+            when {
+                user == null -> Screen.Login.route
+                // Everyone but admins must have a verified phone to enter the app.
+                user.role != "admin" && !user.phoneVerified -> "phone_verification/signup"
+                user.role == "admin" -> Screen.AdminDashboard.route
+                user.role == "owner" -> Screen.OwnerDashboard.route
                 else -> Screen.Home.route
             }
         } else {
@@ -83,9 +87,11 @@ fun NavigationGraph(
         composable(Screen.Signup.route) {
             SignupScreen(
                 onNavigateToLogin = { navController.popBackStack() },
+                // New accounts must verify their phone before entering the app.
                 onSignupSuccess = {
-                    navController.popBackStack()
-                    navController.navigate(Screen.Home.route)
+                    navController.navigate("phone_verification/signup") {
+                        popUpTo(Screen.Login.route) { inclusive = true }
+                    }
                 },
                 authViewModel = authViewModel
             )
@@ -95,12 +101,21 @@ fun NavigationGraph(
                 onNavigateToLogin = {
                     navController.popBackStack()
                 },
+                // Verify phone first; PhoneVerificationScreen then routes owners to
+                // their dashboard by role on success.
                 onSignupSuccess = {
-                    navController.popBackStack()
-                    navController.navigate(Screen.OwnerDashboard.route) {
+                    navController.navigate("phone_verification/signup") {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
                 },
+                authViewModel = authViewModel
+            )
+        }
+        composable("phone_verification/{mode}") { backStackEntry ->
+            val mode = backStackEntry.arguments?.getString("mode") ?: "signup"
+            PhoneVerificationScreen(
+                navController = navController,
+                mode = mode,
                 authViewModel = authViewModel
             )
         }

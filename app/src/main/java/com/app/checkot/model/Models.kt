@@ -13,6 +13,9 @@ data class CarWashUser(
     val fullName: String = "",
     val email: String = "",
     val phoneNumber: String = "",
+    // A number is only ever set to true after an SMS OTP verification (signup or
+    // change). Unverified numbers can't be trusted — this gates entry to the app.
+    val phoneVerified: Boolean = false,
     val createdAt: Long = 0,
     val role: String = "customer", // "customer" or "owner"
     val ownedShopId: String? = null, // Only used if role == "owner"
