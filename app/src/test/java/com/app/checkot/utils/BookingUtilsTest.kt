@@ -100,7 +100,7 @@ class BookingUtilsTest {
     @Test
     fun `totalDurationMinutes sums every selected service`() {
         val total = BookingUtils.totalDurationMinutes(
-            listOf(ServiceType.BASIC_WASH, ServiceType.PREMIUM_WASH) // 30 + 45
+            listOf(ServiceType.EXTERIOR_WASH, ServiceType.WAX) // 30 + 45
         )
         assertEquals(75, total)
     }
@@ -112,7 +112,7 @@ class BookingUtilsTest {
 
     // ---- computeBusyRanges / hasFreeBay ----
 
-    private fun bookingAt(timeSlot: String, service: ServiceType = ServiceType.BASIC_WASH) =
+    private fun bookingAt(timeSlot: String, service: ServiceType = ServiceType.EXTERIOR_WASH) =
         Booking(timeSlot = timeSlot, services = listOf(service))
 
     @Test
@@ -161,9 +161,14 @@ class BookingUtilsTest {
         // without the internal sortedBy, that "second" booking depends on input order,
         // which flips the answer for a probe overlapping only 'a'. This is a concrete
         // regression test for the sortedBy fix in computeBusyRanges.
-        val a = bookingAt("09:00 AM", ServiceType.DETAILING)   // 0-120 (09:00-11:00)
-        val b = bookingAt("11:30 AM", ServiceType.BASIC_WASH)  // 150-180, overlaps neither
-        val c = bookingAt("10:00 AM", ServiceType.BASIC_WASH)  // 60-90, overlaps a only
+        // 'a' is a long booking (ENGINE_WASH 60 + WAX 45 = 105 min) standing in for
+        // the old 2-hour DETAILING; it still spans past c's start so it overlaps c.
+        val a = Booking(
+            timeSlot = "09:00 AM",
+            services = listOf(ServiceType.ENGINE_WASH, ServiceType.WAX)
+        )                                                          // 0-105 (09:00-10:45)
+        val b = bookingAt("11:30 AM", ServiceType.EXTERIOR_WASH)  // 150-180, overlaps neither
+        val c = bookingAt("10:00 AM", ServiceType.EXTERIOR_WASH)  // 60-90, overlaps a only
 
         val forwardOrder = listOf(a, b, c)
         val shuffledOrder = listOf(c, a, b)
