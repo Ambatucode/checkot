@@ -32,13 +32,14 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import android.content.Context
+import android.util.Log
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.NoCredentialException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.launch
 
@@ -76,33 +77,36 @@ fun LoginScreen(
             googleError = "Google Sign-In isn't set up yet. Add the app's SHA-1 in Firebase and drop in the new google-services.json."
             return
         }
-        val googleIdOption = GetGoogleIdOption.Builder()
-            .setServerClientId(webClientId)
-            .setFilterByAuthorizedAccounts(false) // allow first-time sign-ups, not just saved accounts
-            .setAutoSelectEnabled(false)
-            .build()
-        val request = GetCredentialRequest.Builder().addCredentialOption(googleIdOption).build()
+        // Single, consistent flow: the explicit "Sign in with Google" account picker.
+        // (We dropped the one-tap GetGoogleIdOption fallback because it made the UI shift
+        // between a bottom sheet and a center dialog and behaved inconsistently.)
+        val buttonOption = GetSignInWithGoogleOption.Builder(webClientId).build()
         val credentialManager = CredentialManager.create(context)
+
         scope.launch {
             try {
-                val result = credentialManager.getCredential(context, request)
-                val cred = result.credential
+                val request = GetCredentialRequest.Builder().addCredentialOption(buttonOption).build()
+                val cred = credentialManager.getCredential(context, request).credential
+                Log.d("GoogleSignIn", "credential class=${cred.javaClass.name} type=${cred.type}")
                 if (cred is CustomCredential &&
                     cred.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
                 ) {
                     val googleCred = GoogleIdTokenCredential.createFrom(cred.data)
+                    Log.d("GoogleSignIn", "got id token len=${googleCred.idToken.length}, calling Firebase")
                     authViewModel.signInWithGoogle(googleCred.idToken)
                 } else {
-                    googleError = "Couldn't read your Google account. Try again."
+                    googleError = "Unexpected credential type: ${cred.type}"
                 }
             } catch (e: GetCredentialCancellationException) {
-                // User dismissed the sheet on purpose — no error to show.
+                // User dismissed the picker on purpose — no error to show.
             } catch (e: NoCredentialException) {
                 googleError = "No Google account is available on this device. Add a Google account in Settings → Accounts, then try again."
             } catch (e: GetCredentialException) {
+                Log.e("GoogleSignIn", "GetCredentialException", e)
                 googleError = "Google sign-in failed (${e.type}). ${e.message ?: ""}"
             } catch (e: Exception) {
-                googleError = e.message ?: "Google sign-in failed."
+                Log.e("GoogleSignIn", "Unexpected", e)
+                googleError = "Google sign-in failed: ${e.javaClass.simpleName} ${e.message ?: ""}"
             }
         }
     }
