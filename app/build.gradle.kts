@@ -105,6 +105,11 @@ dependencies {
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
+    // Biometric / device-credential confirmation for sensitive admin actions
+    // (approve/reject). Also brings androidx.fragment, so MainActivity can be a
+    // FragmentActivity — which BiometricPrompt requires.
+    implementation("androidx.biometric:biometric:1.1.0")
+
     // Coil — async image loading + disk/memory caching for shop logos (Storage URLs)
     implementation("io.coil-kt:coil-compose:2.7.0")
 

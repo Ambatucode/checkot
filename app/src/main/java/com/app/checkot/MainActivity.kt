@@ -7,7 +7,7 @@ import android.net.Uri
 import android.provider.Settings
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
@@ -54,7 +54,7 @@ import com.app.checkot.viewmodel.AuthViewModel
 import com.app.checkot.viewmodel.RoleLoadState
 import com.app.checkot.ui.theme.CheckotTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private var pendingBookingId by mutableStateOf<String?>(null)
     private var navReady by mutableStateOf(false)

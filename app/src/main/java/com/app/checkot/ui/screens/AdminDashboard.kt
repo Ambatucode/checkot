@@ -23,6 +23,9 @@ import com.app.checkot.ui.components.ShopLogo
 import com.app.checkot.ui.components.ShopLocationView
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import com.app.checkot.utils.BiometricAuth
+import com.app.checkot.utils.findFragmentActivity
 import coil.compose.AsyncImage
 
 private enum class AdminDialogType { APPROVE, REJECT }
@@ -214,6 +217,37 @@ private fun PendingShopCard(
     var passwordError by remember { mutableStateOf<String?>(null) }
     var isVerifying by remember { mutableStateOf(false) }
     var isProcessing by remember { mutableStateOf(false) }
+    var actionError by remember { mutableStateOf<String?>(null) }
+
+    val context = LocalContext.current
+    val activity = remember(context) { context.findFragmentActivity() }
+
+    // Runs the actual approve/reject once the admin's identity is confirmed.
+    fun runAction(type: AdminDialogType) {
+        isProcessing = true
+        if (type == AdminDialogType.APPROVE) onApprove { isProcessing = false }
+        else onReject { isProcessing = false }
+    }
+
+    // Confirm the admin before a sensitive action: prefer the device
+    // biometric/lock (works for Google- and password-signed admins alike); fall
+    // back to the password dialog on devices with no biometric or screen lock.
+    fun confirm(type: AdminDialogType) {
+        actionError = null
+        val act = activity
+        if (act != null && BiometricAuth.canAuthenticate(context)) {
+            val verb = if (type == AdminDialogType.APPROVE) "approve" else "reject"
+            BiometricAuth.prompt(
+                activity = act,
+                title = if (type == AdminDialogType.APPROVE) "Approve Shop" else "Reject Shop",
+                subtitle = "Confirm it's you to $verb \"${shop.shopName}\"",
+                onSuccess = { runAction(type) },
+                onError = { msg -> actionError = msg }
+            )
+        } else {
+            activeDialog = type // no biometric/lock available → password fallback
+        }
+    }
 
     // Shared password confirmation dialog for both Approve and Reject
     activeDialog?.let { type ->
@@ -277,12 +311,7 @@ private fun PendingShopCard(
                                 passwordError = null
                                 isVerifying = false
                                 activeDialog = null
-                                isProcessing = true
-                                if (type == AdminDialogType.APPROVE) {
-                                    onApprove { isProcessing = false }
-                                } else {
-                                    onReject { isProcessing = false }
-                                }
+                                runAction(type)
                             } else {
                                 isVerifying = false
                                 passwordError = errorMsg
@@ -435,7 +464,7 @@ private fun PendingShopCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedButton(
-                    onClick = { activeDialog = AdminDialogType.REJECT },
+                    onClick = { confirm(AdminDialogType.REJECT) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
@@ -449,7 +478,7 @@ private fun PendingShopCard(
                     Text("Reject")
                 }
                 Button(
-                    onClick = { activeDialog = AdminDialogType.APPROVE },
+                    onClick = { confirm(AdminDialogType.APPROVE) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(8.dp),
                     enabled = !isProcessing
@@ -466,6 +495,15 @@ private fun PendingShopCard(
                         Text("Approve")
                     }
                 }
+            }
+
+            if (actionError != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = actionError!!,
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 12.sp
+                )
             }
         }
     }
