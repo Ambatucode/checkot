@@ -97,6 +97,12 @@ fun OwnerDashboard(
                         icon = { Icon(Icons.Default.Build, contentDescription = "Services") },
                         label = { Text("Services") }
                     )
+                    NavigationBarItem(
+                        selected = selectedTab == 4,
+                        onClick = { selectedTab = 4 },
+                        icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                        label = { Text("Settings") }
+                    )
                 }
             }
         }
@@ -183,6 +189,7 @@ fun OwnerDashboard(
                         1 -> OwnerCustomersTab(ownerViewModel, PaddingValues(0.dp))
                         2 -> OwnerRevenueTab(ownerViewModel, PaddingValues(0.dp))
                         3 -> OwnerServicesTab(ownerViewModel, PaddingValues(0.dp), navController)
+                        4 -> OwnerSettingsTab(ownerViewModel, PaddingValues(0.dp), navController)
                     }
                 }
                 "rejected" -> {
@@ -264,6 +271,7 @@ fun OwnerDashboard(
                         1 -> OwnerCustomersTab(ownerViewModel, PaddingValues(0.dp))
                         2 -> OwnerRevenueTab(ownerViewModel, PaddingValues(0.dp))
                         3 -> OwnerServicesTab(ownerViewModel, PaddingValues(0.dp), navController)
+                        4 -> OwnerSettingsTab(ownerViewModel, PaddingValues(0.dp), navController)
                     }
                 }
             }

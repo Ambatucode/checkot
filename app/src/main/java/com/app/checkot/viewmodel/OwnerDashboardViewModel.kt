@@ -168,8 +168,20 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
 
                 val bookingsList = snapshot?.documents?.mapNotNull { it.toObject(Booking::class.java) }
                     ?: emptyList()
+                    
+                val sortedBookings = bookingsList.sortedWith(
+                    compareBy<Booking> { booking ->
+                        when (booking.status) {
+                            BookingStatus.PENDING -> 1      // Highest priority
+                            BookingStatus.CONFIRMED -> 2
+                            BookingStatus.IN_PROGRESS -> 3
+                            BookingStatus.COMPLETED -> 4    // History
+                            BookingStatus.CANCELLED -> 5    // Lowest priority
+                        }
+                    }.thenByDescending { it.createdAt } // Newest first within same priority group
+                )
 
-                _allBookings.value = bookingsList
+                _allBookings.value = sortedBookings
                 _allBookingsLoaded.value = true
                 Log.d(TAG, "🔥 Bookings updated in real-time: ${bookingsList.size}")
 

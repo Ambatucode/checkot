@@ -41,6 +41,7 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
+import androidx.compose.foundation.border
 
 // Phases of the check flow.
 private enum class Phase { IDLE, ANALYZING, RESULT, ERROR }
@@ -440,7 +441,12 @@ private fun DisclaimerBanner() {
 private fun VerdictCard(verdict: String, reason: String) {
     val (container, content, icon) = verdictStyle(verdict)
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (verdict == "Needs a wash") Modifier.border(1.dp, Color(0xFF7F1D1D), MaterialTheme.shapes.medium)
+                else Modifier
+            ),
         colors = CardDefaults.cardColors(containerColor = container)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
@@ -477,7 +483,7 @@ private fun verdictStyle(verdict: String): Triple<Color, Color, ImageVector> = w
         Color(0xFFFDF3E0), Color(0xFF8A5A00), Icons.Default.WaterDrop
     )
     "Needs a wash" -> Triple(
-        Color(0xFFFDE7E7), Color(0xFF9A1B1B), Icons.Default.LocalCarWash
+        Color(0xFF2A1215), Color(0xFFFF8080), Icons.Default.LocalCarWash
     )
     else -> Triple( // "Not a car" / unknown
         MaterialTheme.colorScheme.surfaceVariant,

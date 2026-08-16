@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -56,18 +57,19 @@ fun OwnerCustomersTab(
         )
         Card(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F2530)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E6C3))
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = allUsers.size.toString(), style = MaterialTheme.typography.headlineMedium)
+                    Text(text = allUsers.size.toString(), style = MaterialTheme.typography.headlineMedium, color = Color(0xFF00E6C3))
                     Text("Total Customers")
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = allUsers.count { it.createdAt > System.currentTimeMillis() - 7 * 86400000 }.toString(), style = MaterialTheme.typography.headlineMedium)
+                    Text(text = allUsers.count { it.createdAt > System.currentTimeMillis() - 7 * 86400000 }.toString(), style = MaterialTheme.typography.headlineMedium, color = Color(0xFF00E6C3))
                     Text("This Week")
                 }
             }
@@ -102,7 +104,7 @@ fun OwnerCustomersTab(
 }
 @Composable
 fun CustomerCard(user: CarWashUser) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0F2530))) {
         Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(modifier = Modifier.size(50.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
                 Box(contentAlignment = Alignment.Center) {

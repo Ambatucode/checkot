@@ -402,7 +402,7 @@ fun OwnerBookingCard(
             .padding(vertical = 4.dp),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = androidx.compose.ui.graphics.Color(0xFF0F2530)
         ),
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
@@ -607,8 +607,9 @@ fun OwnerBookingCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
+                    val priceStr = if (booking.price % 1.0 == 0.0) booking.price.toLong().toString() else booking.price.toString()
                     Text(
-                        text = "₱${booking.price}",
+                        text = "₱$priceStr",
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold

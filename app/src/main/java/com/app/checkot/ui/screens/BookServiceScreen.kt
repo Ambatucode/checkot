@@ -12,12 +12,18 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.compose.ui.platform.LocalContext
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
@@ -73,6 +79,9 @@ fun BookServiceScreen(
     var shopLogoUrl by remember { mutableStateOf("") }
     var shopBannerUrl by remember { mutableStateOf("") }
     var showLogoViewer by remember { mutableStateOf(false) }
+    var showShopInfoSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val context = LocalContext.current
     // Dates the whole shop is closed — clients can't book these.
     var shopClosedDates by remember { mutableStateOf(emptyList<Long>()) }
     // One-off hours overrides (date → open/close). Applied only on that date.
@@ -334,6 +343,111 @@ fun BookServiceScreen(
         }
     }
 
+    if (showShopInfoSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showShopInfoSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = shopDisplayName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Map and Address
+                if (shopLatitude != 0.0 || shopLongitude != 0.0) {
+                    // ShopLocationView already includes its own Get Directions button
+                    com.app.checkot.ui.components.ShopLocationView(
+                        latitude = shopLatitude,
+                        longitude = shopLongitude,
+                        shopName = shopDisplayName
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                
+                // Store Hours
+                Text(
+                    text = "Store Hours",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "${BookingUtils.minutesToSlotLabel(shopOpenMinutes)} - ${BookingUtils.minutesToSlotLabel(shopCloseMinutes)}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Reviews
+                if (shopReviews.isNotEmpty()) {
+                    Text(
+                        text = "Reviews (${shopReviews.size})",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyColumn(modifier = Modifier.fillMaxHeight(0.6f)) {
+                        items(shopReviews) { review ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        repeat(review.rating) {
+                                            Icon(
+                                                Icons.Default.Star,
+                                                contentDescription = null,
+                                                tint = Color(0xFFFFB300),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.weight(1f))
+                                        Text(
+                                            text = "${review.userName.split(" ").first()} · " +
+                                                DateUtils.formatDate(review.createdAt),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                    if (review.comment.isNotBlank()) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = review.comment,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "No reviews yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             BackTopAppBar(
@@ -344,6 +458,119 @@ fun BookServiceScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 8.dp,
+                tonalElevation = 8.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    if (step >= 1 && selectedServiceConfigs.isNotEmpty()) {
+                        val selectedAvails = availableServices.filter { selectedServiceConfigs.contains(it.config.serviceName) }
+                        val totalPrice = selectedAvails.sumOf {
+                            if (it.config.customPrice > 0) it.config.customPrice
+                            else it.serviceType?.price ?: 0.0
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Total Price:", style = MaterialTheme.typography.titleMedium)
+                            Text("₱${totalPrice.toInt()}", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        val buttonShape = RoundedCornerShape(24.dp)
+                        val buttonHeight = Modifier.height(48.dp)
+                        if (step > 1) {
+                            OutlinedButton(
+                                onClick = { step-- },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .then(buttonHeight),
+                                shape = buttonShape
+                            ) {
+                                Text("Back", maxLines = 1, softWrap = false)
+                            }
+                        }
+                        Button(
+                            onClick = {
+                                if (step < 4) {
+                                    step++
+                                } else {
+                                    scope.launch {
+                                        isCreating = true
+                                        val selectedAvails = availableServices.filter { selectedServiceConfigs.contains(it.config.serviceName) }
+                                        val serviceTypes = selectedAvails.map { it.serviceType ?: ServiceType.CUSTOM }
+                                        val customNames = selectedAvails.filter { it.serviceType == null }
+                                            .map { it.config.customName.ifBlank { it.config.displayName } }
+                                        val totalPrice = selectedAvails.sumOf {
+                                            if (it.config.customPrice > 0) it.config.customPrice
+                                            else it.serviceType?.price ?: 0.0
+                                        }
+                                        val booking = Booking(
+                                            userId = authViewModel.getCurrentUser()?.uid ?: "",
+                                            shopId = shopId,
+                                            carId = selectedCar?.carId ?: "",
+                                            carDetails = "${selectedCar?.brand} ${selectedCar?.model} - ${selectedCar?.plateNumber}",
+                                            services = serviceTypes,
+                                            customServiceNames = customNames,
+                                            bookingDate = selectedDate,
+                                            timeSlot = selectedTimeSlot,
+                                            price = totalPrice,
+                                            durationMinutes = totalDurationMinutes,
+                                            notes = notes,
+                                            status = BookingStatus.PENDING
+                                        )
+                                        bookingViewModel.createBooking(booking)
+                                        kotlinx.coroutines.delay(1500)
+                                        if (bookingViewModel.error.value == null) {
+                                            navController.popBackStack()
+                                        } else {
+                                            isCreating = false
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(if (step > 1) 1f else 2f)
+                                .then(buttonHeight),
+                            shape = buttonShape,
+                            enabled = !isCreating && when (step) {
+                                1 -> selectedServiceConfigs.isNotEmpty()
+                                2 -> selectedCar != null
+                                3 -> selectedTimeSlot.isNotEmpty()
+                                else -> true
+                            }
+                        ) {
+                            if (isCreating) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Text(
+                                    text = if (step < 4) "Continue" else "Confirm Booking",
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     ) { paddingValues ->
         Column(
@@ -369,7 +596,7 @@ fun BookServiceScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(160.dp)
+                            .height(120.dp)
                             .clip(RoundedCornerShape(16.dp))
                             .then(
                                 if (shopBannerUrl.isBlank())
@@ -412,12 +639,37 @@ fun BookServiceScreen(
                                 modifier = Modifier.clickable { showLogoViewer = true }
                             )
                             Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = shopDisplayName,
-                                style = MaterialTheme.typography.titleLarge,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Column {
+                                Text(
+                                    text = shopDisplayName,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.clickable { showShopInfoSheet = true }
+                                ) {
+                                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "View Map >",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+                        IconButton(
+                            onClick = { showShopInfoSheet = true },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .background(Color.Black.copy(alpha = 0.4f), shape = RoundedCornerShape(50))
+                                .size(36.dp)
+                        ) {
+                            Icon(Icons.Default.LocationOn, contentDescription = "Shop Info", tint = Color.White, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
@@ -448,93 +700,7 @@ fun BookServiceScreen(
                         }
                     }
                 }
-                // Shop location — shown before booking so clients can see/navigate there
-                if (shopLatitude != 0.0 || shopLongitude != 0.0) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.Place,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Shop Location",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                com.app.checkot.ui.components.ShopLocationView(
-                                    latitude = shopLatitude,
-                                    longitude = shopLongitude,
-                                    shopName = shopDisplayName
-                                )
-                            }
-                        }
-                    }
-                }
-                // Reviews — verified client feedback (one per completed booking).
-                if (shopReviews.isNotEmpty()) {
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                text = "Reviews (${shopReviews.size})",
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            shopReviews.forEach { review ->
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp)
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            repeat(review.rating) {
-                                                Icon(
-                                                    Icons.Default.Star,
-                                                    contentDescription = null,
-                                                    tint = Color(0xFFFFB300),
-                                                    modifier = Modifier.size(14.dp)
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.weight(1f))
-                                            Text(
-                                                text = "${review.userName.split(" ").first()} · " +
-                                                    DateUtils.formatDate(review.createdAt),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                            )
-                                        }
-                                        if (review.comment.isNotBlank()) {
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text(
-                                                text = review.comment,
-                                                style = MaterialTheme.typography.bodyMedium
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+
                 // Step 1: Select Service
                 if (step >= 1) {
                     item {
@@ -775,33 +941,69 @@ fun BookServiceScreen(
                             modifier = Modifier.padding(top = 16.dp)
                         )
                     }
+                    // Date strip — rendered as a composable Column inside item{} so
+                    // it doesn't need its own lazy scope.
                     item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { showDatePicker.value = true }
-                        ) {
-                            Row(
+                        val today = java.time.LocalDate.now()
+                        val dates = remember { (0..13).map { today.plusDays(it.toLong()) } }
+                        var selectedDateLocal by remember {
+                            mutableStateOf(
+                                java.time.Instant.ofEpochMilli(selectedDate)
+                                    .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                            )
+                        }
+                        // Sync outward when date changes
+                        LaunchedEffect(selectedDateLocal) {
+                            selectedDate = selectedDateLocal
+                                .atStartOfDay(java.time.ZoneId.systemDefault())
+                                .toInstant().toEpochMilli()
+                        }
+                        Column {
+                            androidx.compose.foundation.lazy.LazyRow(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(Icons.Default.CalendarToday, contentDescription = null)
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column {
-                                    Text(
-                                        text = "Select Date",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                    )
-                                    Text(
-                                        text = DateUtils.formatDate(selectedDate),
-                                        style = MaterialTheme.typography.titleMedium
-                                    )
+                                items(dates) { date ->
+                                    val dayAbbr = date.dayOfWeek.name.take(3)
+                                    val dayNum = date.dayOfMonth
+                                    val isDateSelected = date == selectedDateLocal
+                                    Card(
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (isDateSelected)
+                                                Color(0xFF00BFA5).copy(alpha = 0.25f)
+                                            else MaterialTheme.colorScheme.surfaceVariant
+                                        ),
+                                        border = if (isDateSelected)
+                                            BorderStroke(2.dp, Color(0xFF00BFA5))
+                                        else null,
+                                        modifier = Modifier.clickable { selectedDateLocal = date }
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Text(
+                                                text = dayAbbr,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = if (isDateSelected) Color(0xFF00BFA5)
+                                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Text(
+                                                text = dayNum.toString(),
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = if (isDateSelected) Color(0xFF00BFA5)
+                                                        else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
+                    // Time slots header
                     item {
                         Text(
                             text = "Available Time Slots",
@@ -809,12 +1011,64 @@ fun BookServiceScreen(
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
                     }
-                    items(availableTimeSlots, key = { it.slot }) { slot ->
-                        TimeSlotCard(
-                            slot = slot,
-                            isSelected = selectedTimeSlot == slot.slot,
-                            onSelect = { selectedTimeSlot = slot.slot }
-                        )
+                    // Time slot grid — rendered as a regular Column+FlowRow equivalent
+                    // using chunked rows so it doesn't conflict with the parent LazyColumn.
+                    item {
+                        val slotRows = availableTimeSlots.chunked(3)
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            for (row in slotRows) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    for (slot in row) {
+                                        val isSlotSelected = selectedTimeSlot == slot.slot
+                                        val isAvailable = slot.available
+                                        Card(
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = when {
+                                                    !isAvailable -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                                    isSlotSelected -> Color(0xFF00BFA5).copy(alpha = 0.2f)
+                                                    else -> MaterialTheme.colorScheme.surfaceVariant
+                                                }
+                                            ),
+                                            border = if (isSlotSelected)
+                                                BorderStroke(2.dp, Color(0xFF00BFA5))
+                                            else null,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable(enabled = isAvailable) {
+                                                    selectedTimeSlot = slot.slot
+                                                }
+                                        ) {
+                                            Box(
+                                                contentAlignment = Alignment.Center,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 12.dp)
+                                            ) {
+                                                Text(
+                                                    text = slot.slot,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = when {
+                                                        !isAvailable -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+                                                        isSlotSelected -> Color(0xFF00BFA5)
+                                                        else -> MaterialTheme.colorScheme.onSurface
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                    // Fill remaining columns if row has < 3 items
+                                    repeat(3 - row.size) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 // Step 4: Additional Notes
@@ -880,88 +1134,7 @@ fun BookServiceScreen(
                     }
                 }
             }
-            // Bottom Navigation Buttons
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                if (step > 1) {
-                    OutlinedButton(
-                        onClick = { step-- },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Back")
-                    }
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = {
-                        if (step < 4) {
-                            step++
-                        } else {
-                            scope.launch {
-                                isCreating = true
-                                val selectedAvails = availableServices.filter { selectedServiceConfigs.contains(it.config.serviceName) }
-                                val serviceTypes = selectedAvails.map { it.serviceType ?: ServiceType.CUSTOM }
-                                // Custom = anything without a matching ServiceType. Detect via
-                                // serviceType == null (not config.isCustom): legacy shop docs
-                                // stored the flag under the wrong field name, so it reads false
-                                // and the custom name was silently dropped from the booking.
-                                val customNames = selectedAvails.filter { it.serviceType == null }
-                                    .map { it.config.customName.ifBlank { it.config.displayName } }
-                                val totalPrice = selectedAvails.sumOf {
-                                    if (it.config.customPrice > 0) it.config.customPrice
-                                    else it.serviceType?.price ?: 0.0
-                                }
-                                val booking = Booking(
-                                    userId = authViewModel.getCurrentUser()?.uid ?: "",
-                                    shopId = shopId,
-                                    carId = selectedCar?.carId ?: "",
-                                    carDetails = "${selectedCar?.brand} ${selectedCar?.model} - ${selectedCar?.plateNumber}",
-                                    services = serviceTypes,
-                                    customServiceNames = customNames,
-                                    bookingDate = selectedDate,
-                                    timeSlot = selectedTimeSlot,
-                                    price = totalPrice,
-                                    durationMinutes = totalDurationMinutes,
-                                    notes = notes,
-                                    status = BookingStatus.PENDING
-                                )
-                                bookingViewModel.createBooking(booking)
-                                kotlinx.coroutines.delay(1500)
-                                if (bookingViewModel.error.value == null) {
-                                    navController.popBackStack()
-                                } else {
-                                    isCreating = false
-                                }
-                            }
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    enabled = !isCreating && when (step) {
-                        1 -> selectedServiceConfigs.isNotEmpty()
-                        2 -> selectedCar != null
-                        3 -> selectedTimeSlot.isNotEmpty()
-                        else -> true
-                    }
-                ) {
-                    if (isCreating) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    } else {
-                        Text(
-                            when {
-                                step < 4 -> "Next"
-                                else -> "Confirm Booking"
-                            }
-                        )
-                    }
-                }
-            }
+
         }
     }
 }
@@ -976,6 +1149,7 @@ fun ShopServiceSelectionCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        border = if (isSelected && !unavailable) androidx.compose.foundation.BorderStroke(2.dp, Color(0xFF00BFA5)) else null,
         colors = when {
             unavailable -> CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -1000,14 +1174,14 @@ fun ShopServiceSelectionCard(
                     style = MaterialTheme.typography.titleMedium,
                     color = if (unavailable) {
                         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                    } else if (isSelected) Color.White else Color.Unspecified
+                    } else if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else Color.Unspecified
                 )
                 if (description.isNotBlank() && !unavailable) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = description,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (isSelected) Color.White.copy(alpha = 0.85f)
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
                                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                 }
@@ -1021,13 +1195,24 @@ fun ShopServiceSelectionCard(
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = if (unavailable) "—" else "₱${price}",
-                style = MaterialTheme.typography.titleLarge,
-                color = if (unavailable) {
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                } else if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (unavailable) "—" else "₱${price.toInt()}",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = if (unavailable) {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    } else if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { if (!unavailable) onSelect() },
+                    enabled = !unavailable,
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = Color(0xFF00BFA5)
+                    )
+                )
+            }
         }
     }
 }

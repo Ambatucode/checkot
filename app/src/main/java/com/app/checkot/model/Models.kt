@@ -31,7 +31,8 @@ data class CarWashShop(
     val address: String = "",
     val latitude: Double = 0.0,  // 0 = location not set
     val longitude: Double = 0.0,
-    val logoUrl: String = ""     // Firebase Storage download URL; "" = no logo
+    val logoUrl: String = "",    // Firebase Storage download URL; "" = no logo
+    val minPrice: Double = 0.0   // cheapest service price; 0 = unknown
 )
 @Immutable
 data class Car(

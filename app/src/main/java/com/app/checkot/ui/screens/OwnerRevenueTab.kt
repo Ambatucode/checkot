@@ -15,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -102,11 +103,12 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
             Spacer(modifier = Modifier.height(24.dp))
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F2530)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E6C3))
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(text = "Total Revenue", style = MaterialTheme.typography.titleLarge)
-                    Text(text = "₱${String.format("%,.2f", totalRevenue)}", style = MaterialTheme.typography.displaySmall)
+                    Text(text = "₱${String.format("%,.0f", totalRevenue)}", style = MaterialTheme.typography.displaySmall, color = Color(0xFF00E6C3))
                     Text(text = "${bookingCount} completed bookings", style = MaterialTheme.typography.bodyLarge)
                 }
             }
@@ -114,7 +116,7 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
         item {
             Spacer(modifier = Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Card(modifier = Modifier.weight(1f)) {
+                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color(0xFF0F2530))) {
                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.AutoMirrored.Filled.ShowChart, contentDescription = null)
                         Text(text = "₱${String.format("%,.0f", averagePerBooking)}", style = MaterialTheme.typography.headlineSmall)
@@ -122,7 +124,7 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
                     }
                 }
                 val pendingRevenue = allBookings.filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED }.sumOf { it.price }
-                Card(modifier = Modifier.weight(1f)) {
+                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color(0xFF0F2530))) {
                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.HourglassEmpty, contentDescription = null)
                         Text(text = "₱${String.format("%,.0f", pendingRevenue)}", style = MaterialTheme.typography.headlineSmall)
@@ -133,7 +135,7 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
                 val todayCarCount = allBookings.count {
                     it.status == BookingStatus.COMPLETED && it.completedAt != null && it.completedAt >= startOfToday
                 }
-                Card(modifier = Modifier.weight(1f)) {
+                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color(0xFF0F2530))) {
                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.DirectionsCar, contentDescription = null)
                         Text(text = todayCarCount.toString(), style = MaterialTheme.typography.headlineSmall)
@@ -152,7 +154,7 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
             } else 0L
 
             Spacer(modifier = Modifier.height(16.dp))
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0F2530))) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -187,7 +189,7 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
                 }
             }
             val maxHourCount = hourCounts.maxOrNull()?.coerceAtLeast(1) ?: 1
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0F2530))) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     hourLabels.forEachIndexed { i, label ->
                         val count = hourCounts[i]
@@ -228,7 +230,7 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
                 .flatMap { it.resolvedServiceNames() }
                 .groupingBy { it }.eachCount()
                 .toList().sortedByDescending { it.second }
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0F2530))) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     if (serviceCounts.isEmpty()) {
                         Text("No completed bookings for this period",
@@ -286,7 +288,8 @@ fun TransactionItem(booking: Booking) {
                 Text(text = booking.displayServiceNames(), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 Text(text = DateUtils.formatDate(booking.createdAt), style = MaterialTheme.typography.bodySmall)
             }
-            Text(text = "₱${booking.price}", style = MaterialTheme.typography.titleLarge)
+            val priceStr = if (booking.price % 1.0 == 0.0) booking.price.toLong().toString() else booking.price.toString()
+            Text(text = "₱$priceStr", style = MaterialTheme.typography.titleLarge)
         }
     }
 }

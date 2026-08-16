@@ -25,6 +25,15 @@ import kotlinx.coroutines.tasks.await
 import com.app.checkot.utils.BookingUtils
 import com.app.checkot.ui.components.AnimatedStatusIcon
 import com.app.checkot.ui.components.ShopLogo
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,116 +130,167 @@ fun HomeScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = com.app.checkot.ui.theme.CheckotCardSurface)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp)
-                    ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
                         Text(
                             text = "Welcome back,",
                             style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = Color.White.copy(alpha = 0.7f)
                         )
                         Text(
                             text = userData?.fullName ?: "Guest",
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Ready to get your car sparkling clean?",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.5f)
                         )
                         Spacer(modifier = Modifier.height(16.dp))
-                        // Quick action buttons
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedButton(
+                        // Compact quick-action chips
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            // Bookings chip
+                            Surface(
                                 onClick = { navController.navigate("my_bookings") },
-                                modifier = Modifier.weight(1f),
-                                shape = MaterialTheme.shapes.medium,
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                ),
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp, MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
-                                )
+                                shape = RoundedCornerShape(50),
+                                color = Color.White.copy(alpha = 0.05f)
                             ) {
-                                Icon(Icons.Default.Bookmark, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("My Bookings", style = MaterialTheme.typography.labelMedium)
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Bookmark,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = Color(0xFF00BFA5)
+                                    )
+                                    Text(
+                                        "My Bookings",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = Color.White
+                                    )
+                                }
                             }
-                            OutlinedButton(
+                            // Cars chip
+                            Surface(
                                 onClick = { navController.navigate("cars") },
-                                modifier = Modifier.weight(1f),
-                                shape = MaterialTheme.shapes.medium,
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                ),
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp, MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
-                                )
+                                shape = RoundedCornerShape(50),
+                                color = Color.White.copy(alpha = 0.05f)
                             ) {
-                                Icon(Icons.Default.DirectionsCar, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("My Cars", style = MaterialTheme.typography.labelMedium)
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.DirectionsCar,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = Color(0xFF00BFA5)
+                                    )
+                                    Text(
+                                        "My Cars",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = Color.White
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
 
+            // ── AI car check card ───────────────────────────────────────────
             item {
+                val cardBg = Brush.linearGradient(
+                    listOf(Color(0xFF0A1F2E), com.app.checkot.ui.theme.CheckotCardSurface)
+                )
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(
+                            elevation = 16.dp,
+                            shape = RoundedCornerShape(16.dp),
+                            spotColor = Color(0xFF00E6C3).copy(alpha = 0.12f),
+                            ambientColor = Color(0xFF00E6C3).copy(alpha = 0.12f)
+                        )
+                        .border(
+                            BorderStroke(1.5.dp, Brush.linearGradient(
+                                listOf(Color(0xFF00BFA5), Color(0xFF0D9488))
+                            )),
+                            shape = RoundedCornerShape(16.dp)
+                        ),
                     onClick = { navController.navigate("check_car") },
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .background(cardBg)
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
                             modifier = Modifier.size(48.dp),
-                            shape = MaterialTheme.shapes.medium,
-                            color = MaterialTheme.colorScheme.tertiary
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF00BFA5).copy(alpha = 0.2f)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     Icons.Default.AutoAwesome,
                                     contentDescription = null,
                                     modifier = Modifier.size(24.dp),
-                                    tint = MaterialTheme.colorScheme.onTertiary
+                                    tint = Color(0xFF00BFA5)
                                 )
                             }
                         }
                         Spacer(modifier = Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Check my car with AI",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
+                            // Title + AI badge on the exact same horizontal baseline
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.wrapContentHeight()
+                            ) {
+                                Text(
+                                    text = "Check my car with AI",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = Color(0xFF00BFA5).copy(alpha = 0.2f)
+                                ) {
+                                    Text(
+                                        text = "AI",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF00BFA5),
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = "Snap a photo to see if it needs a wash",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                                color = Color.White.copy(alpha = 0.6f)
                             )
                         }
                         Icon(
                             Icons.Default.ChevronRight,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.5f)
+                            tint = Color(0xFF00BFA5).copy(alpha = 0.7f)
                         )
                     }
                 }
@@ -338,37 +398,82 @@ fun ShopCard(
     shop: CarWashShop,
     onClick: () -> Unit
 ) {
+    // Trim address to city/district: take text after last comma, or full if no comma
+    val shortAddress = remember(shop.address) {
+        shop.address.split(",").let { parts ->
+            if (parts.size >= 2) parts.takeLast(2).joinToString(",").trim()
+            else shop.address.trim()
+        }
+    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
         onClick = onClick,
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = com.app.checkot.ui.theme.CheckotCardSurface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             ShopLogo(logoUrl = shop.logoUrl, size = 48.dp)
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = shop.name,
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = shop.address,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                if (shortAddress.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.LocationOn,
+                            contentDescription = null,
+                            modifier = Modifier.size(11.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = shortAddress,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            // Price badge + chevron — always shown; falls back to ₱100 if not configured
+            val displayPrice = if (shop.minPrice > 0) shop.minPrice.toInt() else 100
+            Column(horizontalAlignment = Alignment.End) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = com.app.checkot.ui.theme.CheckotBadgeSurface
+                ) {
+                    Text(
+                        text = "From ₱$displayPrice",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = com.app.checkot.ui.theme.CheckotBadgeTeal,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = "Book",
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                    modifier = Modifier.size(18.dp)
                 )
             }
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = "Book",
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-            )
         }
     }
 }
@@ -411,7 +516,8 @@ fun BookingCard(
             .fillMaxWidth()
             .padding(vertical = 4.dp),
         onClick = onClick,
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = com.app.checkot.ui.theme.CheckotCardSurface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
@@ -425,9 +531,11 @@ fun BookingCard(
             ) {
                 Text(
                     text = shopName,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f)
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 BookingStatusBadge(status = booking.status)
             }
@@ -468,8 +576,12 @@ fun BookingCard(
                     tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
+                val dateStr = java.text.SimpleDateFormat(
+                    "MMM dd, yyyy",
+                    androidx.compose.ui.platform.LocalLocale.current.platformLocale
+                ).format(java.util.Date(booking.bookingDate))
                 Text(
-                    text = booking.timeSlot,
+                    text = "$dateStr at ${booking.timeSlot}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     maxLines = 1
@@ -578,8 +690,9 @@ fun BookingCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
+                val priceStr = if (booking.price % 1.0 == 0.0) booking.price.toLong().toString() else booking.price.toString()
                 Text(
-                    text = "₱${booking.price}",
+                    text = "₱$priceStr",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold

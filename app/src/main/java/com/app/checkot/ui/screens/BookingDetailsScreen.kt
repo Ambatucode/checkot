@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.*
@@ -29,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -81,6 +83,7 @@ fun BookingDetailsScreen(
     val bookings by bookingViewModel.userBookings.collectAsState()
     val booking = bookings.find { it.bookingId == bookingId }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var isCancelling by remember { mutableStateOf(false) }
     var showCancelDialog by remember { mutableStateOf(false) }
     var queueInfo by remember { mutableStateOf(QueueInfo()) }
@@ -450,9 +453,10 @@ fun BookingDetailsScreen(
                 }
             }
             item {
-                // Service Details Card
+                // Consolidated Booking Summary Card
                 Card(
                     modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = com.app.checkot.ui.theme.CheckotCardSurface),
                     elevation = CardDefaults.cardElevation(2.dp)
                 ) {
                     Column(
@@ -460,28 +464,30 @@ fun BookingDetailsScreen(
                             .fillMaxWidth()
                             .padding(16.dp)
                     ) {
+                        // Header
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(bottom = 8.dp)
                         ) {
                             Icon(
-                                Icons.Default.Build,
+                                Icons.Default.ReceiptLong,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Service Details",
+                                text = "Booking Summary",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Service Details Section
                         DetailRow("Shop:", shopName.ifEmpty { booking.shopId.takeLast(6).uppercase() })
                         DetailRow("Services:", booking.displayServiceNames())
+                        
                         val totalMin = BookingUtils.bookingDurationMinutes(booking)
                         val durationText = when {
                             totalMin >= 60 && totalMin % 60 > 0 -> "${totalMin / 60}h ${totalMin % 60}m"
@@ -489,17 +495,18 @@ fun BookingDetailsScreen(
                             else -> "$totalMin mins"
                         }
                         DetailRow("Duration:", durationText)
-                        DetailRow("Price:", "₱${booking.price}")
+                        
+                        val priceStr = if (booking.price % 1.0 == 0.0) booking.price.toLong().toString() else booking.price.toString()
+                        DetailRow("Price:", "₱$priceStr")
+                        
                         if (booking.servicedBy.isNotBlank()) {
                             DetailRow("Serviced by:", booking.servicedBy)
                         }
                         if (booking.addOns.isNotEmpty()) {
                             DetailRow("Add-ons:", booking.addOns.joinToString(", "))
                         }
-                        DetailRow(
-                            "Payment:",
-                            "Cash · " + if (booking.paymentStatus == "paid") "Paid" else "Unpaid"
-                        )
+                        DetailRow("Payment:", "Cash · " + if (booking.paymentStatus == "paid") "Paid" else "Unpaid")
+                        
                         if (booking.paymentStatus == "paid") {
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
@@ -519,11 +526,9 @@ fun BookingDetailsScreen(
                             }
                         }
                         if (booking.notes.isNotBlank()) {
-                             DetailRow("Special Requests:", booking.notes)
+                            DetailRow("Special Requests:", booking.notes)
                         }
-                        if (booking.status == BookingStatus.CONFIRMED ||
-                            booking.status == BookingStatus.IN_PROGRESS
-                        ) {
+                        if (booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS) {
                             Spacer(modifier = Modifier.height(12.dp))
                             OutlinedButton(
                                 onClick = { showAddOnDialog = true },
@@ -535,179 +540,64 @@ fun BookingDetailsScreen(
                                 Text("Add an add-on service")
                             }
                         }
-                    }
-                }
-            }
-            // Shop Location map — shown on every status except Cancelled, so the
-            // client can always navigate there or look the location back up later
-            // (e.g. to rebook). Hidden only when the trip won't happen at all.
-            if (booking.status != BookingStatus.CANCELLED &&
-                (shopLatitude != 0.0 || shopLongitude != 0.0)
-            ) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        elevation = CardDefaults.cardElevation(2.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Place,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Shop Location",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            ShopLocationView(
-                                latitude = shopLatitude,
-                                longitude = shopLongitude,
-                                shopName = shopName.ifEmpty { "Car wash" }
-                            )
-                        }
-                    }
-                }
-            }
-            item {
-                // Car Details Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(2.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.DirectionsCar,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Car Details",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Car & Schedule Section
                         val carDetails = booking.carDetails.split(" - ")
                         if (carDetails.size == 2) {
                             DetailRow("Car:", carDetails[0])
-                            DetailRow("Plate Number:", carDetails[1])
+                            DetailRow("Plate:", carDetails[1])
                         } else {
                             DetailRow("Car:", booking.carDetails)
                         }
-                    }
-                }
-            }
-            item {
-                // Schedule Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(2.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.CalendarToday,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Schedule",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
                         DetailRow("Date:", DateUtils.formatDate(booking.bookingDate))
                         DetailRow("Time:", booking.timeSlot)
-                    }
-                }
-            }
-            item {
-                // Timeline Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(2.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Timeline,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Timeline",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        if (booking.createdAt > 0) {
-                            DetailRow("Created:", DateUtils.formatDateTime(booking.createdAt))
-                        }
-                        booking.confirmedAt?.let {
-                            DetailRow("Confirmed:", DateUtils.formatDateTime(it))
-                        }
-                        booking.inProgressAt?.let {
-                            DetailRow("In Progress:", DateUtils.formatDateTime(it))
-                        }
-                        booking.paidAt?.let {
-                            DetailRow("Paid:", DateUtils.formatDateTime(it))
-                        }
-                        booking.completedAt?.let {
-                            DetailRow("Completed:", DateUtils.formatDateTime(it))
-                        }
-                        booking.cancelledAt?.let {
-                            DetailRow("Cancelled:", DateUtils.formatDateTime(it))
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        // Timeline Section
+                        Text("Timeline", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 4.dp))
+                        if (booking.createdAt > 0) DetailRow("Booked:", DateUtils.formatDateTime(booking.createdAt))
+                        booking.confirmedAt?.let { DetailRow("Confirmed:", DateUtils.formatDateTime(it)) }
+                        booking.inProgressAt?.let { DetailRow("In Progress:", DateUtils.formatDateTime(it)) }
+                        booking.paidAt?.let { DetailRow("Paid:", DateUtils.formatDateTime(it)) }
+                        booking.completedAt?.let { DetailRow("Completed:", DateUtils.formatDateTime(it)) }
+                        booking.cancelledAt?.let { DetailRow("Cancelled:", DateUtils.formatDateTime(it)) }
+                        
+                        // Location Action Row
+                        if (booking.status != BookingStatus.CANCELLED && (shopLatitude != 0.0 || shopLongitude != 0.0)) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Surface(
+                                onClick = {
+                                    val uri = android.net.Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$shopLatitude,$shopLongitude")
+                                    try {
+                                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri).apply { setPackage("com.google.android.apps.maps") })
+                                    } catch (e: Exception) {
+                                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
+                                    }
+                                },
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Place, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "${shopName.ifEmpty { "Car wash" }} • View Map >",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -744,19 +634,20 @@ fun BookingDetailsScreen(
             if (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED) {
                 item {
                     // Cancel Button
-                    Button(
+                    OutlinedButton(
                         onClick = { showCancelDialog = true },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                            contentColor = MaterialTheme.colorScheme.onError
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color(0xFFFF6B6B).copy(alpha = 0.1f),
+                            contentColor = Color(0xFFFF6B6B)
                         ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF6B6B)),
                         enabled = !isCancelling
                     ) {
                         if (isCancelling) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
-                                color = MaterialTheme.colorScheme.onError
+                                color = Color(0xFFFF6B6B)
                             )
                         } else {
                             Icon(Icons.Default.Cancel, contentDescription = null)
@@ -1318,7 +1209,12 @@ fun ServiceProgressStepper(status: BookingStatus) {
         return
     }
 
-    val steps = listOf("Queue", "Accepted", "Washing", "Ready")
+    val steps = listOf(
+        "Queue" to Icons.Default.HourglassEmpty,
+        "Accepted" to Icons.Default.Assignment,
+        "In Progress" to Icons.Default.LocalCarWash,
+        "Ready" to Icons.Default.VpnKey
+    )
     val currentStepIndex = when (status) {
         BookingStatus.PENDING -> 0
         BookingStatus.CONFIRMED -> 1
@@ -1329,6 +1225,7 @@ fun ServiceProgressStepper(status: BookingStatus) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = com.app.checkot.ui.theme.CheckotCardSurface),
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
         Column(
@@ -1340,14 +1237,14 @@ fun ServiceProgressStepper(status: BookingStatus) {
             Text(
                 text = "Service Progress Tracker",
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = Color(0xFF00E6C3),
                 modifier = Modifier.padding(bottom = 16.dp)
             )
             // Line with circles
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(28.dp)
+                    .height(40.dp) // Increased for glow
             ) {
                 // Full background line
                 Box(
@@ -1356,7 +1253,7 @@ fun ServiceProgressStepper(status: BookingStatus) {
                         .height(4.dp)
                         .align(Alignment.CenterStart)
                         .background(
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                            Color.White.copy(alpha = 0.1f),
                             MaterialTheme.shapes.small
                         )
                 )
@@ -1368,7 +1265,7 @@ fun ServiceProgressStepper(status: BookingStatus) {
                             .height(4.dp)
                             .align(Alignment.CenterStart)
                             .background(
-                                MaterialTheme.colorScheme.primary,
+                                Color(0xFF00E6C3),
                                 MaterialTheme.shapes.small
                             )
                     )
@@ -1379,35 +1276,35 @@ fun ServiceProgressStepper(status: BookingStatus) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    steps.forEachIndexed { index, label ->
+                    steps.forEachIndexed { index, step ->
+                        val (label, icon) = step
                         val isCompleted = index < currentStepIndex
                         val isActive = index == currentStepIndex
-                        val circleColor = when {
-                            isCompleted -> MaterialTheme.colorScheme.primary
-                            isActive -> MaterialTheme.colorScheme.tertiary
-                            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                        }
+                        val isHighlighted = isCompleted || isActive
+                        
+                        val circleColor = if (isHighlighted) Color(0xFF00E6C3) else Color.White.copy(alpha = 0.2f)
+                        val iconColor = if (isHighlighted) Color(0xFF0F2530) else Color.White.copy(alpha = 0.6f)
+                        
                         Box(
                             modifier = Modifier
-                                .size(28.dp)
+                                .size(32.dp)
+                                .then(
+                                    if (isActive) Modifier.drawBehind {
+                                        drawCircle(
+                                            color = Color(0xFF00E6C3).copy(alpha = 0.4f),
+                                            radius = size.minDimension / 2 + 8.dp.toPx()
+                                        )
+                                    } else Modifier
+                                )
                                 .background(circleColor, shape = CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (isCompleted) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            } else {
-                                Text(
-                                    text = (index + 1).toString(),
-                                    color = if (isActive) MaterialTheme.colorScheme.onTertiary
-                                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            }
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = label,
+                                tint = iconColor,
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
                     }
                 }
@@ -1416,17 +1313,21 @@ fun ServiceProgressStepper(status: BookingStatus) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
+                    .padding(top = 12.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                steps.forEachIndexed { index, label ->
+                steps.forEachIndexed { index, step ->
+                    val (label, _) = step
                     val isActive = index == currentStepIndex
+                    val isCompleted = index < currentStepIndex
+                    val isHighlighted = isCompleted || isActive
                     Text(
                         text = label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isActive) MaterialTheme.colorScheme.tertiary
-                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                        fontWeight = if (isActive) androidx.compose.ui.text.font.FontWeight.Bold else null
+                        color = if (isHighlighted) Color(0xFF00E6C3) else Color.White.copy(alpha = 0.6f),
+                        fontWeight = if (isActive) androidx.compose.ui.text.font.FontWeight.Bold else null,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -1437,9 +1338,9 @@ fun ServiceProgressStepper(status: BookingStatus) {
 @Composable
 fun QueuePositionCard(queueInfo: QueueInfo, status: BookingStatus) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().border(1.dp, Color(0xFF00E6C3), MaterialTheme.shapes.medium),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
+            containerColor = com.app.checkot.ui.theme.CheckotCardSurface
         ),
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
@@ -1456,13 +1357,13 @@ fun QueuePositionCard(queueInfo: QueueInfo, status: BookingStatus) {
                 Icon(
                     Icons.Default.People,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    tint = Color(0xFF00E6C3)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Queue Position",
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    color = Color(0xFF00E6C3)
                 )
             }
 
@@ -1482,7 +1383,7 @@ fun QueuePositionCard(queueInfo: QueueInfo, status: BookingStatus) {
             Text(
                 text = if (carsAhead == 0) "You're next!" else "$carsAhead car${if (carsAhead > 1) "s" else ""} ahead of you",
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
+                color = Color(0xFF00E6C3)
             )
 
             // Estimated wait time
@@ -1530,7 +1431,7 @@ fun QueuePositionCard(queueInfo: QueueInfo, status: BookingStatus) {
                     else -> ""
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
+                color = Color(0xFF00E6C3)
             )
         }
     }

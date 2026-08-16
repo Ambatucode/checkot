@@ -101,7 +101,6 @@ fun MyCarsScreen(
                     CarCard(
                         car = car,
                         isActive = isActive,
-                        onEdit = { /* Navigate to edit car */ },
                         onDelete = {
                             scope.launch {
                                 carViewModel.deleteCar(car.carId)
@@ -120,19 +119,15 @@ fun MyCarsScreen(
 fun CarCard(
     car: Car,
     isActive: Boolean = false,
-    onEdit: () -> Unit,
     onDelete: () -> Unit,
     onSelect: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = if (car.isDefault) {
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
-        } else {
-            CardDefaults.cardColors()
-        },
+        colors = CardDefaults.cardColors(
+            containerColor = androidx.compose.ui.graphics.Color(0xFF0F2530)
+        ),
+        border = if (car.isDefault) androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFF00E6C3)) else null,
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
@@ -233,20 +228,9 @@ fun CarCard(
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(
-                    onClick = onEdit,
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = if (car.isDefault) MaterialTheme.colorScheme.onPrimaryContainer
-                                       else MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Edit")
-                }
-                Spacer(modifier = Modifier.width(4.dp))
                 TextButton(
                     onClick = onDelete,
                     enabled = !isActive,
@@ -259,15 +243,15 @@ fun CarCard(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Delete")
                 }
-                Spacer(modifier = Modifier.width(4.dp))
+                
                 Button(
                     onClick = onSelect,
                     modifier = Modifier.height(36.dp),
                     shape = MaterialTheme.shapes.small,
-                    colors = if (car.isDefault) ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        contentColor = MaterialTheme.colorScheme.primary
-                    ) else ButtonDefaults.buttonColors()
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = androidx.compose.ui.graphics.Color(0xFF00E6C3),
+                        contentColor = androidx.compose.ui.graphics.Color(0xFF0B1E28)
+                    )
                 ) {
                     Text("Select")
                 }

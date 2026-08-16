@@ -10,10 +10,14 @@ import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.*
@@ -123,23 +127,23 @@ fun ProfileScreen(
             contentPadding = PaddingValues(16.dp)
         ) {
             item {
-                // Profile Picture - FIXED HERE
+                // Profile Picture — clean teal-ringed avatar
                 Surface(
                     modifier = Modifier
                         .size(120.dp)
+                        .border(3.dp, Color(0xFF00E6C3), CircleShape)
                         .clip(CircleShape),
-                    color = MaterialTheme.colorScheme.primaryContainer
+                    color = com.app.checkot.ui.theme.CheckotCardSurface
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
-                            // SAFE VERSION - won't crash on empty string
                             text = if (!userData?.fullName.isNullOrEmpty())
                                 userData!!.fullName.first().uppercase()
                             else
                                 "?",
                             fontSize = 48.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = Color(0xFF00E6C3)
                         )
                     }
                 }
@@ -155,6 +159,7 @@ fun ProfileScreen(
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = com.app.checkot.ui.theme.CheckotCardSurface),
                         elevation = CardDefaults.cardElevation(2.dp)
                     ) {
                         Column(
@@ -269,6 +274,7 @@ fun ProfileScreen(
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = com.app.checkot.ui.theme.CheckotCardSurface),
                         elevation = CardDefaults.cardElevation(2.dp)
                     ) {
                         Column(
@@ -378,6 +384,7 @@ fun ProfileScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = com.app.checkot.ui.theme.CheckotCardSurface),
                     elevation = CardDefaults.cardElevation(2.dp)
                 ) {
                     Column(
@@ -444,84 +451,147 @@ fun ProfileScreen(
                 }
             }
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(2.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                // Client-only navigation rows
+                if (!isOwner) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = com.app.checkot.ui.theme.CheckotCardSurface),
+                        elevation = CardDefaults.cardElevation(2.dp)
                     ) {
-                        Text(
-                            text = "Quick Access",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        // Client-only shortcuts. Owners don't book or own cars,
-                        // so these are hidden for them (they keep Edit Profile +
-                        // Logout below).
-                        if (!isOwner) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                                OutlinedButton(
-                                    onClick = { navController.navigate("cars") },
-                                    modifier = Modifier.weight(1f),
-                                    shape = MaterialTheme.shapes.medium
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            // My Cars row
+                            Surface(
+                                onClick = { navController.navigate("cars") },
+                                color = Color.Transparent
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.DirectionsCar, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("My Cars", style = MaterialTheme.typography.labelMedium)
-                                }
-                                OutlinedButton(
-                                    onClick = { navController.navigate("my_bookings") },
-                                    modifier = Modifier.weight(1f),
-                                    shape = MaterialTheme.shapes.medium
-                                ) {
-                                    Icon(Icons.Default.Bookmark, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Bookings", style = MaterialTheme.typography.labelMedium)
+                                    Surface(
+                                        modifier = Modifier.size(36.dp),
+                                        shape = CircleShape,
+                                        color = Color(0xFF00E6C3).copy(alpha = 0.15f)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                Icons.Default.DirectionsCar,
+                                                contentDescription = null,
+                                                tint = Color(0xFF00E6C3),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = "My Cars",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                    )
                                 }
                             }
-                        }
-                        Button(
-                            onClick = { navController.navigate("edit_profile") },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.medium,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
                             )
-                        ) {
-                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Edit Profile")
-                        }
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch {
-                                    isLoading = true
-                                    authViewModel.signOut()
-                                    onLogout()
+                            // Bookings row
+                            Surface(
+                                onClick = { navController.navigate("my_bookings") },
+                                color = Color.Transparent
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        modifier = Modifier.size(36.dp),
+                                        shape = CircleShape,
+                                        color = Color(0xFF00E6C3).copy(alpha = 0.15f)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                Icons.Default.Bookmark,
+                                                contentDescription = null,
+                                                tint = Color(0xFF00E6C3),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = "Bookings",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                    )
                                 }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.medium,
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.error
-                            ),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error),
-                            enabled = !isLoading
-                        ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    color = MaterialTheme.colorScheme.error,
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Logout")
                             }
                         }
+                    }
+                }
+            }
+            // Edit Profile — standalone full-width primary button
+            item {
+                Button(
+                    onClick = { navController.navigate("edit_profile") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF00E6C3),
+                        contentColor = Color(0xFF0F2530)
+                    )
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Edit Profile", fontWeight = FontWeight.SemiBold)
+                }
+            }
+            // Logout — standalone danger outlined button
+            item {
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            isLoading = true
+                            authViewModel.signOut()
+                            onLogout()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color(0xFFFF6B6B).copy(alpha = 0.1f),
+                        contentColor = Color(0xFFFF6B6B)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF6B6B)),
+                    enabled = !isLoading
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color(0xFFFF6B6B),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Logout", fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

@@ -30,40 +30,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 
-const val MIN_SERVICE_DURATION_MIN = 20
-const val MAX_SERVICE_DURATION_MIN = 180
-const val MAX_SERVICE_DESCRIPTION_LEN = 150
-// A shop must stay open at least this long — prevents absurdly short windows
-// that would confuse clients (sanity floor for the no-active-bookings case).
-const val MIN_WORKING_WINDOW_MIN = 60
-internal const val SLOT_STEP_MIN = 30
 
-/** Rounds [value] up to the next multiple of [step] (e.g. 9:45 → 10:00 on a 30-min grid). */
-internal fun ceilToStep(value: Int, step: Int): Int = ((value + step - 1) / step) * step
-
-/** Built-in default duration for a predefined service; 0 for custom services. */
-internal fun defaultDurationMinutes(config: CustomServiceConfig): Int =
-    ServiceType.values().find { it.name == config.serviceName }
-        ?.let { BookingUtils.parseDurationMinutes(it.duration) } ?: 0
-
-/**
- * Repairs legacy configs whose isCustom flag was lost by the old Firestore
- * field-name mismatch (stored as "custom", read as "isCustom"): a service
- * with no matching ServiceType is custom by definition. Saving persists the
- * repaired flag under the correct field name.
- */
-internal fun normalizeConfigs(services: List<CustomServiceConfig>): List<CustomServiceConfig> =
-    services.map { config ->
-        val isCustom = config.isCustom || ServiceType.values().none { it.name == config.serviceName }
-        config.copy(
-            isCustom = isCustom,
-            customName = if (isCustom && config.customName.isBlank()) config.displayName else config.customName
-        )
-    }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OwnerServicesTab(
+fun OwnerSettingsTab(
     ownerViewModel: OwnerDashboardViewModel,
     paddingValues: PaddingValues,
     navController: NavController
@@ -267,194 +238,135 @@ fun OwnerServicesTab(
     ) {
         LazyColumn(modifier = Modifier.weight(1f)) {
         item {
-        // Manage Services — page title + count + add button.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Manage Services", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    "${editedServices.size}/$maxServices services",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (atMaxLimit) MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+            // Card 1: Schedule & Availability — Working Hours, Closed Dates, Overrides.
+            SettingsCard(title = "Schedule & Availability", icon = Icons.Default.Schedule) {
+                WorkingHoursSection(
+                    openMinutes = openMinutes,
+                    closeMinutes = closeMinutes,
+                    earliestBookingStart = earliestBookingStart,
+                    latestBookingStart = latestBookingStart,
+                    windowValid = windowValid,
+                    openCoversBookings = openCoversBookings,
+                    closeCoversBookings = closeCoversBookings,
+                    onOpenChange = { m ->
+                        openMinutes = m
+                        // Keep closing at least a full window ahead and past any booking.
+                        val minClose = maxOf(
+                            m + MIN_WORKING_WINDOW_MIN,
+                            latestBookingStart?.let { ceilToStep(it, SLOT_STEP_MIN) } ?: 0
+                        )
+                        if (closeMinutes < minClose) closeMinutes = minClose
+                    },
+                    onCloseChange = { closeMinutes = it }
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                ClosedDatesSection(
+                    closedDates = closedDates,
+                    onClosedDatesChange = { closedDates = it }
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                HoursOverridesSection(
+                    dayOverrides = dayOverrides,
+                    defaultOpenMinutes = openMinutes,
+                    defaultCloseMinutes = closeMinutes,
+                    onDayOverridesChange = { dayOverrides = it }
                 )
             }
-            Box {
+            Spacer(modifier = Modifier.height(12.dp))
+            // Card 2: Shop Location — compact preview + change button.
+            SettingsCard(title = "Shop Location", icon = Icons.Default.Place) {
+                val locationSet = customization.latitude != 0.0 || customization.longitude != 0.0
+                Text(
+                    text = if (locationSet) "Location is set — clients can see your shop on the map."
+                           else "No location set yet. Set it so clients can find you.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (locationSet) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            else MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.height(8.dp))
                 OutlinedButton(
-                    onClick = { showAddDropdown = true },
-                    enabled = !atMaxLimit,
+                    onClick = { navController.navigate("set_shop_location") },
                     shape = MaterialTheme.shapes.medium
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Add Service", style = MaterialTheme.typography.labelMedium)
+                    Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(if (locationSet) "Change Location" else "Set Location on Map")
                 }
-                DropdownMenu(
-                    expanded = showAddDropdown,
-                    onDismissRequest = { showAddDropdown = false },
-                    modifier = Modifier.heightIn(max = 320.dp)
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            // Card 3: Staff Management — removable pill chips.
+            SettingsCard(title = "Staff Management", icon = Icons.Default.Group) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    availableTypesToAdd.forEach { type ->
-                        DropdownMenuItem(
-                            text = { Text(type.displayName) },
-                            onClick = {
-                                editedServices = editedServices + CustomServiceConfig(
-                                    serviceName = type.name,
-                                    displayName = type.displayName,
-                                    customPrice = type.price,
-                                    durationMinutes = BookingUtils.parseDurationMinutes(type.duration)
-                                )
-                                showAddDropdown = false
-                            }
-                        )
-                    }
-                    if (availableTypesToAdd.isNotEmpty()) {
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    }
-                    DropdownMenuItem(
-                        text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.AddCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Others (Custom Service)")
-                            }
-                        },
+                    OutlinedTextField(
+                        value = staffNameInput,
+                        onValueChange = { if (it.length <= 30) staffNameInput = it },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("Staff name") },
+                        placeholder = { Text("e.g. Juan") },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.small
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    val trimmedStaff = staffNameInput.trim()
+                    val canAddStaff = trimmedStaff.isNotEmpty() &&
+                        editedStaff.none { it.equals(trimmedStaff, ignoreCase = true) } &&
+                        editedStaff.size < 15
+                    Button(
                         onClick = {
-                            showAddDropdown = false
-                            customServiceNameInput = ""
-                            showCustomNameDialog = true
-                        }
-                    )
+                            editedStaff = editedStaff + trimmedStaff
+                            staffNameInput = ""
+                        },
+                        enabled = canAddStaff,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Add staff", modifier = Modifier.size(18.dp))
+                    }
                 }
-            }
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        // Service Bays — its own compact card, separated from the page title.
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = CheckotCardSurface)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.Garage,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = CheckotTeal
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    "Service Bays",
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(
-                    onClick = {
-                        val current = bayCountText.toIntOrNull() ?: 1
-                        if (current > 1) {
-                            bayCountText = (current - 1).toString()
-                        }
-                    },
-                    modifier = Modifier.size(40.dp),
-                    enabled = (bayCountText.toIntOrNull() ?: 1) > 1
-                ) {
-                    Icon(Icons.Default.Remove, contentDescription = "Decrease bay count", modifier = Modifier.size(16.dp))
-                }
-                Text(
-                    text = bayCountText,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                )
-                IconButton(
-                    onClick = {
-                        val current = bayCountText.toIntOrNull() ?: 1
-                        if (current < 10) {
-                            bayCountText = (current + 1).toString()
-                        }
-                    },
-                    modifier = Modifier.size(40.dp),
-                    enabled = (bayCountText.toIntOrNull() ?: 1) < 10
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Increase bay count", modifier = Modifier.size(16.dp))
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        if (editedServices.isEmpty()) {
-            item {
-            Box(
-                modifier = Modifier
-                    .fillParentMaxWidth()
-                    .fillParentMaxHeight()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.Build,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+                if (editedStaff.isEmpty()) {
                     Text(
-                        "No services configured",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "Tap \"Add Service\" to get started",
+                        text = "No staff yet.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                     )
-                }
-            }
-            }
-        } else {
-            items(
-                items = editedServices,
-                key = { it.serviceName }
-            ) { config ->
-                val isInUse = allBookings.any { booking ->
-                    val status = booking.status
-                    val isActive = status == BookingStatus.PENDING
-                        || status == BookingStatus.CONFIRMED
-                        || status == BookingStatus.IN_PROGRESS
-                    if (!isActive) return@any false
-                    // Check if this booking uses the service being deleted
-                    if (config.isCustom) {
-                        // Custom service: check customServiceNames
-                        config.customName.isNotEmpty() && booking.customServiceNames.contains(config.customName)
-                    } else {
-                        // Predefined service: check ServiceType list
-                        booking.services.any { it.name == config.serviceName }
+                } else {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        editedStaff.forEach { name ->
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+                                ) {
+                                    Text(name, style = MaterialTheme.typography.bodyMedium)
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    IconButton(
+                                        onClick = { editedStaff = editedStaff - name },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Remove $name",
+                                            modifier = Modifier.size(14.dp),
+                                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-                ServiceRow(
-                    config = config,
-                    canDelete = !isInUse,
-                    deleteReason = "Cannot delete — service has active bookings",
-                    onEdit = { editingService = config },
-                    onDelete = {
-                        invalidDurationKeys = invalidDurationKeys - config.serviceName
-                        editedServices = editedServices.filter { it.serviceName != config.serviceName }
-                    }
-                )
             }
+        }
         }
         }
 
@@ -550,7 +462,7 @@ private fun ServiceRow(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
             modifier = Modifier
@@ -559,16 +471,16 @@ private fun ServiceRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(config.displayName, style = MaterialTheme.typography.titleSmall, color = Color.White)
+                Text(config.displayName, style = MaterialTheme.typography.titleSmall)
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "${BookingUtils.formatPrice(price)} • $durationLabel",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.85f)
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
             IconButton(onClick = onEdit) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit ${config.displayName}", modifier = Modifier.size(18.dp), tint = Color.White)
+                Icon(Icons.Default.Edit, contentDescription = "Edit ${config.displayName}", modifier = Modifier.size(18.dp))
             }
             IconButton(
                 onClick = {
@@ -581,7 +493,7 @@ private fun ServiceRow(
                     contentDescription = "Delete ${config.displayName}",
                     modifier = Modifier.size(18.dp),
                     tint = if (canDelete) MaterialTheme.colorScheme.error
-                           else Color.White.copy(alpha = 0.3f)
+                           else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
                 )
             }
         }

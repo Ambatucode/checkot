@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -83,26 +84,29 @@ fun LocationPickerMap(
     // form), dragging the map would otherwise scroll the page instead of panning
     // the map. Consume any drag-driven scroll over the map area so the native
     // map handles the gesture; the page only scrolls when touched elsewhere.
-    val blockScroll = remember {
-        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
-            override fun onPostScroll(
-                consumed: androidx.compose.ui.geometry.Offset,
-                available: androidx.compose.ui.geometry.Offset,
-                source: androidx.compose.ui.input.nestedscroll.NestedScrollSource
-            ): androidx.compose.ui.geometry.Offset =
-                if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) available
-                else androidx.compose.ui.geometry.Offset.Zero
-        }
-    }
-
     Box(
-        modifier = modifier.nestedScroll(blockScroll)
+        modifier = modifier
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        // Intercept and prevent parent scroll container from consuming gestures
+                        if (event.changes.any { it.pressed }) {
+                            Unit
+                        }
+                    }
+                }
+            }
     ) {
         GoogleMap(
             modifier = Modifier.matchParentSize(),
             cameraPositionState = cameraPositionState,
             onMapClick = { onLocationChange(it) },
-            uiSettings = MapUiSettings(zoomControlsEnabled = false)
+            uiSettings = MapUiSettings(
+                zoomControlsEnabled = false,
+                scrollGesturesEnabled = true,
+                zoomGesturesEnabled = true
+            )
         ) {
             location?.let {
                 Marker(
