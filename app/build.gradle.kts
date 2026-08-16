@@ -17,10 +17,13 @@ val localProps = Properties().apply {
 // Google Maps API key. Missing key → maps render blank but the build still works.
 val mapsApiKey: String = localProps.getProperty("MAPS_API_KEY") ?: ""
 
-// Demo mode credentials: the app silently signs in as this fixed demo customer
-// and skips the login/signup screens. Empty → demo mode off, normal login flow.
+// Demo mode credentials: the app silently signs in as the configured demo role
+// and skips the login/signup screens. Uncomment exactly ONE role at a time in
+// local.properties (owner wins if both are set). Empty → demo mode off.
 val demoEmail: String = localProps.getProperty("DEMO_EMAIL") ?: ""
 val demoPassword: String = localProps.getProperty("DEMO_PASSWORD") ?: ""
+val demoOwnerEmail: String = localProps.getProperty("DEMO_OWNER_EMAIL") ?: ""
+val demoOwnerPassword: String = localProps.getProperty("DEMO_OWNER_PASSWORD") ?: ""
 
 kotlin {
     compilerOptions {
@@ -49,6 +52,8 @@ android {
         // source control.
         buildConfigField("String", "DEMO_EMAIL", "\"${demoEmail.replace("\"", "\\\"")}\"")
         buildConfigField("String", "DEMO_PASSWORD", "\"${demoPassword.replace("\"", "\\\"")}\"")
+        buildConfigField("String", "DEMO_OWNER_EMAIL", "\"${demoOwnerEmail.replace("\"", "\\\"")}\"")
+        buildConfigField("String", "DEMO_OWNER_PASSWORD", "\"${demoOwnerPassword.replace("\"", "\\\"")}\"")
     }
 
     signingConfigs {

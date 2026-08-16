@@ -111,60 +111,120 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     val roleLoadState: StateFlow<RoleLoadState> = _roleLoadState
 
     init {
-        val existingUser = auth.currentUser
-        if (existingUser != null) {
-            _authState.value = AuthState.Authenticated
-            loadUserData()
-            // Upload FCM token directly — ensures token is always saved
-            // even if loadUserData hasn't completed yet
-            FirebaseMessaging.getInstance().token
-                .addOnSuccessListener { token ->
-                    firestore.collection("users").document(existingUser.uid)
-                        .set(mapOf("fcmToken" to token), com.google.firebase.firestore.SetOptions.merge())
-                        .addOnSuccessListener { Log.d(TAG, "✅ AuthVM: FCM token saved on init") }
-                        .addOnFailureListener { e -> Log.e(TAG, "❌ AuthVM: Failed to save token: ${e.message}") }
-                }
-        } else if (BuildConfig.DEMO_EMAIL.isNotBlank() && BuildConfig.DEMO_PASSWORD.isNotBlank()) {
-            // Demo mode: silently sign in as the fixed demo customer and land on
-            // Home — no login/signup UI. The RBAC gate stays on Loading until this
-            // completes so the Login screen never flashes. First run self-seeds the
-            // user doc (role=customer, phoneVerified=true) so the existing routing
-            // sends the demo user straight to Home.
-            _roleLoadState.value = RoleLoadState.Loading
-            viewModelScope.launch {
-                try {
-                    val result = auth.signInWithEmailAndPassword(
-                        BuildConfig.DEMO_EMAIL,
-                        BuildConfig.DEMO_PASSWORD
-                    ).await()
-                    val user = result.user ?: throw Exception("Demo sign-in failed")
-                    val docRef = firestore.collection("users").document(user.uid)
-                    if (!docRef.get().await().exists()) {
-                        val userData = CarWashUser(
-                            userId = user.uid,
-                            fullName = "Demo User",
-                            email = BuildConfig.DEMO_EMAIL,
-                            phoneNumber = "+10000000000",
-                            phoneVerified = true,
-                            createdAt = System.currentTimeMillis(),
-                            role = "customer",
-                            savedCars = emptyList()
-                        )
-                        docRef.set(userData).await()
-                        _currentUserData.value = userData
-                        uploadFcmToken(user.uid)
-                        _roleLoadState.value = RoleLoadState.Ready
-                    } else {
-                        loadUserData()
+        // Demo mode (this branch): if demo credentials are configured in
+        // local.properties, silently sign in as the configured demo role on
+        // every launch — no login/signup UI. Switching roles = comment/uncomment
+        // the credentials in local.properties + rebuild; the configured role
+        // always wins over any cached session. If NO demo credentials are set,
+        // the app behaves exactly like the normal login flow.
+        val demoEmail = demoRoleEmail()
+        if (demoEmail != null) {
+            demoSignIn(demoEmail)
+        } else {
+            val existingUser = auth.currentUser
+            if (existingUser != null) {
+                _authState.value = AuthState.Authenticated
+                loadUserData()
+                // Upload FCM token directly — ensures token is always saved
+                // even if loadUserData hasn't completed yet
+                FirebaseMessaging.getInstance().token
+                    .addOnSuccessListener { token ->
+                        firestore.collection("users").document(existingUser.uid)
+                            .set(mapOf("fcmToken" to token), com.google.firebase.firestore.SetOptions.merge())
+                            .addOnSuccessListener { Log.d(TAG, "✅ AuthVM: FCM token saved on init") }
+                            .addOnFailureListener { e -> Log.e(TAG, "❌ AuthVM: Failed to save token: ${e.message}") }
                     }
-                    _authState.value = AuthState.Authenticated
-                } catch (e: Exception) {
-                    Log.e(TAG, "Demo auto sign-in failed: ${e.message}")
-                    // Fall back to the normal login flow.
-                    _roleLoadState.value = RoleLoadState.Ready
-                }
             }
         }
+    }
+
+    /** Demo role configured in local.properties, or null when demo mode is off. */
+    private fun demoRoleEmail(): String? = when {
+        BuildConfig.DEMO_OWNER_EMAIL.isNotBlank() && BuildConfig.DEMO_OWNER_PASSWORD.isNotBlank() ->
+            BuildConfig.DEMO_OWNER_EMAIL
+        BuildConfig.DEMO_EMAIL.isNotBlank() && BuildConfig.DEMO_PASSWORD.isNotBlank() ->
+            BuildConfig.DEMO_EMAIL
+        else -> null
+    }
+
+    private fun demoRolePassword(email: String): String = when (email) {
+        BuildConfig.DEMO_OWNER_EMAIL -> BuildConfig.DEMO_OWNER_PASSWORD
+        else -> BuildConfig.DEMO_PASSWORD
+    }
+
+    private fun demoSignIn(email: String) {
+        // Keep the RBAC gate on Loading so the Login screen never flashes
+        // while the demo sign-in is in flight.
+        _roleLoadState.value = RoleLoadState.Loading
+        viewModelScope.launch {
+            try {
+                val result = auth.signInWithEmailAndPassword(email, demoRolePassword(email)).await()
+                val user = result.user ?: throw Exception("Demo sign-in failed")
+                val docRef = firestore.collection("users").document(user.uid)
+                if (!docRef.get().await().exists()) {
+                    if (email == BuildConfig.DEMO_OWNER_EMAIL) {
+                        seedDemoOwner(user.uid, email)
+                    } else {
+                        seedDemoCustomer(user.uid, email)
+                    }
+                }
+                loadUserData()
+                _authState.value = AuthState.Authenticated
+            } catch (e: Exception) {
+                Log.e(TAG, "Demo auto sign-in failed: ${e.message}")
+                // Fall back to the normal login flow.
+                _roleLoadState.value = RoleLoadState.Ready
+            }
+        }
+    }
+
+    /** First run: create the demo customer profile (role=customer, verified phone). */
+    private suspend fun seedDemoCustomer(userId: String, email: String) {
+        val userData = CarWashUser(
+            userId = userId,
+            fullName = "Demo User",
+            email = email,
+            phoneNumber = "+10000000000",
+            phoneVerified = true,
+            createdAt = System.currentTimeMillis(),
+            role = "customer",
+            savedCars = emptyList()
+        )
+        firestore.collection("users").document(userId).set(userData).await()
+    }
+
+    /**
+     * First run: create the demo owner profile plus a pending shop. The shop
+     * starts 'pending' (the rules require it) — the owner dashboard works
+     * immediately; an admin must approve it before clients can book it.
+     */
+    private suspend fun seedDemoOwner(userId: String, email: String) {
+        val shopId = firestore.collection("shop_services").document().id
+        val userData = CarWashUser(
+            userId = userId,
+            fullName = "Demo Owner",
+            email = email,
+            phoneNumber = "+10000000001",
+            phoneVerified = true,
+            createdAt = System.currentTimeMillis(),
+            role = "owner",
+            ownedShopId = shopId,
+            savedCars = emptyList()
+        )
+        // User doc FIRST — the shop_services create rule requires the owner's
+        // users doc to already exist with ownedShopId set.
+        firestore.collection("users").document(userId).set(userData).await()
+        val shopCustomization = ShopCustomization(
+            shopName = "Demo Car Wash",
+            shopAddress = "",
+            status = "pending",
+            ownerId = userId,
+            ownerName = "Demo Owner",
+            ownerEmail = email,
+            services = emptyList()
+        )
+        firestore.collection("shop_services").document(shopId).set(shopCustomization).await()
+        Log.d(TAG, "✅ Demo owner seeded: shop_services/$shopId (pending)")
     }
 
     fun signUp(email: String, password: String, fullName: String, phoneNumber: String) {
