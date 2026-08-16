@@ -60,11 +60,13 @@ fun HomeScreen(
                     val status = doc.getString("status") ?: "active"
                     // Only show active shops (pending/rejected are hidden from customers)
                     if (status != "active") return@mapNotNull null
+                    val customization = doc.toObject(ShopCustomization::class.java)
                     CarWashShop(
                         shopId = doc.id,
                         name = name,
                         address = address,
-                        logoUrl = doc.getString("logoUrl") ?: ""
+                        logoUrl = doc.getString("logoUrl") ?: "",
+                        services = customization?.services ?: emptyList()
                     )
                 }
                 withContext(Dispatchers.Main) {
@@ -438,16 +440,24 @@ fun ShopCard(
                 }
             }
             Spacer(modifier = Modifier.width(8.dp))
-            // Price badge + chevron — always shown; falls back to ₱100 if not configured
-            val displayPrice = if (shop.minPrice > 0) shop.minPrice.toInt() else 100
+            // Price badge — starting price computed dynamically from the shop's
+            // offerings (customPrice overrides the ServiceType default).
+            val minPrice = shop.services
+                .mapNotNull { config ->
+                    if (config.customPrice > 0) config.customPrice
+                    else if (config.isCustom) null
+                    else ServiceType.values().find { it.name == config.serviceName }?.price
+                }
+                .filter { it > 0 }
+                .minOrNull()
             Column(horizontalAlignment = Alignment.End) {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = com.app.checkot.ui.theme.CheckotBadgeSurface
                 ) {
                     Text(
-                        text = "From ₱$displayPrice",
-                        style = MaterialTheme.typography.labelSmall,
+                        text = if (minPrice != null) "From ${BookingUtils.formatPrice(minPrice)}" else "View Rates",
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = com.app.checkot.ui.theme.CheckotBadgeTeal,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)

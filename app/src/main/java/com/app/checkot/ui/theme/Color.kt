@@ -23,5 +23,5 @@ val CheckotErrorContainer = Color(0xFF4E2A32)
 val CheckotOnErrorContainer = Color(0xFFF9DEDC)
 
 // Badge colors for "From ₱X" price chips and feature labels
-val CheckotBadgeSurface = Color(0xFF00B4A0).copy(alpha = 0.2f)  // muted teal container
-val CheckotBadgeTeal = Color(0xFF00F2FE)                         // bright teal badge text
+val CheckotBadgeSurface = Color(0xFF112834)  // dark surface container (matches palette)
+val CheckotBadgeTeal = Color(0xFF00E6C3)     // bright vibrant teal badge text

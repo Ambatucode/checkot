@@ -32,7 +32,8 @@ data class CarWashShop(
     val latitude: Double = 0.0,  // 0 = location not set
     val longitude: Double = 0.0,
     val logoUrl: String = "",    // Firebase Storage download URL; "" = no logo
-    val minPrice: Double = 0.0   // cheapest service price; 0 = unknown
+    val minPrice: Double = 0.0,  // cheapest service price; 0 = unknown (legacy)
+    val services: List<CustomServiceConfig> = emptyList() // offerings — drives the "From ₱X" badge
 )
 @Immutable
 data class Car(
