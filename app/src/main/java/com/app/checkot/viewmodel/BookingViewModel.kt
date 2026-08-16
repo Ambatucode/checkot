@@ -160,8 +160,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 )
                 val (h, m) = BookingUtils.parseTimeSlotToHourMinute(booking.timeSlot)
                 val slotStart = h * 60 + m
-                val slotEnd = slotStart + BookingUtils.bookingDurationMinutes(booking)
-                val slotOutsideHours = slotStart < effOpen || slotEnd > effClose
+                val slotOutsideHours = slotStart < effOpen || slotStart > effClose
                 if (shop == null || shop.status != "active" ||
                     shop.closedDates.contains(bookingDay) || unavailableService || slotOutsideHours
                 ) {

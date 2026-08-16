@@ -98,8 +98,10 @@ fun OwnerServicesTab(
 
     // Active bookings constrain how far hours can be narrowed — same spirit as
     // "can't delete a service that has active bookings". Opening can't move past
-    // the earliest booking's start, and closing must still cover the latest
-    // booking's FINISH time (start + duration) so a service is never cut off.
+    // the earliest booking's START, and closing can't move before the latest
+    // booking's START. closeMinutes is the last bookable slot START, so a
+    // service may legitimately finish after close — only new slot starts are
+    // blocked (consistent with slot generation).
     val activeBookingWindow: Pair<Int, Int>? = remember(allBookings) {
         val todayStart = BookingUtils.startOfDay(System.currentTimeMillis())
         // Only bookings from today onward constrain the hours — stale/past
@@ -111,31 +113,35 @@ fun OwnerServicesTab(
                 b.status == BookingStatus.IN_PROGRESS) &&
                 b.bookingDate >= todayStart
         }
-        val ranges = active.mapNotNull { b ->
+        val starts = active.mapNotNull { b ->
             val hm = runCatching { BookingUtils.parseTimeSlotToHourMinute(b.timeSlot) }.getOrNull()
                 ?: return@mapNotNull null
-            val start = hm.first * 60 + hm.second
-            val dur = if (b.durationMinutes > 0) b.durationMinutes else 60 // legacy fallback
-            start to (start + dur)
+            hm.first * 60 + hm.second
         }
-        if (ranges.isEmpty()) null else ranges.minOf { it.first } to ranges.maxOf { it.second }
+        if (starts.isEmpty()) null else starts.min() to starts.max()
     }
     val earliestBookingStart = activeBookingWindow?.first
-    val latestBookingEnd = activeBookingWindow?.second
+    val latestBookingStart = activeBookingWindow?.second
 
     // Guardrails: window must be at least MIN_WORKING_WINDOW_MIN long, opening
-    // can't start after an existing booking, closing can't end before one.
+    // can't start after an existing booking's start, closing can't move before
+    // an existing booking's start.
     val windowValid = closeMinutes - openMinutes >= MIN_WORKING_WINDOW_MIN
     val openCoversBookings = earliestBookingStart == null || openMinutes <= earliestBookingStart
-    val closeCoversBookings = latestBookingEnd == null || closeMinutes >= latestBookingEnd
+    val closeCoversBookings = latestBookingStart == null || closeMinutes >= latestBookingStart
     val hoursValid = windowValid && openCoversBookings && closeCoversBookings
 
     val hoursChanged = openMinutes != customization.openMinutes || closeMinutes != customization.closeMinutes
     val closedDatesChanged = closedDates != customization.closedDates
     val dayOverridesChanged = dayOverrides != customization.dayOverrides
+    // The booking guardrail only matters when the permanent hours actually
+    // change. Closing a date or adding an hours override must never be blocked
+    // by it — that was a deadlock: a booking at the last slot made close < end,
+    // which disabled the whole Save button.
     val canSave = (editedServices != customization.services || bayCountChanged || hoursChanged ||
         closedDatesChanged || dayOverridesChanged || editedStaff != customization.staffNames) &&
-        !hasInvalidPrice && !hasInvalidDuration && !hasBlankDescription && hoursValid
+        !hasInvalidPrice && !hasInvalidDuration && !hasBlankDescription &&
+        (!hoursChanged || hoursValid)
 
     LaunchedEffect(customization) {
         editedServices = normalizeConfigs(customization.services)
@@ -255,7 +261,7 @@ fun OwnerServicesTab(
             openMinutes = openMinutes,
             closeMinutes = closeMinutes,
             earliestBookingStart = earliestBookingStart,
-            latestBookingEnd = latestBookingEnd,
+            latestBookingStart = latestBookingStart,
             windowValid = windowValid,
             openCoversBookings = openCoversBookings,
             closeCoversBookings = closeCoversBookings,
@@ -264,7 +270,7 @@ fun OwnerServicesTab(
                 // Keep closing at least a full window ahead and past any booking.
                 val minClose = maxOf(
                     m + MIN_WORKING_WINDOW_MIN,
-                    latestBookingEnd?.let { ceilToStep(it, SLOT_STEP_MIN) } ?: 0
+                    latestBookingStart?.let { ceilToStep(it, SLOT_STEP_MIN) } ?: 0
                 )
                 if (closeMinutes < minClose) closeMinutes = minClose
             },
@@ -957,7 +963,7 @@ private fun WorkingHoursSection(
     openMinutes: Int,
     closeMinutes: Int,
     earliestBookingStart: Int?,
-    latestBookingEnd: Int?,
+    latestBookingStart: Int?,
     windowValid: Boolean,
     openCoversBookings: Boolean,
     closeCoversBookings: Boolean,
@@ -972,10 +978,11 @@ private fun WorkingHoursSection(
     val openOptions = allOptions.filter { opt ->
         opt <= maxOpen && (earliestBookingStart == null || opt <= earliestBookingStart)
     }
-    // Closing must leave a full window and cover the latest booking's finish.
+    // Closing must leave a full window and stay after the latest booking's START
+    // (closeMinutes is the last bookable slot start).
     val minClose = maxOf(
         openMinutes + MIN_WORKING_WINDOW_MIN,
-        latestBookingEnd?.let { ceilToStep(it, SLOT_STEP_MIN) } ?: 0
+        latestBookingStart?.let { ceilToStep(it, SLOT_STEP_MIN) } ?: 0
     )
     val closeOptions = allOptions.filter { it >= minClose }
 
@@ -983,8 +990,8 @@ private fun WorkingHoursSection(
         !windowValid -> "Opening hours must be at least ${MIN_WORKING_WINDOW_MIN / 60} hour long."
         !openCoversBookings && earliestBookingStart != null ->
             "You have a booking at ${BookingUtils.minutesToSlotLabel(earliestBookingStart)} — opening can't be later."
-        !closeCoversBookings && latestBookingEnd != null ->
-            "A booked service runs until ${BookingUtils.minutesToSlotLabel(ceilToStep(latestBookingEnd, SLOT_STEP_MIN).coerceAtMost(1290))} — closing can't be earlier."
+        !closeCoversBookings && latestBookingStart != null ->
+            "You have a booking at ${BookingUtils.minutesToSlotLabel(ceilToStep(latestBookingStart, SLOT_STEP_MIN).coerceAtMost(1290))} — closing can't be earlier than its start."
         else -> null
     }
 
