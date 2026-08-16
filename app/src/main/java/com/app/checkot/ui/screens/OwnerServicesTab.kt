@@ -4,16 +4,21 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
+import com.app.checkot.ui.theme.CheckotCardSurface
+import com.app.checkot.ui.theme.CheckotTeal
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -256,152 +261,138 @@ fun OwnerServicesTab(
     ) {
         LazyColumn(modifier = Modifier.weight(1f)) {
         item {
-        Column {
-        // Working hours — one opening/closing time applied to every day.
-        WorkingHoursSection(
-            openMinutes = openMinutes,
-            closeMinutes = closeMinutes,
-            earliestBookingStart = earliestBookingStart,
-            latestBookingStart = latestBookingStart,
-            windowValid = windowValid,
-            openCoversBookings = openCoversBookings,
-            closeCoversBookings = closeCoversBookings,
-            onOpenChange = { m ->
-                openMinutes = m
-                // Keep closing at least a full window ahead and past any booking.
-                val minClose = maxOf(
-                    m + MIN_WORKING_WINDOW_MIN,
-                    latestBookingStart?.let { ceilToStep(it, SLOT_STEP_MIN) } ?: 0
-                )
-                if (closeMinutes < minClose) closeMinutes = minClose
-            },
-            onCloseChange = { closeMinutes = it }
-        )
-
-        // Closed dates — temporary closures / holidays. Clients can't book these.
-        ClosedDatesSection(
-            closedDates = closedDates,
-            onClosedDatesChange = { closedDates = it }
-        )
-
-        // Hours overrides — one-off hours for a specific date (e.g. closing
-        // early today). Permanent hours are not changed.
-        HoursOverridesSection(
-            dayOverrides = dayOverrides,
-            defaultOpenMinutes = openMinutes,
-            defaultCloseMinutes = closeMinutes,
-            onDayOverridesChange = { dayOverrides = it }
-        )
-
-        // Shop location — opens the map picker. Editable any time (shops relocate).
-        val locationSet = customization.latitude != 0.0 || customization.longitude != 0.0
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.Place,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Shop Location", style = MaterialTheme.typography.titleMedium)
-            }
-            Text(
-                text = if (locationSet) "Location set — clients can see your shop on the map."
-                       else "No location set yet. Set it so clients can find you.",
-                style = MaterialTheme.typography.bodySmall,
-                color = if (locationSet) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        else MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
-            )
-            OutlinedButton(
-                onClick = { navController.navigate("set_shop_location") },
-                shape = MaterialTheme.shapes.medium
-            ) {
-                Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(if (locationSet) "Change Location" else "Set Location on Map")
-            }
-        }
-
-        // Staff — names the owner can assign when starting a service. Display-only:
-        // shown to the client and owner, never affects bay count or capacity.
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.Group,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Staff", style = MaterialTheme.typography.titleMedium)
-            }
-            Text(
-                text = "Add the people who service cars. When you start a service you can assign one, and the client will see who worked on their car.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = staffNameInput,
-                    onValueChange = { if (it.length <= 30) staffNameInput = it },
-                    modifier = Modifier.weight(1f),
-                    label = { Text("Staff name") },
-                    placeholder = { Text("e.g. Juan") },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                val trimmedStaff = staffNameInput.trim()
-                val canAddStaff = trimmedStaff.isNotEmpty() &&
-                    editedStaff.none { it.equals(trimmedStaff, ignoreCase = true) } &&
-                    editedStaff.size < 15
-                Button(
-                    onClick = {
-                        editedStaff = editedStaff + trimmedStaff
-                        staffNameInput = ""
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+            // Card 1: Schedule & Availability — Working Hours, Closed Dates, Overrides.
+            SettingsCard(title = "Schedule & Availability", icon = Icons.Default.Schedule) {
+                WorkingHoursSection(
+                    openMinutes = openMinutes,
+                    closeMinutes = closeMinutes,
+                    earliestBookingStart = earliestBookingStart,
+                    latestBookingStart = latestBookingStart,
+                    windowValid = windowValid,
+                    openCoversBookings = openCoversBookings,
+                    closeCoversBookings = closeCoversBookings,
+                    onOpenChange = { m ->
+                        openMinutes = m
+                        // Keep closing at least a full window ahead and past any booking.
+                        val minClose = maxOf(
+                            m + MIN_WORKING_WINDOW_MIN,
+                            latestBookingStart?.let { ceilToStep(it, SLOT_STEP_MIN) } ?: 0
+                        )
+                        if (closeMinutes < minClose) closeMinutes = minClose
                     },
-                    enabled = canAddStaff,
-                    shape = MaterialTheme.shapes.small
+                    onCloseChange = { closeMinutes = it }
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                ClosedDatesSection(
+                    closedDates = closedDates,
+                    onClosedDatesChange = { closedDates = it }
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                HoursOverridesSection(
+                    dayOverrides = dayOverrides,
+                    defaultOpenMinutes = openMinutes,
+                    defaultCloseMinutes = closeMinutes,
+                    onDayOverridesChange = { dayOverrides = it }
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            // Card 2: Shop Location — compact preview + change button.
+            SettingsCard(title = "Shop Location", icon = Icons.Default.Place) {
+                val locationSet = customization.latitude != 0.0 || customization.longitude != 0.0
+                Text(
+                    text = if (locationSet) "Location is set — clients can see your shop on the map."
+                           else "No location set yet. Set it so clients can find you.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (locationSet) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            else MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { navController.navigate("set_shop_location") },
+                    shape = MaterialTheme.shapes.medium
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add staff", modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(if (locationSet) "Change Location" else "Set Location on Map")
                 }
             }
-            editedStaff.forEach { name ->
+            Spacer(modifier = Modifier.height(12.dp))
+            // Card 3: Staff Management — removable pill chips.
+            SettingsCard(title = "Staff Management", icon = Icons.Default.Group) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    OutlinedTextField(
+                        value = staffNameInput,
+                        onValueChange = { if (it.length <= 30) staffNameInput = it },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("Staff name") },
+                        placeholder = { Text("e.g. Juan") },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.small
                     )
                     Spacer(modifier = Modifier.width(8.dp))
+                    val trimmedStaff = staffNameInput.trim()
+                    val canAddStaff = trimmedStaff.isNotEmpty() &&
+                        editedStaff.none { it.equals(trimmedStaff, ignoreCase = true) } &&
+                        editedStaff.size < 15
+                    Button(
+                        onClick = {
+                            editedStaff = editedStaff + trimmedStaff
+                            staffNameInput = ""
+                        },
+                        enabled = canAddStaff,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Add staff", modifier = Modifier.size(18.dp))
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                if (editedStaff.isEmpty()) {
                     Text(
-                        text = name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f)
+                        text = "No staff yet.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                     )
-                    IconButton(onClick = { editedStaff = editedStaff - name }) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "Remove $name",
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
+                } else {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        editedStaff.forEach { name ->
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+                                ) {
+                                    Text(name, style = MaterialTheme.typography.bodyMedium)
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    IconButton(
+                                        onClick = { editedStaff = editedStaff - name },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Remove $name",
+                                            modifier = Modifier.size(14.dp),
+                                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(12.dp))
+            // Manage Services — header + bay stepper + add button.
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         }
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         Row(
             modifier = Modifier
@@ -509,8 +500,6 @@ fun OwnerServicesTab(
                 }
             }
         }
-
-        }
         }
 
         if (editedServices.isEmpty()) {
@@ -609,42 +598,58 @@ fun OwnerServicesTab(
             }
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        // Sticky action bar — Reset / Save always visible above the bottom nav.
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 3.dp
         ) {
-            OutlinedButton(
-                onClick = {
-                    editedServices = normalizeConfigs(customization.services)
-                    openMinutes = customization.openMinutes
-                    closeMinutes = customization.closeMinutes
-                    editedStaff = customization.staffNames
-                    invalidDurationKeys = emptySet()
-                },
-                modifier = Modifier.weight(1f),
-                shape = MaterialTheme.shapes.medium
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Reset")
-            }
-            Button(
-                onClick = {
-                    // Confirm only when the hours actually changed; other edits
-                    // (services, bays) save straight through.
-                    if (hoursChanged) showHoursConfirm = true else performSave()
-                },
-                modifier = Modifier.weight(1f),
-                shape = MaterialTheme.shapes.medium,
-                enabled = canSave && !isSavingServices
-            ) {
-                if (isSavingServices) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
-                } else {
-                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                OutlinedButton(
+                    onClick = {
+                        editedServices = normalizeConfigs(customization.services)
+                        openMinutes = customization.openMinutes
+                        closeMinutes = customization.closeMinutes
+                        closedDates = customization.closedDates
+                        dayOverrides = customization.dayOverrides
+                        editedStaff = customization.staffNames
+                        invalidDurationKeys = emptySet()
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Text("Reset")
                 }
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Save Changes")
+                Button(
+                    onClick = {
+                        // Confirm only when the hours actually changed; other edits
+                        // (services, bays) save straight through.
+                        if (hoursChanged) showHoursConfirm = true else performSave()
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.medium,
+                    enabled = canSave && !isSavingServices,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CheckotTeal,
+                        contentColor = Color(0xFF00332B)
+                    )
+                ) {
+                    if (isSavingServices) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = Color(0xFF00332B)
+                        )
+                    } else {
+                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Save Changes")
+                }
             }
         }
     }
@@ -996,7 +1001,7 @@ private fun WorkingHoursSection(
         else -> null
     }
 
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 Icons.Default.Schedule,
@@ -1007,12 +1012,7 @@ private fun WorkingHoursSection(
             Spacer(modifier = Modifier.width(6.dp))
             Text("Working Hours", style = MaterialTheme.typography.titleMedium)
         }
-        Text(
-            "Applied to every day. Clients can only book start times within this window.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
-        )
+        Spacer(modifier = Modifier.height(8.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -1039,14 +1039,6 @@ private fun WorkingHoursSection(
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 4.dp)
             )
-        } else if (earliestBookingStart != null) {
-            // Explain why the range is limited when it isn't an error.
-            Text(
-                "Active bookings limit how much you can shorten your hours. Cancel or finish them to shrink further.",
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 4.dp)
-            )
         }
     }
 }
@@ -1070,7 +1062,7 @@ private fun TimeDropdown(
                 available: androidx.compose.ui.geometry.Offset,
                 source: androidx.compose.ui.input.nestedscroll.NestedScrollSource
             ): androidx.compose.ui.geometry.Offset =
-                if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag) available
+                if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) available
                 else androidx.compose.ui.geometry.Offset.Zero
         }
     }
@@ -1132,7 +1124,7 @@ private fun ClosedDatesSection(
     onClosedDatesChange: (List<Long>) -> Unit
 ) {
     var showPicker by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -1148,12 +1140,7 @@ private fun ClosedDatesSection(
             Spacer(modifier = Modifier.weight(1f))
             TextButton(onClick = { showPicker = true }) { Text("Add date") }
         }
-        Text(
-            "The whole shop is closed on these dates — clients can't book them.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
+        Spacer(modifier = Modifier.height(8.dp))
         if (closedDates.isEmpty()) {
             Text(
                 "No closed dates — open every day.",
@@ -1237,7 +1224,7 @@ private fun HoursOverridesSection(
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var pendingDate by remember { mutableStateOf<Long?>(null) }
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -1253,13 +1240,7 @@ private fun HoursOverridesSection(
             Spacer(modifier = Modifier.weight(1f))
             TextButton(onClick = { showDatePicker = true }) { Text("Add override") }
         }
-        Text(
-            "One-off hours for a specific date — e.g. closing early today. " +
-                "Permanent hours are not changed. Affected clients are notified.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
+        Spacer(modifier = Modifier.height(8.dp))
         if (dayOverrides.isEmpty()) {
             Text(
                 "No overrides — the regular hours apply every day.",
@@ -1339,15 +1320,12 @@ private fun DayHoursOverrideDialog(
         text = {
             Column {
                 Text(
-                    "Only this date is affected. Existing bookings outside these hours are kept and their clients notified.",
+                    "Updates apply only to this date. Clients with affected bookings will be notified.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     TimeDropdown(
                         label = "Opens",
                         valueMinutes = openMinutes,
@@ -1358,23 +1336,62 @@ private fun DayHoursOverrideDialog(
                                 closeMinutes = it + MIN_WORKING_WINDOW_MIN
                             }
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth()
                     )
                     TimeDropdown(
                         label = "Closes",
                         valueMinutes = closeMinutes,
                         options = closeOptions,
                         onSelect = { closeMinutes = it },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(openMinutes, closeMinutes) }) { Text("Save") }
+            Button(
+                onClick = { onSave(openMinutes, closeMinutes) },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = CheckotTeal,
+                    contentColor = Color(0xFF00332B)
+                )
+            ) { Text("Save") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
+}
+
+/** Grouped settings card used across the Owner dashboard (dark rounded surface). */
+@Composable
+private fun SettingsCard(
+    title: String,
+    icon: ImageVector,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = CheckotCardSurface)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = CheckotTeal
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(title, style = MaterialTheme.typography.titleMedium)
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            content()
+        }
+    }
 }

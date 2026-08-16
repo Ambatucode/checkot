@@ -16,6 +16,7 @@ val CheckotSparkle = Color(0xFFE0F7FA)       // accent, near white with a cool t
 
 // Supporting tones derived from the palette (not spec'd, kept in-family)
 val CheckotNavyElevated = Color(0xFF1B3D4E)  // chips/containers a step above surface
+val CheckotCardSurface = Color(0xFF1E293B)   // grouped settings cards (slate, lifts off the navy bg)
 val CheckotOutline = Color(0xFF35586B)
 val CheckotError = Color(0xFFEF7A85)
 val CheckotErrorContainer = Color(0xFF4E2A32)

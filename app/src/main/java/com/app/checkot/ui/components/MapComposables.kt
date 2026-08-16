@@ -90,7 +90,7 @@ fun LocationPickerMap(
                 available: androidx.compose.ui.geometry.Offset,
                 source: androidx.compose.ui.input.nestedscroll.NestedScrollSource
             ): androidx.compose.ui.geometry.Offset =
-                if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag) available
+                if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) available
                 else androidx.compose.ui.geometry.Offset.Zero
         }
     }
