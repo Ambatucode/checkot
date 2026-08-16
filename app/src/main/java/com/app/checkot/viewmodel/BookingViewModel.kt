@@ -102,6 +102,12 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
 
     fun createBooking(booking: Booking) {
         viewModelScope.launch {
+            // Guard: never hit the network with an empty service list.
+            if (booking.services.isEmpty()) {
+                _isLoading.value = false
+                _error.value = "Please select at least one service to continue."
+                return@launch
+            }
             _isLoading.value = true
             val user = auth.currentUser ?: return@launch
             try {
@@ -193,8 +199,18 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     Log.e(TAG, "❌ Cannot create booking — no free bay for ${booking.timeSlot}")
                     return@launch
                 } catch (e: Exception) {
+                    // Only call it a network problem when it actually is one;
+                    // other failures get a generic retry message instead of a
+                    // misleading "check your connection".
+                    val isNetworkError = e is java.io.IOException ||
+                        (e is com.google.firebase.firestore.FirebaseFirestoreException &&
+                            e.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.UNAVAILABLE)
                     _isLoading.value = false
-                    _error.value = "Could not create booking. Please check your connection and try again."
+                    _error.value = if (isNetworkError) {
+                        "Network error. Please check your connection and try again."
+                    } else {
+                        "Could not create booking. Please try again."
+                    }
                     Log.e(TAG, "❌ Booking reservation failed: ${e.message}")
                     return@launch
                 }

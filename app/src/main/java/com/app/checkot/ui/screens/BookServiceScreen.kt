@@ -449,6 +449,10 @@ fun BookServiceScreen(
         }
     }
 
+    // Booking form is valid only when a service, a car, and a time slot are chosen.
+    val isBookingValid =
+        selectedServiceConfigs.isNotEmpty() && selectedCar != null && selectedTimeSlot.isNotEmpty()
+
     Scaffold(
         topBar = {
             BackTopAppBar(
@@ -558,15 +562,19 @@ fun BookServiceScreen(
                             // narrow screens without clipping.
                             contentPadding = PaddingValues(horizontal = 12.dp),
                             colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF00E6C3),
                                 contentColor = Color(0xFF0B1921),
-                                disabledContentColor = Color(0xFF0B1921).copy(alpha = 0.4f)
+                                disabledContainerColor = Color(0xFF1E293B),
+                                disabledContentColor = Color(0xFF64748B)
                             ),
-                            enabled = !isCreating && when (step) {
+                            // Continue steps validate per-step; the final
+                            // "Confirm Booking" requires the whole form valid.
+                            enabled = !isCreating && if (step < 4) when (step) {
                                 1 -> selectedServiceConfigs.isNotEmpty()
                                 2 -> selectedCar != null
                                 3 -> selectedTimeSlot.isNotEmpty()
                                 else -> true
-                            }
+                            } else isBookingValid
                         ) {
                             if (isCreating) {
                                 CircularProgressIndicator(
