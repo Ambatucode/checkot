@@ -7,6 +7,7 @@ import com.app.checkot.service.NotificationHelper
 import com.app.checkot.service.FCMSender
 import com.app.checkot.service.BookingLedgerService
 import com.app.checkot.utils.BookingUtils
+import com.app.checkot.utils.DateUtils
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.ktx.auth
@@ -467,6 +468,7 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                     _saveResult.value = "Error: No shop ID found"
                     return@launch
                 }
+                val previousCustomization = _shopCustomization.value
                 // Get the owner's current FCM token and attach it to the customization
                 val token = com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
                 val customizationWithToken = customization.copy(ownerFcmToken = token)
@@ -482,9 +484,80 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 _shopCustomization.value = customization
                 _saveResult.value = "Saved: $savedCount services"
                 Log.d(TAG, "✅ Save verified: $savedCount services in shop_services/$shopId")
+                // Notify clients whose upcoming bookings became affected by this
+                // schedule change (hours / closed dates / service availability).
+                notifyScheduleChanges(shopId, previousCustomization, customization)
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Failed to save customization: ${e.message}")
                 _saveResult.value = "Error: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * Best-effort: after the owner changes hours / closed dates / service
+     * availability, notify clients whose UPCOMING bookings are affected (their
+     * booking snapshot is kept — the owner handles them in the dashboard).
+     * Honors the "you'll be notified right away" promise on booking details.
+     */
+    private fun notifyScheduleChanges(shopId: String, old: ShopCustomization, new: ShopCustomization) {
+        viewModelScope.launch {
+            try {
+                val todayStart = BookingUtils.startOfDay(System.currentTimeMillis())
+                val snapshot = firestore.collection("bookings")
+                    .whereEqualTo("shopId", shopId)
+                    .get().await()
+                val affected = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
+                    .filter { b ->
+                        (b.status == BookingStatus.PENDING || b.status == BookingStatus.CONFIRMED) &&
+                            b.bookingDate >= todayStart &&
+                            !isBookingAffected(b, old) && isBookingAffected(b, new)
+                    }
+                for (booking in affected) {
+                    val userDoc = firestore.collection("users").document(booking.userId).get().await()
+                    val token = userDoc.getString("fcmToken")
+                    if (!token.isNullOrEmpty()) {
+                        FCMSender.sendToUser(
+                            context = appContext,
+                            userId = booking.userId,
+                            title = "Schedule update from ${new.shopName.ifBlank { "the shop" }}",
+                            body = "Your booking on ${DateUtils.formatDate(booking.bookingDate)} may be affected by a schedule change. Please review it in the app.",
+                            bookingId = booking.bookingId,
+                            fcmToken = token
+                        )
+                    }
+                }
+                if (affected.isNotEmpty()) {
+                    Log.d(TAG, "📬 Notified ${affected.size} client(s) about schedule changes")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ Failed to notify affected clients: ${e.message}")
+            }
+        }
+    }
+
+    /** True if [booking] is no longer fully covered by the shop's new schedule. */
+    private fun isBookingAffected(booking: Booking, new: ShopCustomization): Boolean {
+        // Shop closed on the booking date
+        if (new.closedDates.contains(BookingUtils.startOfDay(booking.bookingDate))) return true
+        // Hours narrowed so the booking no longer fits in the window
+        val hm = runCatching { BookingUtils.parseTimeSlotToHourMinute(booking.timeSlot) }.getOrNull()
+        if (hm != null) {
+            val start = hm.first * 60 + hm.second
+            val end = start + BookingUtils.bookingDurationMinutes(booking)
+            if (start < new.openMinutes || end > new.closeMinutes) return true
+        }
+        // A booked service was removed or marked unavailable on the booking date
+        val day = BookingUtils.startOfDay(booking.bookingDate)
+        return booking.services.any { svc ->
+            if (svc == ServiceType.CUSTOM) {
+                booking.customServiceNames.any { name ->
+                    val config = new.services.find { it.isCustom && it.customName == name }
+                    config == null || config.unavailableDates.contains(day)
+                }
+            } else {
+                val config = new.services.find { it.serviceName == svc.name }
+                config == null || config.unavailableDates.contains(day)
             }
         }
     }

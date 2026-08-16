@@ -66,6 +66,7 @@ fun OwnerServicesTab(
     var staffNameInput by remember { mutableStateOf("") }
     var openMinutes by remember { mutableStateOf(customization.openMinutes) }
     var closeMinutes by remember { mutableStateOf(customization.closeMinutes) }
+    var closedDates by remember { mutableStateOf(customization.closedDates) }
     var showAddDropdown by remember { mutableStateOf(false) }
     var showCustomNameDialog by remember { mutableStateOf(false) }
     var customServiceNameInput by remember { mutableStateOf("") }
@@ -99,10 +100,15 @@ fun OwnerServicesTab(
     // the earliest booking's start, and closing must still cover the latest
     // booking's FINISH time (start + duration) so a service is never cut off.
     val activeBookingWindow: Pair<Int, Int>? = remember(allBookings) {
+        val todayStart = BookingUtils.startOfDay(System.currentTimeMillis())
+        // Only bookings from today onward constrain the hours — stale/past
+        // bookings (e.g. a never-cancelled PENDING from last week) shouldn't
+        // block an owner from adjusting their schedule.
         val active = allBookings.filter { b ->
-            b.status == BookingStatus.PENDING ||
-            b.status == BookingStatus.CONFIRMED ||
-            b.status == BookingStatus.IN_PROGRESS
+            (b.status == BookingStatus.PENDING ||
+                b.status == BookingStatus.CONFIRMED ||
+                b.status == BookingStatus.IN_PROGRESS) &&
+                b.bookingDate >= todayStart
         }
         val ranges = active.mapNotNull { b ->
             val hm = runCatching { BookingUtils.parseTimeSlotToHourMinute(b.timeSlot) }.getOrNull()
@@ -124,8 +130,9 @@ fun OwnerServicesTab(
     val hoursValid = windowValid && openCoversBookings && closeCoversBookings
 
     val hoursChanged = openMinutes != customization.openMinutes || closeMinutes != customization.closeMinutes
+    val closedDatesChanged = closedDates != customization.closedDates
     val canSave = (editedServices != customization.services || bayCountChanged || hoursChanged ||
-        editedStaff != customization.staffNames) &&
+        closedDatesChanged || editedStaff != customization.staffNames) &&
         !hasInvalidPrice && !hasInvalidDuration && !hasBlankDescription && hoursValid
 
     LaunchedEffect(customization) {
@@ -133,6 +140,7 @@ fun OwnerServicesTab(
         bayCountText = customization.bayCount.toString()
         openMinutes = customization.openMinutes
         closeMinutes = customization.closeMinutes
+        closedDates = customization.closedDates
         editedStaff = customization.staffNames
         invalidDurationKeys = emptySet()
     }
@@ -158,6 +166,7 @@ fun OwnerServicesTab(
             bayCount = bayCount,
             openMinutes = openMinutes,
             closeMinutes = closeMinutes,
+            closedDates = closedDates,
             staffNames = editedStaff
         )
         ownerViewModel.saveShopCustomization(updated)
@@ -256,6 +265,12 @@ fun OwnerServicesTab(
                 if (closeMinutes < minClose) closeMinutes = minClose
             },
             onCloseChange = { closeMinutes = it }
+        )
+
+        // Closed dates — temporary closures / holidays. Clients can't book these.
+        ClosedDatesSection(
+            closedDates = closedDates,
+            onClosedDatesChange = { closedDates = it }
         )
 
         // Shop location — opens the map picker. Editable any time (shops relocate).
@@ -534,6 +549,11 @@ fun OwnerServicesTab(
                         config = config,
                         canDelete = !isInUse,
                         deleteReason = if (isInUse) "Cannot delete — service has active bookings" else null,
+                        onUnavailableDatesChange = { dates ->
+                            editedServices = editedServices.map {
+                                if (it.serviceName == config.serviceName) it.copy(unavailableDates = dates) else it
+                            }
+                        },
                         onPriceChange = { newPrice ->
                             editedServices = editedServices.map {
                                 if (it.serviceName == config.serviceName) it.copy(customPrice = newPrice) else it
@@ -615,6 +635,7 @@ fun ServiceConfigCard(
     config: CustomServiceConfig,
     canDelete: Boolean = true,
     deleteReason: String? = null,
+    onUnavailableDatesChange: (List<Long>) -> Unit = {},
     onPriceChange: (Double) -> Unit,
     onNameChange: (String) -> Unit = {},
     onDurationInput: (Int?) -> Unit = {}, // valid minutes, or null while the field is invalid/empty
@@ -850,6 +871,70 @@ fun ServiceConfigCard(
                 textStyle = MaterialTheme.typography.bodyMedium,
                 shape = MaterialTheme.shapes.small
             )
+
+            Spacer(modifier = Modifier.height(8.dp))
+            // Unavailable dates — Foodpanda-style "sold out today": the service
+            // stays in the catalog but can't be booked on these dates.
+            var showUnavailablePicker by remember { mutableStateOf(false) }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    Icons.Default.EventBusy,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Unavailable dates",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(onClick = { showUnavailablePicker = true }) {
+                    Text("Add date")
+                }
+            }
+            if (config.unavailableDates.isEmpty()) {
+                Text(
+                    text = "Available every day",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                    modifier = Modifier.padding(start = 22.dp)
+                )
+            } else {
+                config.unavailableDates.sorted().forEach { date ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(start = 22.dp)
+                    ) {
+                        Text(
+                            text = DateUtils.formatDate(date),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = { onUnavailableDatesChange(config.unavailableDates - date) }) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Remove date",
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
+            }
+            if (showUnavailablePicker) {
+                UnavailableDatePickerDialog(
+                    onAdd = { date ->
+                        onUnavailableDatesChange((config.unavailableDates + date).distinct())
+                        showUnavailablePicker = false
+                    },
+                    onDismiss = { showUnavailablePicker = false }
+                )
+            }
         }
     }
 }
@@ -1002,5 +1087,107 @@ private fun TimeDropdown(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ClosedDatesSection(
+    closedDates: List<Long>,
+    onClosedDatesChange: (List<Long>) -> Unit
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                Icons.Default.EventBusy,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Closed Dates", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.weight(1f))
+            TextButton(onClick = { showPicker = true }) { Text("Add date") }
+        }
+        Text(
+            "The whole shop is closed on these dates — clients can't book them.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        if (closedDates.isEmpty()) {
+            Text(
+                "No closed dates — open every day.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+            )
+        } else {
+            closedDates.sorted().forEach { date ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = DateUtils.formatDate(date),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { onClosedDatesChange(closedDates - date) }) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Remove date",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                }
+            }
+        }
+        if (showPicker) {
+            UnavailableDatePickerDialog(
+                onAdd = { date ->
+                    onClosedDatesChange((closedDates + date).distinct())
+                    showPicker = false
+                },
+                onDismiss = { showPicker = false }
+            )
+        }
+    }
+}
+
+/** Date picker for marking the shop / a service unavailable on a specific day. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UnavailableDatePickerDialog(
+    onAdd: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val todayStart = BookingUtils.startOfDay(System.currentTimeMillis())
+    val state = rememberDatePickerState(
+        initialSelectedDateMillis = todayStart,
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                // Allow today..+30 days; block past dates.
+                val maxDayStart = todayStart + 30L * 24 * 60 * 60 * 1000
+                return utcTimeMillis in todayStart..maxDayStart
+            }
+        }
+    )
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                val millis = state.selectedDateMillis
+                if (millis != null) onAdd(BookingUtils.startOfDay(millis))
+            }) { Text("OK") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    ) {
+        DatePicker(state = state)
     }
 }

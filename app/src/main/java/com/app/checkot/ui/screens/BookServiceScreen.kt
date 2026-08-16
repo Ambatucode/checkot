@@ -73,6 +73,8 @@ fun BookServiceScreen(
     var shopLogoUrl by remember { mutableStateOf("") }
     var shopBannerUrl by remember { mutableStateOf("") }
     var showLogoViewer by remember { mutableStateOf(false) }
+    // Dates the whole shop is closed — clients can't book these.
+    var shopClosedDates by remember { mutableStateOf(emptyList<Long>()) }
 
     // Real-time listener for shop services — updates instantly when owner changes services
     DisposableEffect(shopId) {
@@ -97,6 +99,7 @@ fun BookServiceScreen(
                     if (customization.shopName.isNotBlank()) shopDisplayName = customization.shopName
                     shopLogoUrl = customization.logoUrl
                     shopBannerUrl = customization.bannerUrl
+                    shopClosedDates = customization.closedDates
                     for (config in customization.services) {
                         val type = if (!config.isCustom) {
                             ServiceType.values().find { it.name == config.serviceName }
@@ -126,6 +129,26 @@ fun BookServiceScreen(
     LaunchedEffect(savedCars) {
         if (selectedCar == null && savedCars.isNotEmpty()) {
             selectedCar = savedCars.find { it.isDefault } ?: savedCars.first()
+        }
+    }
+
+    // Availability helpers for the selected date.
+    val selectedDay = BookingUtils.startOfDay(selectedDate)
+    val shopClosedOnSelected = shopClosedDates.contains(selectedDay)
+    // Foodpanda-style cart cleanup: if the owner marks a selected service
+    // unavailable on this date (or removes it entirely), drop it from the
+    // selection and tell the user.
+    var droppedNotice by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(availableServices, selectedDate) {
+        val nowUnavailable = selectedServiceConfigs.filter { name ->
+            val config = availableServices.firstOrNull { it.config.serviceName == name }?.config
+            config == null || config.unavailableDates.contains(selectedDay)
+        }
+        if (nowUnavailable.isNotEmpty()) {
+            selectedServiceConfigs = selectedServiceConfigs - nowUnavailable.toSet()
+            droppedNotice = "A service you selected is no longer available for this date and was removed."
+        } else {
+            droppedNotice = null
         }
     }
 
@@ -407,6 +430,64 @@ fun BookServiceScreen(
                             }
                         }
                     }
+                    if (droppedNotice != null) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Info, contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(droppedNotice!!, style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                }
+                            }
+                        }
+                    }
+                    if (shopClosedOnSelected) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        Icons.Default.EventBusy,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(48.dp),
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = "This shop is closed on ${DateUtils.formatDate(selectedDay)}",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "No bookings are available on this date. Please choose another day.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                        modifier = Modifier.padding(horizontal = 16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                     if (servicesLoadError != null) {
                         item {
                             Card(
@@ -463,9 +544,11 @@ fun BookServiceScreen(
                                 }
                             }
                         }
-                    } else {
+                    } else if (!shopClosedOnSelected) {
                         items(availableServices, key = { it.config.serviceName }) { avail ->
                             val isSelected = selectedServiceConfigs.contains(avail.config.serviceName)
+                            // Foodpanda-style "sold out today": greyed out + disabled.
+                            val isUnavailable = avail.config.unavailableDates.contains(selectedDay)
                             val displayPrice = if (avail.config.customPrice > 0) avail.config.customPrice
                                                else avail.serviceType?.price ?: 0.0
                             val displayName = if (avail.config.isCustom) avail.config.customName
@@ -475,11 +558,14 @@ fun BookServiceScreen(
                                 price = displayPrice,
                                 description = avail.config.description,
                                 isSelected = isSelected,
+                                unavailable = isUnavailable,
                                 onSelect = {
-                                    selectedServiceConfigs = if (isSelected) {
-                                        selectedServiceConfigs - avail.config.serviceName
-                                    } else {
-                                        selectedServiceConfigs + avail.config.serviceName
+                                    if (!isUnavailable) {
+                                        selectedServiceConfigs = if (isSelected) {
+                                            selectedServiceConfigs - avail.config.serviceName
+                                        } else {
+                                            selectedServiceConfigs + avail.config.serviceName
+                                        }
                                     }
                                 }
                             )
@@ -736,18 +822,21 @@ fun ShopServiceSelectionCard(
     price: Double,
     isSelected: Boolean,
     onSelect: () -> Unit,
-    description: String = ""
+    description: String = "",
+    unavailable: Boolean = false
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = if (isSelected) {
-            CardDefaults.cardColors(
+        colors = when {
+            unavailable -> CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+            isSelected -> CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer
             )
-        } else {
-            CardDefaults.cardColors()
+            else -> CardDefaults.cardColors()
         },
-        onClick = onSelect
+        onClick = { if (!unavailable) onSelect() }
     ) {
         Row(
             modifier = Modifier
@@ -760,9 +849,11 @@ fun ShopServiceSelectionCard(
                 Text(
                     text = name,
                     style = MaterialTheme.typography.titleMedium,
-                    color = if (isSelected) Color.White else Color.Unspecified
+                    color = if (unavailable) {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    } else if (isSelected) Color.White else Color.Unspecified
                 )
-                if (description.isNotBlank()) {
+                if (description.isNotBlank() && !unavailable) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = description,
@@ -771,12 +862,22 @@ fun ShopServiceSelectionCard(
                                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                 }
+                if (unavailable) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Unavailable on this date",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             }
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = "₱${price}",
+                text = if (unavailable) "—" else "₱${price}",
                 style = MaterialTheme.typography.titleLarge,
-                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                color = if (unavailable) {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                } else if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
             )
         }
     }

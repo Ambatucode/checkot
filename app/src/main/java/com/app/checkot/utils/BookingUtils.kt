@@ -58,6 +58,21 @@ object BookingUtils {
         return labels
     }
 
+    /**
+     * Normalizes a timestamp to the start of its day (local midnight) so dates
+     * can be compared consistently — used for shop closedDates, per-service
+     * unavailableDates, and booking dates.
+     */
+    fun startOfDay(timestamp: Long): Long {
+        val cal = java.util.Calendar.getInstance()
+        cal.timeInMillis = timestamp
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        return cal.timeInMillis
+    }
+
     /** Parses a duration string like "45 mins" or "1.5 hours" into minutes. */
     fun parseDurationMinutes(duration: String): Int {
         return when {

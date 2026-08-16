@@ -130,6 +130,35 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     return@launch
                 }
 
+                // Re-validate availability at creation time — closes the race
+                // where the owner removes a service or closes the shop after
+                // the client loaded the screen. The shop must still exist and
+                // be active, not closed on the booking date, and every selected
+                // service must still be offered and available on that date.
+                val shopSnap = firestore.collection("shop_services").document(booking.shopId)
+                    .get(com.google.firebase.firestore.Source.SERVER).await()
+                val shop = shopSnap.toObject(ShopCustomization::class.java)
+                val bookingDay = BookingUtils.startOfDay(booking.bookingDate)
+                val unavailableService = booking.services.any { svc ->
+                    if (svc == ServiceType.CUSTOM) {
+                        booking.customServiceNames.any { name ->
+                            val config = shop?.services?.find { it.isCustom && it.customName == name }
+                            config == null || config.unavailableDates.contains(bookingDay)
+                        }
+                    } else {
+                        val config = shop?.services?.find { it.serviceName == svc.name }
+                        config == null || config.unavailableDates.contains(bookingDay)
+                    }
+                }
+                if (shop == null || shop.status != "active" ||
+                    shop.closedDates.contains(bookingDay) || unavailableService
+                ) {
+                    _isLoading.value = false
+                    _error.value = "One or more services you selected are no longer available for this date, or the shop is closed. Please review your selection and try again."
+                    Log.e(TAG, "❌ Cannot create booking — availability re-check failed")
+                    return@launch
+                }
+
                 // Server-side slot availability check + creation, atomically —
                 // avoids the race where two concurrent bookings both pass a
                 // separate check before either writes (see BookingLedgerService).
@@ -390,15 +419,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /** Normalize a timestamp to the start of the day (midnight) so same-day bookings are grouped together */
-    private fun normalizeToStartOfDay(timestamp: Long): Long {
-        val cal = java.util.Calendar.getInstance()
-        cal.timeInMillis = timestamp
-        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-        cal.set(java.util.Calendar.MINUTE, 0)
-        cal.set(java.util.Calendar.SECOND, 0)
-        cal.set(java.util.Calendar.MILLISECOND, 0)
-        return cal.timeInMillis
-    }
+    private fun normalizeToStartOfDay(timestamp: Long): Long = BookingUtils.startOfDay(timestamp)
 
     override fun onCleared() {
         super.onCleared()

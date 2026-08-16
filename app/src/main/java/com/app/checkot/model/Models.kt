@@ -137,6 +137,9 @@ data class ShopCustomization(
     // slot start. Applied to every day.
     val openMinutes: Int = 540,  // 9:00 AM
     val closeMinutes: Int = 960, // 4:00 PM
+    // Dates (start-of-day millis) the whole shop is closed — e.g. a temporary
+    // closure or holiday. Clients can't book these dates.
+    val closedDates: List<Long> = emptyList(),
     // Shop location on the map. 0 = not set yet.
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
@@ -159,7 +162,11 @@ data class CustomServiceConfig(
     val isCustom: Boolean = false, // true for owner-created "Others" services
     val customName: String = "", // Custom name for "Others" services
     val durationMinutes: Int = 0, // 0 = not set; legacy docs fall back to the ServiceType default
-    val description: String = "" // Owner-written detail shown to clients so they know what the service is
+    val description: String = "", // Owner-written detail shown to clients so they know what the service is
+    // Dates (start-of-day millis) this service can't be booked — the owner marks
+    // it unavailable for a day (sold out / not offered) without deleting it.
+    // Clients see it greyed out on those dates.
+    val unavailableDates: List<Long> = emptyList()
 )
 
 /**
