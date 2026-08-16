@@ -6,11 +6,13 @@ import com.app.checkot.utils.*
 import com.app.checkot.service.*
 import com.app.checkot.ui.theme.CheckotCardSurface
 import com.app.checkot.ui.theme.CheckotTeal
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -20,7 +22,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -70,6 +74,8 @@ fun OwnerServicesTab(
     var bayCountText by remember { mutableStateOf(customization.bayCount.toString()) }
     var editedStaff by remember { mutableStateOf(customization.staffNames) }
     var staffNameInput by remember { mutableStateOf("") }
+    // Service currently being edited in the modal (null = no dialog open).
+    var editingService by remember { mutableStateOf<CustomServiceConfig?>(null) }
     var openMinutes by remember { mutableStateOf(customization.openMinutes) }
     var closeMinutes by remember { mutableStateOf(customization.closeMinutes) }
     var closedDates by remember { mutableStateOf(customization.closedDates) }
@@ -394,6 +400,7 @@ fun OwnerServicesTab(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         }
 
+        // Manage Services — page title + count + add button.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -408,48 +415,6 @@ fun OwnerServicesTab(
                     color = if (atMaxLimit) MaterialTheme.colorScheme.error
                             else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Garage,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Service Bays:", style = MaterialTheme.typography.bodySmall,
-                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(
-                        onClick = {
-                            val current = bayCountText.toIntOrNull() ?: 1
-                            if (current > 1) {
-                                bayCountText = (current - 1).toString()
-                            }
-                        },
-                        modifier = Modifier.size(48.dp),
-                        enabled = (bayCountText.toIntOrNull() ?: 1) > 1
-                    ) {
-                        Icon(Icons.Default.Remove, contentDescription = "Decrease bay count", modifier = Modifier.size(16.dp))
-                    }
-                    Text(
-                        text = bayCountText,
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
-                    IconButton(
-                        onClick = {
-                            val current = bayCountText.toIntOrNull() ?: 1
-                            if (current < 10) {
-                                bayCountText = (current + 1).toString()
-                            }
-                        },
-                        modifier = Modifier.size(48.dp),
-                        enabled = (bayCountText.toIntOrNull() ?: 1) < 10
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Increase bay count", modifier = Modifier.size(16.dp))
-                    }
-                }
             }
             Box {
                 OutlinedButton(
@@ -500,6 +465,65 @@ fun OwnerServicesTab(
                 }
             }
         }
+        Spacer(modifier = Modifier.height(12.dp))
+        // Service Bays — its own compact card, separated from the page title.
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = CheckotCardSurface)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.Garage,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = CheckotTeal
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "Service Bays",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(
+                    onClick = {
+                        val current = bayCountText.toIntOrNull() ?: 1
+                        if (current > 1) {
+                            bayCountText = (current - 1).toString()
+                        }
+                    },
+                    modifier = Modifier.size(40.dp),
+                    enabled = (bayCountText.toIntOrNull() ?: 1) > 1
+                ) {
+                    Icon(Icons.Default.Remove, contentDescription = "Decrease bay count", modifier = Modifier.size(16.dp))
+                }
+                Text(
+                    text = bayCountText,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+                IconButton(
+                    onClick = {
+                        val current = bayCountText.toIntOrNull() ?: 1
+                        if (current < 10) {
+                            bayCountText = (current + 1).toString()
+                        }
+                    },
+                    modifier = Modifier.size(40.dp),
+                    enabled = (bayCountText.toIntOrNull() ?: 1) < 10
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Increase bay count", modifier = Modifier.size(16.dp))
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         }
 
         if (editedServices.isEmpty()) {
@@ -538,64 +562,33 @@ fun OwnerServicesTab(
                 items = editedServices,
                 key = { it.serviceName }
             ) { config ->
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                    val isInUse = allBookings.any { booking ->
-                        val status = booking.status
-                        val isActive = status == BookingStatus.PENDING
-                            || status == BookingStatus.CONFIRMED
-                            || status == BookingStatus.IN_PROGRESS
-                        if (!isActive) return@any false
-                        // Check if this booking uses the service being deleted
-                        if (config.isCustom) {
-                            // Custom service: check customServiceNames
-                            config.customName.isNotEmpty() && booking.customServiceNames.contains(config.customName)
-                        } else {
-                            // Predefined service: check ServiceType list
-                            booking.services.any { it.name == config.serviceName }
-                        }
+                val isInUse = allBookings.any { booking ->
+                    val status = booking.status
+                    val isActive = status == BookingStatus.PENDING
+                        || status == BookingStatus.CONFIRMED
+                        || status == BookingStatus.IN_PROGRESS
+                    if (!isActive) return@any false
+                    // Check if this booking uses the service being deleted
+                    if (config.isCustom) {
+                        // Custom service: check customServiceNames
+                        config.customName.isNotEmpty() && booking.customServiceNames.contains(config.customName)
+                    } else {
+                        // Predefined service: check ServiceType list
+                        booking.services.any { it.name == config.serviceName }
                     }
-                    ServiceConfigCard(
-                        config = config,
-                        canDelete = !isInUse,
-                        deleteReason = if (isInUse) "Cannot delete — service has active bookings" else null,
-                        onUnavailableDatesChange = { dates ->
-                            editedServices = editedServices.map {
-                                if (it.serviceName == config.serviceName) it.copy(unavailableDates = dates) else it
-                            }
-                        },
-                        onPriceChange = { newPrice ->
-                            editedServices = editedServices.map {
-                                if (it.serviceName == config.serviceName) it.copy(customPrice = newPrice) else it
-                            }
-                        },
-                        onNameChange = { newName ->
-                            editedServices = editedServices.map {
-                                if (it.serviceName == config.serviceName) it.copy(customName = newName, displayName = newName) else it
-                            }
-                        },
-                        onDescriptionChange = { newDesc ->
-                            editedServices = editedServices.map {
-                                if (it.serviceName == config.serviceName) it.copy(description = newDesc) else it
-                            }
-                        },
-                        onDurationInput = { parsed ->
-                            if (parsed != null) {
-                                invalidDurationKeys = invalidDurationKeys - config.serviceName
-                                editedServices = editedServices.map {
-                                    if (it.serviceName == config.serviceName) it.copy(durationMinutes = parsed) else it
-                                }
-                            } else {
-                                invalidDurationKeys = invalidDurationKeys + config.serviceName
-                            }
-                        },
-                        onDelete = {
-                            invalidDurationKeys = invalidDurationKeys - config.serviceName
-                            editedServices = editedServices.filter { it.serviceName != config.serviceName }
-                        }
-                    )
                 }
-                }
+                ServiceRow(
+                    config = config,
+                    canDelete = !isInUse,
+                    deleteReason = "Cannot delete — service has active bookings",
+                    onEdit = { editingService = config },
+                    onDelete = {
+                        invalidDurationKeys = invalidDurationKeys - config.serviceName
+                        editedServices = editedServices.filter { it.serviceName != config.serviceName }
+                    }
+                )
             }
+        }
         }
 
         // Sticky action bar — Reset / Save always visible above the bottom nav.
@@ -653,314 +646,221 @@ fun OwnerServicesTab(
             }
         }
     }
+    // Modal editor for a service (price/duration/description/unavailable dates).
+    val editing = editingService
+    if (editing != null) {
+        EditServiceDialog(
+            service = editing,
+            onSave = { updated ->
+                editedServices = editedServices.map {
+                    if (it.serviceName == updated.serviceName) updated else it
+                }
+                invalidDurationKeys = invalidDurationKeys - updated.serviceName
+                editingService = null
+            },
+            onDismiss = { editingService = null }
+        )
+    }
 }
 
+/** Compact view-mode row for a service: title + price/duration, actions right. */
 @Composable
-fun ServiceConfigCard(
+private fun ServiceRow(
     config: CustomServiceConfig,
-    canDelete: Boolean = true,
-    deleteReason: String? = null,
-    onUnavailableDatesChange: (List<Long>) -> Unit = {},
-    onPriceChange: (Double) -> Unit,
-    onNameChange: (String) -> Unit = {},
-    onDurationInput: (Int?) -> Unit = {}, // valid minutes, or null while the field is invalid/empty
-    onDescriptionChange: (String) -> Unit = {},
+    canDelete: Boolean,
+    deleteReason: String?,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val context = LocalContext.current
     val defaultPrice = ServiceType.values().find { it.name == config.serviceName }?.price ?: 0.0
-    val defaultDurationMin = defaultDurationMinutes(config)
-    var priceText by remember(config.customPrice) {
-        mutableStateOf(if (config.customPrice > 0) config.customPrice.toString() else "")
-    }
-    var durationText by remember(config.durationMinutes) {
-        mutableStateOf(
-            when {
-                config.durationMinutes > 0 -> config.durationMinutes.toString()
-                defaultDurationMin > 0 -> defaultDurationMin.toString()
-                else -> ""
-            }
-        )
-    }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-
-    if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Remove Service") },
-            text = {
-                Text("Removing \"${config.displayName}\" will delete this service from your shop's service list. Clients will no longer see it.\n\nAre you sure you want to proceed?")
-            },
-            confirmButton = {
-                TextButton(onClick = { showDeleteConfirm = false; onDelete() }) {
-                    Text("Yes, Remove", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
-            }
-        )
-    }
-
+    val price = if (config.customPrice > 0) config.customPrice else defaultPrice
+    val durationLabel = if (config.durationMinutes % 60 == 0) {
+        "${config.durationMinutes / 60} hr"
+    } else "${config.durationMinutes} mins"
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    if (config.isCustom) {
-                        OutlinedTextField(
-                            value = config.customName,
-                            onValueChange = { if (it.length <= 30) onNameChange(it) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.titleMedium,
-                            placeholder = { Text("Service name") },
-                            shape = MaterialTheme.shapes.small
-                        )
-                    } else {
-                        Text(
-                            text = config.displayName,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
-                    Text(
-                        text = if (config.isCustom) "Custom service" else "Default: ₱${defaultPrice}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    )
-                }
-                IconButton(
-                    onClick = { if (canDelete) showDeleteConfirm = true },
-                    enabled = canDelete
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Delete",
-                        tint = if (canDelete) MaterialTheme.colorScheme.error
-                               else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                    )
-                }
-            }
-
-            if (!canDelete && deleteReason != null) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Info,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = deleteReason,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(config.displayName, style = MaterialTheme.typography.titleSmall)
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "Your Price: ₱",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                OutlinedTextField(
-                    value = priceText,
-                    onValueChange = { input ->
-                        val filtered = input.filter { it.isDigit() || it == '.' }
-                        if (filtered.count { it == '.' } <= 1) {
-                            val parts = filtered.split(".")
-                            val limited = if (parts.size == 2 && parts[1].length > 2) {
-                                "${parts[0]}.${parts[1].take(2)}"
-                            } else filtered
-                            priceText = limited
-                            val parsed = limited.toDoubleOrNull()
-                            if (parsed != null && parsed >= 150 && parsed <= 5000) {
-                                onPriceChange(parsed)
-                            }
-                            // When empty or invalid: don't call onPriceChange,
-                            // keep the previous valid customPrice.
-                            // The red error state will show below.
-                        }
-                    },
-                    modifier = Modifier.weight(1f).padding(start = 8.dp),
-                    singleLine = true,
-                    isError = priceText.isNotEmpty() && (priceText.toDoubleOrNull() == null
-                        || priceText.toDoubleOrNull()!! < 150
-                        || priceText.toDoubleOrNull()!! > 5000),
-                    placeholder = { Text("${defaultPrice}") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
-                    ),
-                    textStyle = MaterialTheme.typography.bodyLarge,
-                    shape = MaterialTheme.shapes.small
-                )
-            }
-            val price = priceText.toDoubleOrNull()
-            // Show error when: field is non-empty with invalid value,
-            // or custom service with empty/0 price
-            val showError = priceText.isNotEmpty() || (config.isCustom && priceText.isEmpty())
-            if (showError) {
-                when {
-                    price == null || price < 150 -> Text(
-                        "Minimum price is ₱150.00",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(start = 8.dp, top = 4.dp)
-                    )
-                    price > 5000 -> Text(
-                        "Maximum price is ₱5,000.00",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(start = 8.dp, top = 4.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            val durationValid = durationText.toIntOrNull()
-                ?.let { it in MIN_SERVICE_DURATION_MIN..MAX_SERVICE_DURATION_MIN } == true
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "Duration (mins):",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                OutlinedTextField(
-                    value = durationText,
-                    onValueChange = { input ->
-                        // Whole numbers only — digits, no decimals or signs
-                        val filtered = input.filter { it.isDigit() }.take(3)
-                        durationText = filtered
-                        val parsed = filtered.toIntOrNull()
-                        onDurationInput(
-                            if (parsed != null && parsed in MIN_SERVICE_DURATION_MIN..MAX_SERVICE_DURATION_MIN) parsed
-                            else null
-                        )
-                    },
-                    modifier = Modifier.weight(1f).padding(start = 8.dp),
-                    singleLine = true,
-                    isError = !durationValid,
-                    placeholder = { Text(if (defaultDurationMin > 0) "$defaultDurationMin" else "e.g. 45") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
-                    ),
-                    textStyle = MaterialTheme.typography.bodyLarge,
-                    shape = MaterialTheme.shapes.small
-                )
-            }
-            if (!durationValid) {
-                Text(
-                    "Please enter a valid duration between 20 and 180 minutes",
-                    color = MaterialTheme.colorScheme.error,
+                    text = "${BookingUtils.formatPrice(price)} • $durationLabel",
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            val descriptionBlank = config.description.isBlank()
-            OutlinedTextField(
-                value = config.description,
-                onValueChange = { if (it.length <= MAX_SERVICE_DESCRIPTION_LEN) onDescriptionChange(it) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Description") },
-                placeholder = { Text("e.g. Hand wash + tire shine, exterior only") },
-                minLines = 2,
-                maxLines = 4,
-                isError = descriptionBlank,
-                supportingText = {
-                    if (descriptionBlank) {
-                        Text("Add a short detail so clients know what this service includes")
-                    } else {
-                        Text("${config.description.length}/$MAX_SERVICE_DESCRIPTION_LEN")
-                    }
-                },
-                textStyle = MaterialTheme.typography.bodyMedium,
-                shape = MaterialTheme.shapes.small
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-            // Unavailable dates — Foodpanda-style "sold out today": the service
-            // stays in the catalog but can't be booked on these dates.
-            var showUnavailablePicker by remember { mutableStateOf(false) }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Default.Edit, contentDescription = "Edit ${config.displayName}", modifier = Modifier.size(18.dp))
+            }
+            IconButton(
+                onClick = {
+                    if (canDelete) onDelete()
+                    else Toast.makeText(context, deleteReason ?: "Cannot delete this service", Toast.LENGTH_SHORT).show()
+                }
             ) {
                 Icon(
-                    Icons.Default.EventBusy,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Unavailable dates",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                TextButton(onClick = { showUnavailablePicker = true }) {
-                    Text("Add date")
-                }
-            }
-            if (config.unavailableDates.isEmpty()) {
-                Text(
-                    text = "Available every day",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                    modifier = Modifier.padding(start = 22.dp)
-                )
-            } else {
-                config.unavailableDates.sorted().forEach { date ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().padding(start = 22.dp)
-                    ) {
-                        Text(
-                            text = DateUtils.formatDate(date),
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.weight(1f)
-                        )
-                        IconButton(onClick = { onUnavailableDatesChange(config.unavailableDates - date) }) {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Remove date",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                            )
-                        }
-                    }
-                }
-            }
-            if (showUnavailablePicker) {
-                UnavailableDatePickerDialog(
-                    onAdd = { date ->
-                        onUnavailableDatesChange((config.unavailableDates + date).distinct())
-                        showUnavailablePicker = false
-                    },
-                    onDismiss = { showUnavailablePicker = false }
+                    Icons.Default.Delete,
+                    contentDescription = "Delete ${config.displayName}",
+                    modifier = Modifier.size(18.dp),
+                    tint = if (canDelete) MaterialTheme.colorScheme.error
+                           else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
                 )
             }
         }
+    }
+}
+
+/** Modal editor for a service's price, duration, description and unavailable dates. */
+@Composable
+private fun EditServiceDialog(
+    service: CustomServiceConfig,
+    onSave: (CustomServiceConfig) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val defaultPrice = ServiceType.values().find { it.name == service.serviceName }?.price ?: 0.0
+    var priceText by remember(service) {
+        mutableStateOf(if (service.customPrice > 0) service.customPrice.toString() else "")
+    }
+    var durationText by remember(service) {
+        mutableStateOf(if (service.durationMinutes > 0) "${service.durationMinutes} mins" else "")
+    }
+    var descriptionText by remember(service) { mutableStateOf(service.description) }
+    var unavailableDates by remember(service) { mutableStateOf(service.unavailableDates) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val parsedDuration = remember(durationText) { BookingUtils.parseDurationMinutes(durationText) }
+    val price = priceText.toDoubleOrNull()
+    val valid = (price != null && price > 0) && parsedDuration != null
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit ${service.displayName}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = priceText,
+                    onValueChange = { priceText = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = { Text("Price (₱)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = durationText,
+                    onValueChange = { durationText = it },
+                    label = { Text("Duration") },
+                    placeholder = { Text("e.g. 30 mins, 1 hour, 1.5 hours") },
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = descriptionText,
+                    onValueChange = { descriptionText = it },
+                    label = { Text("Description") },
+                    minLines = 2,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Unavailable dates",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { showDatePicker = true }) { Text("Add date") }
+                }
+                if (unavailableDates.isEmpty()) {
+                    Text(
+                        "Available every day.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    )
+                } else {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        unavailableDates.sorted().forEach { date ->
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+                                ) {
+                                    Text(DateUtils.formatDate(date), style = MaterialTheme.typography.bodySmall)
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    IconButton(
+                                        onClick = { unavailableDates = unavailableDates - date },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Remove date",
+                                            modifier = Modifier.size(14.dp),
+                                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (parsedDuration == null) {
+                    Text(
+                        "Enter a valid duration like \"30 mins\" or \"1.5 hours\".",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(
+                        service.copy(
+                            customPrice = price ?: 0.0,
+                            durationMinutes = parsedDuration ?: service.durationMinutes,
+                            description = descriptionText,
+                            unavailableDates = unavailableDates
+                        )
+                    )
+                },
+                enabled = valid,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = CheckotTeal,
+                    contentColor = Color(0xFF00332B)
+                )
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+    if (showDatePicker) {
+        UnavailableDatePickerDialog(
+            onAdd = { date ->
+                unavailableDates = (unavailableDates + date).distinct()
+                showDatePicker = false
+            },
+            onDismiss = { showDatePicker = false }
+        )
     }
 }
 

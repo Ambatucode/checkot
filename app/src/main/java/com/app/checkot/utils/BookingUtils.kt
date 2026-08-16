@@ -144,6 +144,16 @@ object BookingUtils {
         }
     }
 
+    /**
+     * Formats a price for display: whole amounts drop the decimal ("₱200" not
+     * "200.0"), fractional amounts keep up to two digits ("₱199.5").
+     */
+    fun formatPrice(price: Double): String {
+        val s = if (price % 1.0 == 0.0) price.toLong().toString()
+                else "%.2f".format(java.util.Locale.US, price).trimEnd('0').trimEnd('.')
+        return "₱$s"
+    }
+
     /** Total duration, in minutes, of a booking's selected services. */
     fun totalDurationMinutes(services: List<ServiceType>): Int =
         services.sumOf { parseDurationMinutes(it.duration) }
