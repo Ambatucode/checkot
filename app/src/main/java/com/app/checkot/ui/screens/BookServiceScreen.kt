@@ -187,23 +187,24 @@ fun BookServiceScreen(
     )
     val activeOverride = shopDayOverrides.firstOrNull { it.date == selectedDay }
 
-    // Shop rating — average of verified client reviews (reviews are only
-    // writable against completed bookings, see Firestore rules).
-    var shopRating by remember { mutableStateOf<Pair<Double, Int>?>(null) }
+    // Shop reviews — verified client reviews (only writable against completed
+    // bookings, see Firestore rules). Shown as average + full list.
+    var shopReviews by remember { mutableStateOf<List<Review>>(emptyList()) }
     LaunchedEffect(shopId) {
         if (shopId.isEmpty()) return@LaunchedEffect
         // Best-effort: a denied read (rules not yet deployed) or a network error
-        // must never crash the screen — just show no rating.
+        // must never crash the screen — just show no reviews.
         try {
             val snapshot = firestore.collection("reviews").whereEqualTo("shopId", shopId).get().await()
-            val reviews = snapshot.documents.mapNotNull { it.toObject(Review::class.java) }
-            if (reviews.isNotEmpty()) {
-                shopRating = reviews.map { it.rating }.average() to reviews.size
-            }
+            shopReviews = snapshot.documents
+                .mapNotNull { it.toObject(Review::class.java) }
+                .sortedByDescending { it.createdAt }
         } catch (e: Exception) {
-            println("❌ Failed to load shop rating: ${e.message}")
+            println("❌ Failed to load shop reviews: ${e.message}")
         }
     }
+    val shopRating = shopReviews.takeIf { it.isNotEmpty() }
+        ?.let { reviews -> reviews.map { it.rating }.average() to reviews.size }
 
     LaunchedEffect(selectedDate, shopId, totalDurationMinutes, effectiveOpen, effectiveClose) {
         bookingViewModel.fetchAvailableTimeSlots(
@@ -475,6 +476,61 @@ fun BookServiceScreen(
                                     longitude = shopLongitude,
                                     shopName = shopDisplayName
                                 )
+                            }
+                        }
+                    }
+                }
+                // Reviews — verified client feedback (one per completed booking).
+                if (shopReviews.isNotEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = "Reviews (${shopReviews.size})",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            shopReviews.forEach { review ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            repeat(review.rating) {
+                                                Icon(
+                                                    Icons.Default.Star,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFFFFB300),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.weight(1f))
+                                            Text(
+                                                text = "${review.userName.split(" ").first()} · " +
+                                                    DateUtils.formatDate(review.createdAt),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                            )
+                                        }
+                                        if (review.comment.isNotBlank()) {
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = review.comment,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
