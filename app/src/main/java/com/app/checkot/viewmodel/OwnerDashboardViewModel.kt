@@ -382,7 +382,11 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                     .update(updates).await()
                 Log.d(TAG, "✅ Booking $bookingId updated to $status")
 
-                if (status == BookingStatus.CANCELLED) {
+                // Release the bay when the booking leaves the schedule: cancel
+                // frees it immediately, and completion frees the day's slot so
+                // the ledger matches the client-visible availability (which
+                // already excludes completed bookings).
+                if (status == BookingStatus.CANCELLED || status == BookingStatus.COMPLETED) {
                     BookingLedgerService.release(firestore, booking.shopId, booking.bookingDate, bookingId)
                 }
 

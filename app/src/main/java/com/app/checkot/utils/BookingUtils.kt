@@ -171,7 +171,11 @@ object BookingUtils {
         val sorted = bookings.sortedBy { parseTimeSlotToMinutesSince9AM(it.timeSlot) }
         for (b in sorted) {
             val start = parseTimeSlotToMinutesSince9AM(b.timeSlot)
-            val end = start + totalDurationMinutes(b.services)
+            // Use the SNAPSHOTTED duration (prefers b.durationMinutes, falls
+            // back to the built-in defaults for legacy bookings) — exactly what
+            // the ledger reserves, so client availability matches the atomic
+            // reservation and never shows a slot that the ledger rejects.
+            val end = start + bookingDurationMinutes(b)
             for (bay in 0 until bayCount) {
                 val ranges = busyRanges.getValue(bay)
                 if (ranges.none { (s, e) -> start < e && end > s }) {
