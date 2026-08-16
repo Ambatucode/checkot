@@ -187,6 +187,18 @@ fun BookServiceScreen(
     )
     val activeOverride = shopDayOverrides.firstOrNull { it.date == selectedDay }
 
+    // Shop rating — average of verified client reviews (reviews are only
+    // writable against completed bookings, see Firestore rules).
+    var shopRating by remember { mutableStateOf<Pair<Double, Int>?>(null) }
+    LaunchedEffect(shopId) {
+        if (shopId.isEmpty()) return@LaunchedEffect
+        val snapshot = firestore.collection("reviews").whereEqualTo("shopId", shopId).get().await()
+        val reviews = snapshot.documents.mapNotNull { it.toObject(Review::class.java) }
+        if (reviews.isNotEmpty()) {
+            shopRating = reviews.map { it.rating }.average() to reviews.size
+        }
+    }
+
     LaunchedEffect(selectedDate, shopId, totalDurationMinutes, effectiveOpen, effectiveClose) {
         bookingViewModel.fetchAvailableTimeSlots(
             selectedDate, shopId, totalDurationMinutes, effectiveOpen, effectiveClose
@@ -398,6 +410,33 @@ fun BookServiceScreen(
                                 style = MaterialTheme.typography.titleLarge,
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+                // Shop rating — shown under the shop header.
+                val ratingInfo = shopRating
+                if (ratingInfo != null) {
+                    item {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Star,
+                                contentDescription = null,
+                                tint = Color(0xFFFFB300),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "%.1f (%d review%s)".format(
+                                    ratingInfo.first,
+                                    ratingInfo.second,
+                                    if (ratingInfo.second == 1) "" else "s"
+                                ),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
                         }
                     }

@@ -185,6 +185,21 @@ data class DayHoursOverride(
 )
 
 /**
+ * A client's rating of a shop, stored at reviews/{bookingId} so a booking can
+ * be reviewed at most once. Rules require an own COMPLETED booking to write.
+ */
+@Immutable
+data class Review(
+    val bookingId: String = "",
+    val shopId: String = "",
+    val userId: String = "",
+    val userName: String = "",
+    val rating: Int = 5, // 1..5 stars
+    val comment: String = "",
+    val createdAt: Long = 0
+)
+
+/**
  * One reserved bay-time range within a DaySlotLedger, tied back to the
  * booking that reserved it.
  */

@@ -240,6 +240,31 @@ service cloud.firestore {
     }
 
     // ============================================================
+    // REVIEWS COLLECTION
+    //   A shop review, stored at reviews/{bookingId} so each booking can be
+    //   reviewed at most once. Writes are verified against the booking itself:
+    //   only the client who owns a COMPLETED booking at that shop may review,
+    //   which stops fake/spam reviews. Reviews are immutable (small version).
+    // ============================================================
+    match /reviews/{bookingId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.bookingId == bookingId
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.shopId is string
+        && request.resource.data.shopId != ''
+        && request.resource.data.userName is string
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.comment is string
+        && request.resource.data.createdAt is int
+        && get(/databases/$(database)/documents/bookings/$(bookingId)).data.userId == request.auth.uid
+        && get(/databases/$(database)/documents/bookings/$(bookingId)).data.status == 'COMPLETED';
+      allow update, delete: if false;
+    }
+
+    // ============================================================
     // DENY EVERYTHING ELSE BY DEFAULT
     // ============================================================
     match /{document=**} {

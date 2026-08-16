@@ -723,8 +723,174 @@ fun BookingDetailsScreen(
                     }
                 }
             }
+            if (booking.status == BookingStatus.COMPLETED) {
+                item {
+                    RateShopCard(booking = booking)
+                }
+            }
         }
     }
+}
+
+/**
+ * Lets a client rate a shop after their booking is completed. One review per
+ * booking (doc id = bookingId); Firestore rules enforce that the reviewer owns
+ * a COMPLETED booking for that shop, so reviews can't be faked or spammed.
+ */
+@Composable
+private fun RateShopCard(booking: Booking) {
+    val firestore = Firebase.firestore
+    var existingRating by remember { mutableStateOf<Int?>(null) }
+    var showDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(booking.bookingId) {
+        val snap = firestore.collection("reviews").document(booking.bookingId).get().await()
+        existingRating = snap.toObject(Review::class.java)?.rating
+    }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            val current = existingRating
+            if (current != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "You rated this shop:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    repeat(current) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = null,
+                            tint = Color(0xFFFFB300),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            } else {
+                Text("Enjoyed the service?", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Rate this shop — reviews are verified against completed bookings.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+                )
+                Button(
+                    onClick = { showDialog = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Rate this shop")
+                }
+            }
+        }
+    }
+
+    if (showDialog) {
+        RateShopDialog(
+            booking = booking,
+            onDismiss = { showDialog = false },
+            onSubmitted = { rating ->
+                existingRating = rating
+                showDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun RateShopDialog(
+    booking: Booking,
+    onDismiss: () -> Unit,
+    onSubmitted: (Int) -> Unit
+) {
+    val firestore = Firebase.firestore
+    val scope = rememberCoroutineScope()
+    var rating by remember { mutableStateOf(5) }
+    var comment by remember { mutableStateOf("") }
+    var isSubmitting by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = { if (!isSubmitting) onDismiss() },
+        title = { Text("Rate this shop") },
+        text = {
+            Column {
+                Text("How was your experience?", style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    (1..5).forEach { i ->
+                        IconButton(onClick = { rating = i }) {
+                            Icon(
+                                if (i <= rating) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = "$i stars",
+                                tint = if (i <= rating) Color(0xFFFFB300)
+                                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = comment,
+                    onValueChange = { if (it.length <= 200) comment = it },
+                    label = { Text("Comment (optional)") },
+                    minLines = 2,
+                    maxLines = 4,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (error != null) {
+                    Text(
+                        error!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !isSubmitting,
+                onClick = {
+                    isSubmitting = true
+                    scope.launch {
+                        try {
+                            val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                                ?: throw Exception("You're not signed in.")
+                            val userDoc = firestore.collection("users").document(uid).get().await()
+                            val userName = userDoc.getString("fullName") ?: ""
+                            firestore.collection("reviews").document(booking.bookingId).set(
+                                Review(
+                                    bookingId = booking.bookingId,
+                                    shopId = booking.shopId,
+                                    userId = uid,
+                                    userName = userName,
+                                    rating = rating,
+                                    comment = comment.trim(),
+                                    createdAt = System.currentTimeMillis()
+                                )
+                            ).await()
+                            onSubmitted(rating)
+                        } catch (e: Exception) {
+                            error = "Couldn't submit your rating: ${e.message}"
+                            isSubmitting = false
+                        }
+                    }
+                }
+            ) {
+                if (isSubmitting) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                } else {
+                    Text("Submit")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isSubmitting) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable
