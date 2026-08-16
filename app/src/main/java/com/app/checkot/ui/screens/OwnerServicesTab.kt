@@ -1002,16 +1002,13 @@ private fun WorkingHoursSection(
     }
 
     Column(modifier = Modifier.padding(vertical = 4.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                Icons.Default.Schedule,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Working Hours", style = MaterialTheme.typography.titleMedium)
-        }
+        // Secondary sub-header — the card already says "Schedule & Availability",
+        // so keep this smaller/lighter than a main card title.
+        Text(
+            "Working Hours",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+        )
         Spacer(modifier = Modifier.height(8.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1077,15 +1074,10 @@ private fun TimeDropdown(
             readOnly = true,
             singleLine = true,
             label = { Text(label) },
-            leadingIcon = {
-                Icon(
-                    Icons.Default.Schedule,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-            },
+            // No leading icon: it ate horizontal space in the half-width inputs
+            // and clipped "09:00 AM" / "04:00 PM". The label + arrow suffice.
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            textStyle = MaterialTheme.typography.bodyLarge,
+            textStyle = MaterialTheme.typography.bodyMedium,
             shape = MaterialTheme.shapes.small,
             modifier = Modifier
                 .menuAnchor(MenuAnchorType.PrimaryNotEditable)
