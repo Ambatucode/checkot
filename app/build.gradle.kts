@@ -7,12 +7,20 @@ plugins {
     id("com.google.gms.google-services")
 }
 
-// Google Maps API key is read from local.properties (gitignored) so it is
-// never committed. Missing key → maps render blank but the build still works.
-val mapsApiKey: String = Properties().apply {
+// Build-time secrets are read from local.properties (gitignored) so they are
+// never committed. Empty values degrade gracefully at runtime.
+val localProps = Properties().apply {
     val f = rootProject.file("local.properties")
     if (f.exists()) f.inputStream().use { load(it) }
-}.getProperty("MAPS_API_KEY") ?: ""
+}
+
+// Google Maps API key. Missing key → maps render blank but the build still works.
+val mapsApiKey: String = localProps.getProperty("MAPS_API_KEY") ?: ""
+
+// Demo mode credentials: the app silently signs in as this fixed demo customer
+// and skips the login/signup screens. Empty → demo mode off, normal login flow.
+val demoEmail: String = localProps.getProperty("DEMO_EMAIL") ?: ""
+val demoPassword: String = localProps.getProperty("DEMO_PASSWORD") ?: ""
 
 kotlin {
     compilerOptions {
@@ -35,6 +43,12 @@ android {
 
         // Injected into AndroidManifest as the Maps API key placeholder.
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
+
+        // Demo mode (see AuthViewModel.init): the app auto-signs-in as a fixed
+        // demo customer. Exposed via BuildConfig so credentials never live in
+        // source control.
+        buildConfigField("String", "DEMO_EMAIL", "\"${demoEmail.replace("\"", "\\\"")}\"")
+        buildConfigField("String", "DEMO_PASSWORD", "\"${demoPassword.replace("\"", "\\\"")}\"")
     }
 
     signingConfigs {
@@ -73,6 +87,7 @@ android {
     }
 
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 

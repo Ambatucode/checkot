@@ -3,6 +3,7 @@ package com.app.checkot.viewmodel
 import android.app.Activity
 import android.app.Application
 import android.util.Log
+import com.app.checkot.BuildConfig
 import com.app.checkot.model.*
 import com.app.checkot.service.NotificationHelper
 import com.app.checkot.service.FCMSender
@@ -110,18 +111,59 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     val roleLoadState: StateFlow<RoleLoadState> = _roleLoadState
 
     init {
-        if (auth.currentUser != null) {
+        val existingUser = auth.currentUser
+        if (existingUser != null) {
             _authState.value = AuthState.Authenticated
             loadUserData()
             // Upload FCM token directly — ensures token is always saved
             // even if loadUserData hasn't completed yet
             FirebaseMessaging.getInstance().token
                 .addOnSuccessListener { token ->
-                    firestore.collection("users").document(auth.currentUser!!.uid)
+                    firestore.collection("users").document(existingUser.uid)
                         .set(mapOf("fcmToken" to token), com.google.firebase.firestore.SetOptions.merge())
                         .addOnSuccessListener { Log.d(TAG, "✅ AuthVM: FCM token saved on init") }
                         .addOnFailureListener { e -> Log.e(TAG, "❌ AuthVM: Failed to save token: ${e.message}") }
                 }
+        } else if (BuildConfig.DEMO_EMAIL.isNotBlank() && BuildConfig.DEMO_PASSWORD.isNotBlank()) {
+            // Demo mode: silently sign in as the fixed demo customer and land on
+            // Home — no login/signup UI. The RBAC gate stays on Loading until this
+            // completes so the Login screen never flashes. First run self-seeds the
+            // user doc (role=customer, phoneVerified=true) so the existing routing
+            // sends the demo user straight to Home.
+            _roleLoadState.value = RoleLoadState.Loading
+            viewModelScope.launch {
+                try {
+                    val result = auth.signInWithEmailAndPassword(
+                        BuildConfig.DEMO_EMAIL,
+                        BuildConfig.DEMO_PASSWORD
+                    ).await()
+                    val user = result.user ?: throw Exception("Demo sign-in failed")
+                    val docRef = firestore.collection("users").document(user.uid)
+                    if (!docRef.get().await().exists()) {
+                        val userData = CarWashUser(
+                            userId = user.uid,
+                            fullName = "Demo User",
+                            email = BuildConfig.DEMO_EMAIL,
+                            phoneNumber = "+10000000000",
+                            phoneVerified = true,
+                            createdAt = System.currentTimeMillis(),
+                            role = "customer",
+                            savedCars = emptyList()
+                        )
+                        docRef.set(userData).await()
+                        _currentUserData.value = userData
+                        uploadFcmToken(user.uid)
+                        _roleLoadState.value = RoleLoadState.Ready
+                    } else {
+                        loadUserData()
+                    }
+                    _authState.value = AuthState.Authenticated
+                } catch (e: Exception) {
+                    Log.e(TAG, "Demo auto sign-in failed: ${e.message}")
+                    // Fall back to the normal login flow.
+                    _roleLoadState.value = RoleLoadState.Ready
+                }
+            }
         }
     }
 
