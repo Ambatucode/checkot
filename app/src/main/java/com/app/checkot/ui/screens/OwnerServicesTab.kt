@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -1060,6 +1061,19 @@ private fun TimeDropdown(
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
+    // Consume drag-scrolls over the open time list so the list scrolls instead
+    // of the page/dialog behind it (same gesture conflict as the map fix).
+    val blockScroll = remember {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: androidx.compose.ui.geometry.Offset,
+                available: androidx.compose.ui.geometry.Offset,
+                source: androidx.compose.ui.input.nestedscroll.NestedScrollSource
+            ): androidx.compose.ui.geometry.Offset =
+                if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag) available
+                else androidx.compose.ui.geometry.Offset.Zero
+        }
+    }
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { expanded = it },
@@ -1089,7 +1103,9 @@ private fun TimeDropdown(
         ExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            modifier = Modifier.heightIn(max = 280.dp)
+            modifier = Modifier
+                .heightIn(max = 280.dp)
+                .nestedScroll(blockScroll)
         ) {
             options.forEach { m ->
                 val selected = m == valueMinutes
