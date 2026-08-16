@@ -142,7 +142,8 @@ fun LoginScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(16.dp),
+            .padding(16.dp)
+            .navigationBarsPadding(),
         contentAlignment = Alignment.Center
     ) {
         Column(

@@ -587,6 +587,7 @@ fun BookServiceScreen(
                 modifier = Modifier
                     .weight(1f)
                     .padding(16.dp),
+                contentPadding = PaddingValues(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Shop header — always a cover: the banner if the owner set one,

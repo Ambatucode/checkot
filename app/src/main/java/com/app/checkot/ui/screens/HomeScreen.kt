@@ -255,7 +255,7 @@ fun HomeScreen(
                         }
                         Spacer(modifier = Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            // Title + AI badge on the exact same horizontal baseline
+                            // Title on its own line now
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.wrapContentHeight()
@@ -266,19 +266,6 @@ fun HomeScreen(
                                     fontWeight = FontWeight.SemiBold,
                                     color = Color.White
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(50),
-                                    color = Color(0xFF00BFA5).copy(alpha = 0.2f)
-                                ) {
-                                    Text(
-                                        text = "AI",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFF00BFA5),
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
                             }
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(

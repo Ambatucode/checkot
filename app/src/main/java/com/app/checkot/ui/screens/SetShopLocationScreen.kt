@@ -94,7 +94,7 @@ fun SetShopLocationScreen(
                 enabled = picked != null && !isSaving,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 24.dp)
             ) {
                 if (isSaving) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp))
