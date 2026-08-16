@@ -31,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -78,7 +79,25 @@ fun LocationPickerMap(
 
     val onUseMyLocation = rememberUseMyLocation(context, onLocationChange)
 
-    Box(modifier = modifier) {
+    // When this map is embedded in a scrollable screen (e.g. the owner signup
+    // form), dragging the map would otherwise scroll the page instead of panning
+    // the map. Consume any drag-driven scroll over the map area so the native
+    // map handles the gesture; the page only scrolls when touched elsewhere.
+    val blockScroll = remember {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: androidx.compose.ui.geometry.Offset,
+                available: androidx.compose.ui.geometry.Offset,
+                source: androidx.compose.ui.input.nestedscroll.NestedScrollSource
+            ): androidx.compose.ui.geometry.Offset =
+                if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag) available
+                else androidx.compose.ui.geometry.Offset.Zero
+        }
+    }
+
+    Box(
+        modifier = modifier.nestedScroll(blockScroll)
+    ) {
         GoogleMap(
             modifier = Modifier.matchParentSize(),
             cameraPositionState = cameraPositionState,
