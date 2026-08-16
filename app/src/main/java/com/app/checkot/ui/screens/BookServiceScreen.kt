@@ -138,17 +138,29 @@ fun BookServiceScreen(
     // Availability helpers for the selected date.
     val selectedDay = BookingUtils.startOfDay(selectedDate)
     val shopClosedOnSelected = shopClosedDates.contains(selectedDay)
-    // Foodpanda-style cart cleanup: if the owner marks a selected service
-    // unavailable on this date (or removes it entirely), drop it from the
-    // selection and tell the user.
+    // Foodpanda-style cart cleanup: if the shop is closed on the selected date,
+    // or the owner marks a selected service unavailable (or removes it), drop it
+    // from the selection and tell the user — so no bookable-looking steps or
+    // slots remain on a day the client can't actually book.
     var droppedNotice by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(availableServices, selectedDate) {
+    LaunchedEffect(availableServices, selectedDate, shopClosedDates) {
+        if (shopClosedOnSelected) {
+            if (selectedServiceConfigs.isNotEmpty() || selectedTimeSlot.isNotEmpty()) {
+                selectedServiceConfigs = emptySet()
+                selectedTimeSlot = ""
+                droppedNotice = "This shop is closed on ${DateUtils.formatDate(selectedDay)} — your selection was cleared."
+            } else {
+                droppedNotice = null
+            }
+            return@LaunchedEffect
+        }
         val nowUnavailable = selectedServiceConfigs.filter { name ->
             val config = availableServices.firstOrNull { it.config.serviceName == name }?.config
             config == null || config.unavailableDates.contains(selectedDay)
         }
         if (nowUnavailable.isNotEmpty()) {
             selectedServiceConfigs = selectedServiceConfigs - nowUnavailable.toSet()
+            selectedTimeSlot = ""
             droppedNotice = "A service you selected is no longer available for this date and was removed."
         } else {
             droppedNotice = null
