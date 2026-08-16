@@ -537,34 +537,8 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
     }
 
     /** True if [booking] is no longer fully covered by the shop's new schedule. */
-    private fun isBookingAffected(booking: Booking, new: ShopCustomization): Boolean {
-        // Shop closed on the booking date
-        if (new.closedDates.contains(BookingUtils.startOfDay(booking.bookingDate))) return true
-        // Hours narrowed (or a per-day override applied) so the booking's START
-        // no longer fits in that day's effective window (closeMinutes is the
-        // last bookable slot start — a service may finish after close).
-        val hm = runCatching { BookingUtils.parseTimeSlotToHourMinute(booking.timeSlot) }.getOrNull()
-        if (hm != null) {
-            val start = hm.first * 60 + hm.second
-            val (effOpen, effClose) = BookingUtils.effectiveHours(
-                new.openMinutes, new.closeMinutes, new.dayOverrides, booking.bookingDate
-            )
-            if (start < effOpen || start > effClose) return true
-        }
-        // A booked service was removed or marked unavailable on the booking date
-        val day = BookingUtils.startOfDay(booking.bookingDate)
-        return booking.services.any { svc ->
-            if (svc == ServiceType.CUSTOM) {
-                booking.customServiceNames.any { name ->
-                    val config = new.services.find { it.isCustom && it.customName == name }
-                    config == null || config.unavailableDates.contains(day)
-                }
-            } else {
-                val config = new.services.find { it.serviceName == svc.name }
-                config == null || config.unavailableDates.contains(day)
-            }
-        }
-    }
+    private fun isBookingAffected(booking: Booking, new: ShopCustomization): Boolean =
+        BookingUtils.bookingImpactReason(booking, new) != null
 
     // Uploads the shop logo to Firebase Storage (shop_logos/{uid}/logo.jpg) and
     // saves its download URL on the shop doc, keeping the Firestore doc small.

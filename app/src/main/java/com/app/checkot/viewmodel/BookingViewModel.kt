@@ -278,7 +278,12 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
     }
 
 
-    fun cancelBooking(bookingId: String) {
+    /**
+     * Cancels a booking. When [skipCooldown] is true (e.g. the shop closed the
+     * date / changed hours, so the booking can't be fulfilled), the user is
+     * NOT stamped with lastCancelledAt — a free cancel, no rebooking cooldown.
+     */
+    fun cancelBooking(bookingId: String, skipCooldown: Boolean = false) {
         viewModelScope.launch {
             try {
                 val bookingSnapshot = firestore.collection("bookings").document(bookingId).get().await()
@@ -291,9 +296,10 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 if (booking != null) {
                     BookingLedgerService.release(firestore, booking.shopId, booking.bookingDate, bookingId)
                 }
-                // Store cancellation timestamp in Firestore (survives app restart)
+                // Store cancellation timestamp in Firestore (survives app restart) —
+                // skipped for a free (impacted) cancellation.
                 val uid = auth.currentUser?.uid ?: ""
-                if (uid.isNotEmpty()) {
+                if (uid.isNotEmpty() && !skipCooldown) {
                     firestore.collection("users").document(uid)
                         .update("lastCancelledAt", System.currentTimeMillis())
                         .await()

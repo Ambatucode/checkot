@@ -4,6 +4,7 @@ import com.app.checkot.model.Booking
 import com.app.checkot.model.DayHoursOverride
 import com.app.checkot.model.DaySlotEntry
 import com.app.checkot.model.ServiceType
+import com.app.checkot.model.ShopCustomization
 
 /**
  * Shared booking-slot math. Previously duplicated (with slight drift) across
@@ -88,6 +89,45 @@ object BookingUtils {
         val override = overrides.firstOrNull { it.date == day }
         return if (override != null) override.openMinutes to override.closeMinutes
         else openMinutes to closeMinutes
+    }
+
+    /**
+     * Why a booking is no longer fully covered by the shop's current schedule
+     * (closed date / special hours that no longer include the slot / a booked
+     * service removed or unavailable that day), or null if it's fine. Single
+     * source of truth for BOTH the owner's notification check and the client's
+     * "impacted" banner on the booking screen.
+     */
+    fun bookingImpactReason(booking: Booking, shop: ShopCustomization): String? {
+        val day = startOfDay(booking.bookingDate)
+        if (shop.closedDates.contains(day)) {
+            return "The shop is closed on ${DateUtils.formatDate(day)}"
+        }
+        val (effOpen, effClose) = effectiveHours(
+            shop.openMinutes, shop.closeMinutes, shop.dayOverrides, booking.bookingDate
+        )
+        val hm = runCatching { parseTimeSlotToHourMinute(booking.timeSlot) }.getOrNull()
+        if (hm != null) {
+            val start = hm.first * 60 + hm.second
+            if (start < effOpen || start > effClose) {
+                return "The shop has special hours on ${DateUtils.formatDate(day)} " +
+                    "(${minutesToSlotLabel(effOpen)} – ${minutesToSlotLabel(effClose)}) that no longer include your slot"
+            }
+        }
+        val serviceGone = booking.services.any { svc ->
+            if (svc == ServiceType.CUSTOM) {
+                booking.customServiceNames.any { name ->
+                    val config = shop.services.find { it.isCustom && it.customName == name }
+                    config == null || config.unavailableDates.contains(day)
+                }
+            } else {
+                val config = shop.services.find { it.serviceName == svc.name }
+                config == null || config.unavailableDates.contains(day)
+            }
+        }
+        return if (serviceGone) {
+            "A service you booked is no longer available on ${DateUtils.formatDate(day)}"
+        } else null
     }
 
     /** Parses a duration string like "45 mins" or "1.5 hours" into minutes. */

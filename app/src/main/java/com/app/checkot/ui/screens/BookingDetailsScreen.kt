@@ -113,6 +113,8 @@ fun BookingDetailsScreen(
     var shopLongitude by remember(booking) { mutableStateOf(0.0) }
     var shopServices by remember(booking) { mutableStateOf<List<CustomServiceConfig>>(emptyList()) }
     var shopLogo by remember(booking) { mutableStateOf<ImageBitmap?>(null) }
+    // Full shop doc — used to flag bookings impacted by closures/hours changes.
+    var shopCustomization by remember(booking) { mutableStateOf<ShopCustomization?>(null) }
     var showAddOnDialog by remember { mutableStateOf(false) }
     var showReceipt by remember { mutableStateOf(false) }
     LaunchedEffect(booking?.shopId) {
@@ -142,6 +144,7 @@ fun BookingDetailsScreen(
                     shopLongitude = lng
                     shopServices = services
                     shopLogo = logo
+                    shopCustomization = customization
                 }
             } catch (e: Exception) {
                 println("Failed to load shop details: ${e.message}")
@@ -162,16 +165,27 @@ fun BookingDetailsScreen(
         }
         return
     }
+    // Why this booking is impacted by the shop's current schedule (closed
+    // date / special hours / unavailable service), or null if it's fine.
+    val impactReason = shopCustomization?.let { BookingUtils.bookingImpactReason(booking, it) }
     if (showCancelDialog) {
         ConfirmDialog(
             title = "Cancel Booking",
-            text = "Are you sure you want to cancel this booking? This action cannot be undone.",
+            text = if (impactReason != null) {
+                "This booking is impacted by a shop schedule change: $impactReason. " +
+                    "You can cancel it without penalty."
+            } else {
+                "Are you sure you want to cancel this booking? This action cannot be undone."
+            },
             confirmLabel = "Yes, Cancel",
             dismissLabel = "No",
             onConfirm = {
                 scope.launch {
                     isCancelling = true
-                    bookingViewModel.cancelBooking(booking.bookingId)
+                    bookingViewModel.cancelBooking(
+                        booking.bookingId,
+                        skipCooldown = impactReason != null
+                    )
                     isCancelling = false
                     showCancelDialog = false
                     navController.popBackStack()
@@ -694,6 +708,35 @@ fun BookingDetailsScreen(
                         }
                         booking.cancelledAt?.let {
                             DetailRow("Cancelled:", DateUtils.formatDateTime(it))
+                        }
+                    }
+                }
+            }
+            // Persistent warning when the shop's schedule no longer covers
+            // this booking (closed date / special hours / unavailable service).
+            if (impactReason != null) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "$impactReason. The shop may not be able to fulfil this booking — you can cancel it without penalty.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
                         }
                     }
                 }
