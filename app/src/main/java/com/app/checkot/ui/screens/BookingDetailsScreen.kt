@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
@@ -1425,13 +1426,13 @@ fun QueuePositionCard(queueInfo: QueueInfo, status: BookingStatus) {
             // Status message
             Text(
                 text = when (status) {
-                    BookingStatus.PENDING -> "Waiting for shop to confirm your booking"
-                    BookingStatus.CONFIRMED -> "Your booking is confirmed, hang tight!"
+                    BookingStatus.PENDING -> "Your booking request has been sent to the shop. We'll notify you as soon as they accept or if anything changes."
+                    BookingStatus.CONFIRMED -> "Your spot is secured! We'll keep you updated on your wash status or if anything changes."
                     BookingStatus.IN_PROGRESS -> "Your car is being serviced right now"
                     else -> ""
                 },
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF00E6C3)
+                fontSize = 14.sp,
+                color = Color(0xFF94A3B8)
             )
         }
     }
