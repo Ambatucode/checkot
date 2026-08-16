@@ -462,14 +462,18 @@ fun BookServiceScreen(
         bottomBar = {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.surface,
+                // Dark bar that extends seamlessly behind the system nav bar.
+                color = Color(0xFF0F2530),
                 shadowElevation = 8.dp,
                 tonalElevation = 8.dp
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        // Pad the CONTENT above the nav bar (background stays full-bleed),
+                        // so the buttons clear the 3-button navigation overlay.
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     if (step >= 1 && selectedServiceConfigs.isNotEmpty()) {
                         val selectedAvails = availableServices.filter { selectedServiceConfigs.contains(it.config.serviceName) }
@@ -493,7 +497,8 @@ fun BookServiceScreen(
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         val buttonShape = RoundedCornerShape(24.dp)
-                        val buttonHeight = Modifier.height(48.dp)
+                        // 50dp for comfortable touch clearance on all display sizes.
+                        val buttonHeight = Modifier.height(50.dp)
                         if (step > 1) {
                             OutlinedButton(
                                 onClick = { step-- },
