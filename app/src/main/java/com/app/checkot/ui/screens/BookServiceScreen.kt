@@ -43,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 
@@ -553,6 +554,9 @@ fun BookServiceScreen(
                                 .weight(if (step > 1) 1f else 2f)
                                 .then(buttonHeight),
                             shape = buttonShape,
+                            // Tighter horizontal padding so "Confirm Booking" fits on
+                            // narrow screens without clipping.
+                            contentPadding = PaddingValues(horizontal = 12.dp),
                             colors = ButtonDefaults.buttonColors(
                                 contentColor = Color(0xFF0B1921),
                                 disabledContentColor = Color(0xFF0B1921).copy(alpha = 0.4f)
@@ -572,6 +576,7 @@ fun BookServiceScreen(
                             } else {
                                 Text(
                                     text = if (step < 4) "Continue" else "Confirm Booking",
+                                    fontSize = 13.sp,
                                     maxLines = 1,
                                     softWrap = false,
                                     fontWeight = FontWeight.Bold
