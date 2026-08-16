@@ -744,8 +744,14 @@ private fun RateShopCard(booking: Booking) {
     var showDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(booking.bookingId) {
-        val snap = firestore.collection("reviews").document(booking.bookingId).get().await()
-        existingRating = snap.toObject(Review::class.java)?.rating
+        // Best-effort: a denied read (rules not yet deployed) must not crash
+        // the details screen — just treat it as not-yet-reviewed.
+        try {
+            val snap = firestore.collection("reviews").document(booking.bookingId).get().await()
+            existingRating = snap.toObject(Review::class.java)?.rating
+        } catch (e: Exception) {
+            println("❌ Failed to load review for ${booking.bookingId}: ${e.message}")
+        }
     }
 
     Card(modifier = Modifier.fillMaxWidth()) {

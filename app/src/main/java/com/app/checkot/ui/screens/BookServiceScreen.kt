@@ -192,10 +192,16 @@ fun BookServiceScreen(
     var shopRating by remember { mutableStateOf<Pair<Double, Int>?>(null) }
     LaunchedEffect(shopId) {
         if (shopId.isEmpty()) return@LaunchedEffect
-        val snapshot = firestore.collection("reviews").whereEqualTo("shopId", shopId).get().await()
-        val reviews = snapshot.documents.mapNotNull { it.toObject(Review::class.java) }
-        if (reviews.isNotEmpty()) {
-            shopRating = reviews.map { it.rating }.average() to reviews.size
+        // Best-effort: a denied read (rules not yet deployed) or a network error
+        // must never crash the screen — just show no rating.
+        try {
+            val snapshot = firestore.collection("reviews").whereEqualTo("shopId", shopId).get().await()
+            val reviews = snapshot.documents.mapNotNull { it.toObject(Review::class.java) }
+            if (reviews.isNotEmpty()) {
+                shopRating = reviews.map { it.rating }.average() to reviews.size
+            }
+        } catch (e: Exception) {
+            println("❌ Failed to load shop rating: ${e.message}")
         }
     }
 
