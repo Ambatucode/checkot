@@ -540,12 +540,16 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
     private fun isBookingAffected(booking: Booking, new: ShopCustomization): Boolean {
         // Shop closed on the booking date
         if (new.closedDates.contains(BookingUtils.startOfDay(booking.bookingDate))) return true
-        // Hours narrowed so the booking no longer fits in the window
+        // Hours narrowed (or a per-day override applied) so the booking no
+        // longer fits in that day's effective window
         val hm = runCatching { BookingUtils.parseTimeSlotToHourMinute(booking.timeSlot) }.getOrNull()
         if (hm != null) {
             val start = hm.first * 60 + hm.second
             val end = start + BookingUtils.bookingDurationMinutes(booking)
-            if (start < new.openMinutes || end > new.closeMinutes) return true
+            val (effOpen, effClose) = BookingUtils.effectiveHours(
+                new.openMinutes, new.closeMinutes, new.dayOverrides, booking.bookingDate
+            )
+            if (start < effOpen || end > effClose) return true
         }
         // A booked service was removed or marked unavailable on the booking date
         val day = BookingUtils.startOfDay(booking.bookingDate)

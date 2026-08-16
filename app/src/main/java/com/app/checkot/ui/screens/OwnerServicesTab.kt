@@ -67,6 +67,7 @@ fun OwnerServicesTab(
     var openMinutes by remember { mutableStateOf(customization.openMinutes) }
     var closeMinutes by remember { mutableStateOf(customization.closeMinutes) }
     var closedDates by remember { mutableStateOf(customization.closedDates) }
+    var dayOverrides by remember { mutableStateOf(customization.dayOverrides) }
     var showAddDropdown by remember { mutableStateOf(false) }
     var showCustomNameDialog by remember { mutableStateOf(false) }
     var customServiceNameInput by remember { mutableStateOf("") }
@@ -131,8 +132,9 @@ fun OwnerServicesTab(
 
     val hoursChanged = openMinutes != customization.openMinutes || closeMinutes != customization.closeMinutes
     val closedDatesChanged = closedDates != customization.closedDates
+    val dayOverridesChanged = dayOverrides != customization.dayOverrides
     val canSave = (editedServices != customization.services || bayCountChanged || hoursChanged ||
-        closedDatesChanged || editedStaff != customization.staffNames) &&
+        closedDatesChanged || dayOverridesChanged || editedStaff != customization.staffNames) &&
         !hasInvalidPrice && !hasInvalidDuration && !hasBlankDescription && hoursValid
 
     LaunchedEffect(customization) {
@@ -141,6 +143,7 @@ fun OwnerServicesTab(
         openMinutes = customization.openMinutes
         closeMinutes = customization.closeMinutes
         closedDates = customization.closedDates
+        dayOverrides = customization.dayOverrides
         editedStaff = customization.staffNames
         invalidDurationKeys = emptySet()
     }
@@ -167,6 +170,7 @@ fun OwnerServicesTab(
             openMinutes = openMinutes,
             closeMinutes = closeMinutes,
             closedDates = closedDates,
+            dayOverrides = dayOverrides,
             staffNames = editedStaff
         )
         ownerViewModel.saveShopCustomization(updated)
@@ -271,6 +275,15 @@ fun OwnerServicesTab(
         ClosedDatesSection(
             closedDates = closedDates,
             onClosedDatesChange = { closedDates = it }
+        )
+
+        // Hours overrides — one-off hours for a specific date (e.g. closing
+        // early today). Permanent hours are not changed.
+        HoursOverridesSection(
+            dayOverrides = dayOverrides,
+            defaultOpenMinutes = openMinutes,
+            defaultCloseMinutes = closeMinutes,
+            onDayOverridesChange = { dayOverrides = it }
         )
 
         // Shop location — opens the map picker. Editable any time (shops relocate).
@@ -1190,4 +1203,155 @@ private fun UnavailableDatePickerDialog(
     ) {
         DatePicker(state = state)
     }
+}
+
+@Composable
+private fun HoursOverridesSection(
+    dayOverrides: List<DayHoursOverride>,
+    defaultOpenMinutes: Int,
+    defaultCloseMinutes: Int,
+    onDayOverridesChange: (List<DayHoursOverride>) -> Unit
+) {
+    var showDatePicker by remember { mutableStateOf(false) }
+    var pendingDate by remember { mutableStateOf<Long?>(null) }
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                Icons.Default.Schedule,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Hours Overrides", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.weight(1f))
+            TextButton(onClick = { showDatePicker = true }) { Text("Add override") }
+        }
+        Text(
+            "One-off hours for a specific date — e.g. closing early today. " +
+                "Permanent hours are not changed. Affected clients are notified.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        if (dayOverrides.isEmpty()) {
+            Text(
+                "No overrides — the regular hours apply every day.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+            )
+        } else {
+            dayOverrides.sortedBy { it.date }.forEach { override ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "${DateUtils.formatDate(override.date)} · " +
+                            "${BookingUtils.minutesToSlotLabel(override.openMinutes)} – " +
+                            "${BookingUtils.minutesToSlotLabel(override.closeMinutes)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { onDayOverridesChange(dayOverrides - override) }) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Remove override",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+    // Step 1: pick the date for the override.
+    if (showDatePicker) {
+        UnavailableDatePickerDialog(
+            onAdd = { date ->
+                pendingDate = date
+                showDatePicker = false
+            },
+            onDismiss = { showDatePicker = false }
+        )
+    }
+    // Step 2: choose the hours for that date.
+    val dateForEdit = pendingDate
+    if (dateForEdit != null) {
+        DayHoursOverrideDialog(
+            date = dateForEdit,
+            defaultOpenMinutes = defaultOpenMinutes,
+            defaultCloseMinutes = defaultCloseMinutes,
+            onSave = { open, close ->
+                onDayOverridesChange(
+                    (dayOverrides + DayHoursOverride(dateForEdit, open, close)).distinctBy { it.date }
+                )
+                pendingDate = null
+            },
+            onDismiss = { pendingDate = null }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DayHoursOverrideDialog(
+    date: Long,
+    defaultOpenMinutes: Int,
+    defaultCloseMinutes: Int,
+    onSave: (openMinutes: Int, closeMinutes: Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var openMinutes by remember { mutableStateOf(defaultOpenMinutes) }
+    var closeMinutes by remember { mutableStateOf(defaultCloseMinutes) }
+    val allOptions = remember { (360..1290 step SLOT_STEP_MIN).toList() }
+    val openOptions = allOptions.filter { it <= 1290 - MIN_WORKING_WINDOW_MIN }
+    val closeOptions = allOptions.filter { it >= openMinutes + MIN_WORKING_WINDOW_MIN }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Hours for ${DateUtils.formatDate(date)}") },
+        text = {
+            Column {
+                Text(
+                    "Only this date is affected. Existing bookings outside these hours are kept and their clients notified.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    TimeDropdown(
+                        label = "Opens",
+                        valueMinutes = openMinutes,
+                        options = openOptions,
+                        onSelect = {
+                            openMinutes = it
+                            if (closeMinutes < it + MIN_WORKING_WINDOW_MIN) {
+                                closeMinutes = it + MIN_WORKING_WINDOW_MIN
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    TimeDropdown(
+                        label = "Closes",
+                        valueMinutes = closeMinutes,
+                        options = closeOptions,
+                        onSelect = { closeMinutes = it },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(openMinutes, closeMinutes) }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }

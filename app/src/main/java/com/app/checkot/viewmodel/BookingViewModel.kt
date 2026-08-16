@@ -133,8 +133,10 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 // Re-validate availability at creation time — closes the race
                 // where the owner removes a service or closes the shop after
                 // the client loaded the screen. The shop must still exist and
-                // be active, not closed on the booking date, and every selected
-                // service must still be offered and available on that date.
+                // be active, not closed on the booking date, every selected
+                // service must still be offered and available on that date, and
+                // the slot must fit the day's effective hours (per-day override
+                // wins — e.g. the owner closed early today).
                 val shopSnap = firestore.collection("shop_services").document(booking.shopId)
                     .get(com.google.firebase.firestore.Source.SERVER).await()
                 val shop = shopSnap.toObject(ShopCustomization::class.java)
@@ -150,11 +152,21 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                         config == null || config.unavailableDates.contains(bookingDay)
                     }
                 }
+                val (effOpen, effClose) = BookingUtils.effectiveHours(
+                    shop?.openMinutes ?: 540,
+                    shop?.closeMinutes ?: 960,
+                    shop?.dayOverrides.orEmpty(),
+                    booking.bookingDate
+                )
+                val (h, m) = BookingUtils.parseTimeSlotToHourMinute(booking.timeSlot)
+                val slotStart = h * 60 + m
+                val slotEnd = slotStart + BookingUtils.bookingDurationMinutes(booking)
+                val slotOutsideHours = slotStart < effOpen || slotEnd > effClose
                 if (shop == null || shop.status != "active" ||
-                    shop.closedDates.contains(bookingDay) || unavailableService
+                    shop.closedDates.contains(bookingDay) || unavailableService || slotOutsideHours
                 ) {
                     _isLoading.value = false
-                    _error.value = "One or more services you selected are no longer available for this date, or the shop is closed. Please review your selection and try again."
+                    _error.value = "One or more services you selected are no longer available for this date, or the shop's hours changed. Please review your selection and try again."
                     Log.e(TAG, "❌ Cannot create booking — availability re-check failed")
                     return@launch
                 }

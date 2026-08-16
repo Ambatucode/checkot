@@ -1,6 +1,7 @@
 package com.app.checkot.utils
 
 import com.app.checkot.model.Booking
+import com.app.checkot.model.DayHoursOverride
 import com.app.checkot.model.DaySlotEntry
 import com.app.checkot.model.ServiceType
 
@@ -71,6 +72,22 @@ object BookingUtils {
         cal.set(java.util.Calendar.SECOND, 0)
         cal.set(java.util.Calendar.MILLISECOND, 0)
         return cal.timeInMillis
+    }
+
+    /**
+     * Effective open/close (minutes since midnight) for [date], applying a
+     * per-day override if one exists — otherwise the shop's permanent hours.
+     */
+    fun effectiveHours(
+        openMinutes: Int,
+        closeMinutes: Int,
+        overrides: List<DayHoursOverride>,
+        date: Long
+    ): Pair<Int, Int> {
+        val day = startOfDay(date)
+        val override = overrides.firstOrNull { it.date == day }
+        return if (override != null) override.openMinutes to override.closeMinutes
+        else openMinutes to closeMinutes
     }
 
     /** Parses a duration string like "45 mins" or "1.5 hours" into minutes. */

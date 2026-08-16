@@ -75,6 +75,8 @@ fun BookServiceScreen(
     var showLogoViewer by remember { mutableStateOf(false) }
     // Dates the whole shop is closed — clients can't book these.
     var shopClosedDates by remember { mutableStateOf(emptyList<Long>()) }
+    // One-off hours overrides (date → open/close). Applied only on that date.
+    var shopDayOverrides by remember { mutableStateOf(emptyList<DayHoursOverride>()) }
 
     // Real-time listener for shop services — updates instantly when owner changes services
     DisposableEffect(shopId) {
@@ -100,6 +102,7 @@ fun BookServiceScreen(
                     shopLogoUrl = customization.logoUrl
                     shopBannerUrl = customization.bannerUrl
                     shopClosedDates = customization.closedDates
+                    shopDayOverrides = customization.dayOverrides
                     for (config in customization.services) {
                         val type = if (!config.isCustom) {
                             ServiceType.values().find { it.name == config.serviceName }
@@ -165,9 +168,16 @@ fun BookServiceScreen(
         }.coerceAtLeast(30)
     }
 
-    LaunchedEffect(selectedDate, shopId, totalDurationMinutes, shopOpenMinutes, shopCloseMinutes) {
+    // Effective hours for the selected date — a per-day override wins over the
+    // permanent open/close (e.g. owner closed early today due to an emergency).
+    val (effectiveOpen, effectiveClose) = BookingUtils.effectiveHours(
+        shopOpenMinutes, shopCloseMinutes, shopDayOverrides, selectedDate
+    )
+    val activeOverride = shopDayOverrides.firstOrNull { it.date == selectedDay }
+
+    LaunchedEffect(selectedDate, shopId, totalDurationMinutes, effectiveOpen, effectiveClose) {
         bookingViewModel.fetchAvailableTimeSlots(
-            selectedDate, shopId, totalDurationMinutes, shopOpenMinutes, shopCloseMinutes
+            selectedDate, shopId, totalDurationMinutes, effectiveOpen, effectiveClose
         )
     }
     // Date picker state
@@ -483,6 +493,32 @@ fun BookServiceScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                                         modifier = Modifier.padding(horizontal = 16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (activeOverride != null && !shopClosedOnSelected) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Schedule, contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        "Special hours on ${DateUtils.formatDate(selectedDay)}: " +
+                                            "${BookingUtils.minutesToSlotLabel(activeOverride.openMinutes)} – " +
+                                            "${BookingUtils.minutesToSlotLabel(activeOverride.closeMinutes)}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
                                     )
                                 }
                             }

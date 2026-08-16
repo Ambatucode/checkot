@@ -140,6 +140,9 @@ data class ShopCustomization(
     // Dates (start-of-day millis) the whole shop is closed — e.g. a temporary
     // closure or holiday. Clients can't book these dates.
     val closedDates: List<Long> = emptyList(),
+    // One-off hours for a specific date (e.g. closing early today due to an
+    // emergency, or opening late). Permanent hours are not changed.
+    val dayOverrides: List<DayHoursOverride> = emptyList(),
     // Shop location on the map. 0 = not set yet.
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
@@ -167,6 +170,18 @@ data class CustomServiceConfig(
     // it unavailable for a day (sold out / not offered) without deleting it.
     // Clients see it greyed out on those dates.
     val unavailableDates: List<Long> = emptyList()
+)
+
+/**
+ * One-off working hours for a single date, overriding the shop's permanent
+ * open/close for that day only. date is a start-of-day millis timestamp;
+ * open/close are minutes since midnight (same as ShopCustomization).
+ */
+@Immutable
+data class DayHoursOverride(
+    val date: Long = 0,
+    val openMinutes: Int = 540,  // 9:00 AM
+    val closeMinutes: Int = 960  // 4:00 PM
 )
 
 /**
