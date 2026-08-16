@@ -553,6 +553,10 @@ fun BookServiceScreen(
                                 .weight(if (step > 1) 1f else 2f)
                                 .then(buttonHeight),
                             shape = buttonShape,
+                            colors = ButtonDefaults.buttonColors(
+                                contentColor = Color(0xFF0B1921),
+                                disabledContentColor = Color(0xFF0B1921).copy(alpha = 0.4f)
+                            ),
                             enabled = !isCreating && when (step) {
                                 1 -> selectedServiceConfigs.isNotEmpty()
                                 2 -> selectedCar != null
@@ -563,13 +567,14 @@ fun BookServiceScreen(
                             if (isCreating) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(24.dp),
-                                    color = MaterialTheme.colorScheme.onPrimary
+                                    color = Color(0xFF0B1921)
                                 )
                             } else {
                                 Text(
                                     text = if (step < 4) "Continue" else "Confirm Booking",
                                     maxLines = 1,
-                                    softWrap = false
+                                    softWrap = false,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
