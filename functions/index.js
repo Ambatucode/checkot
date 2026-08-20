@@ -112,6 +112,7 @@ const PROMPT = `You are a car-wash assistant. Look at the photo and judge ONLY h
   `scratches/damage are outside this cleanliness check. ` +
   `Keep the reason to one short, friendly sentence a customer would understand.`;
 
+// Force redeploy to reset instances after billing unfreeze
 exports.checkCar = onCall(
   {
     region: "asia-southeast1",
