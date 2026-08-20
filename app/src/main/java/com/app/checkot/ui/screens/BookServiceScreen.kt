@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.app.checkot.ui.components.AppButton
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.compose.ui.platform.LocalContext
@@ -45,6 +46,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.app.checkot.viewmodel.PhoneVerifyState
 import coil.compose.AsyncImage
 
 data class AvailableService(
@@ -87,6 +89,12 @@ fun BookServiceScreen(
     var shopClosedDates by remember { mutableStateOf(emptyList<Long>()) }
     // One-off hours overrides (date → open/close). Applied only on that date.
     var shopDayOverrides by remember { mutableStateOf(emptyList<DayHoursOverride>()) }
+
+    // Progressive phone verification guard: if the client hasn't verified a
+    // phone number yet, show an inline dialog before completing the booking.
+    var showPhoneVerifyDialog by remember { mutableStateOf(false) }
+    // Stash the pending booking so we can submit it after verification succeeds.
+    var pendingBooking by remember { mutableStateOf<Booking?>(null) }
 
     // Real-time listener for shop services — updates instantly when owner changes services
     DisposableEffect(shopId) {
@@ -502,8 +510,8 @@ fun BookServiceScreen(
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         val buttonShape = RoundedCornerShape(24.dp)
-                        // 50dp for comfortable touch clearance on all display sizes.
-                        val buttonHeight = Modifier.height(50.dp)
+                        // 52dp for comfortable touch clearance on all display sizes.
+                        val buttonHeight = Modifier.height(52.dp)
                         if (step > 1) {
                             OutlinedButton(
                                 onClick = { step-- },
@@ -515,7 +523,8 @@ fun BookServiceScreen(
                                 Text("Back", maxLines = 1, softWrap = false)
                             }
                         }
-                        Button(
+                        AppButton(
+                            text = if (step < 4) "Continue" else "Confirm",
                             onClick = {
                                 if (step < 4) {
                                     step++
@@ -544,12 +553,22 @@ fun BookServiceScreen(
                                             notes = notes,
                                             status = BookingStatus.PENDING
                                         )
-                                        bookingViewModel.createBooking(booking)
-                                        kotlinx.coroutines.delay(1500)
-                                        if (bookingViewModel.error.value == null) {
-                                            navController.popBackStack()
-                                        } else {
+                                        // Progressive guard: if the user hasn't verified
+                                        // a phone number yet, stash the booking and show
+                                        // the inline verification dialog first.
+                                        val user = userData
+                                        if (user != null && !user.phoneVerified) {
+                                            pendingBooking = booking
+                                            showPhoneVerifyDialog = true
                                             isCreating = false
+                                        } else {
+                                            bookingViewModel.createBooking(booking)
+                                            kotlinx.coroutines.delay(1500)
+                                            if (bookingViewModel.error.value == null) {
+                                                navController.popBackStack()
+                                            } else {
+                                                isCreating = false
+                                            }
                                         }
                                     }
                                 }
@@ -557,40 +576,15 @@ fun BookServiceScreen(
                             modifier = Modifier
                                 .weight(if (step > 1) 1f else 2f)
                                 .then(buttonHeight),
-                            shape = buttonShape,
-                            // Tighter horizontal padding so "Confirm Booking" fits on
-                            // narrow screens without clipping.
-                            contentPadding = PaddingValues(horizontal = 12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF00E6C3),
-                                contentColor = Color(0xFF0B1921),
-                                disabledContainerColor = Color(0xFF1E293B),
-                                disabledContentColor = Color(0xFF64748B)
-                            ),
-                            // Continue steps validate per-step; the final
-                            // "Confirm Booking" requires the whole form valid.
-                            enabled = !isCreating && if (step < 4) when (step) {
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                            enabled = if (step < 4) when (step) {
                                 1 -> selectedServiceConfigs.isNotEmpty()
                                 2 -> selectedCar != null
                                 3 -> selectedTimeSlot.isNotEmpty()
                                 else -> true
-                            } else isBookingValid
-                        ) {
-                            if (isCreating) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    color = Color(0xFF0B1921)
-                                )
-                            } else {
-                                Text(
-                                    text = if (step < 4) "Continue" else "Confirm Booking",
-                                    fontSize = 13.sp,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
+                            } else isBookingValid,
+                            isLoading = isCreating
+                        )
                     }
                 }
             }
@@ -1161,6 +1155,35 @@ fun BookServiceScreen(
 
         }
     }
+
+    // --- Progressive phone verification dialog ---
+    // Watches for successful phone verification and auto-submits the stashed booking.
+    val verifyState by authViewModel.phoneVerifyState.collectAsState()
+    LaunchedEffect(verifyState) {
+        if (verifyState is PhoneVerifyState.Success && pendingBooking != null) {
+            showPhoneVerifyDialog = false
+            isCreating = true
+            bookingViewModel.createBooking(pendingBooking!!)
+            kotlinx.coroutines.delay(1500)
+            if (bookingViewModel.error.value == null) {
+                navController.popBackStack()
+            } else {
+                isCreating = false
+            }
+            pendingBooking = null
+        }
+    }
+
+    if (showPhoneVerifyDialog) {
+        PhoneVerifyBookingDialog(
+            authViewModel = authViewModel,
+            onDismiss = {
+                showPhoneVerifyDialog = false
+                pendingBooking = null
+                authViewModel.resetPhoneVerify()
+            }
+        )
+    }
 }
 @Composable
 fun ShopServiceSelectionCard(
@@ -1332,6 +1355,146 @@ fun TimeSlotCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.error
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Inline phone verification dialog shown when a client without a verified
+ * phone number attempts to confirm a booking. Once the OTP succeeds, the
+ * caller's LaunchedEffect on [PhoneVerifyState.Success] auto-submits the
+ * stashed booking.
+ */
+@Composable
+private fun PhoneVerifyBookingDialog(
+    authViewModel: AuthViewModel,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val activity = remember(context) {
+        var ctx = context
+        while (ctx is android.content.ContextWrapper) {
+            if (ctx is android.app.Activity) return@remember ctx
+            ctx = ctx.baseContext
+        }
+        null
+    }
+    val verifyState by authViewModel.phoneVerifyState.collectAsState()
+    var localDigits by remember { mutableStateOf("") }
+    var code by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) { authViewModel.resetPhoneVerify() }
+
+    val awaitingCode = verifyState is PhoneVerifyState.CodeSent ||
+        verifyState is PhoneVerifyState.Verifying ||
+        (verifyState is PhoneVerifyState.Error && authViewModel.hasPendingCode())
+    val busy = verifyState is PhoneVerifyState.Sending || verifyState is PhoneVerifyState.Verifying
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F2530))
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    Icons.Default.Phone,
+                    contentDescription = null,
+                    tint = Color(0xFF00E6C3),
+                    modifier = Modifier.size(40.dp)
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Verify your phone to book",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = if (!awaitingCode)
+                        "We need to verify your phone number before your first booking."
+                    else
+                        "Enter the 6-digit code we sent to +63$localDigits.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF94A3B8),
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+                Spacer(Modifier.height(16.dp))
+
+                if (!awaitingCode) {
+                    OutlinedTextField(
+                        value = localDigits,
+                        onValueChange = { input -> localDigits = input.filter { it.isDigit() }.take(10) },
+                        label = { Text("Phone Number") },
+                        prefix = { Text("+63 ") },
+                        placeholder = { Text("9XXXXXXXXX") },
+                        singleLine = true,
+                        enabled = !busy,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                        )
+                    )
+                    val validNumber = localDigits.length == 10 && localDigits.startsWith("9")
+                    Spacer(Modifier.height(16.dp))
+                    AppButton(
+                        text = "Send code",
+                        onClick = {
+                            if (activity != null) {
+                                authViewModel.startPhoneVerification(activity, "+63$localDigits", "signup")
+                            }
+                        },
+                        enabled = validNumber && activity != null,
+                        isLoading = busy
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = code,
+                        onValueChange = { code = it.filter { c -> c.isDigit() }.take(6) },
+                        label = { Text("6-digit code") },
+                        singleLine = true,
+                        enabled = !busy,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                        )
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    AppButton(
+                        text = "Verify",
+                        onClick = { authViewModel.confirmPhoneCode(code) },
+                        enabled = code.length == 6,
+                        isLoading = busy
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(
+                        onClick = { authViewModel.resetPhoneVerify(); code = "" },
+                        enabled = !busy
+                    ) { Text("Use a different number", color = Color(0xFF00E6C3)) }
+                }
+
+                if (verifyState is PhoneVerifyState.Error) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = (verifyState as PhoneVerifyState.Error).message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel", color = Color(0xFF94A3B8))
+                }
             }
         }
     }

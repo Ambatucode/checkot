@@ -65,6 +65,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val firestore: FirebaseFirestore = Firebase.firestore
     private val appContext = application.applicationContext
 
+
+
+
     // Upload the FCM token to Firestore for every signed-in user.
     // If the user is an owner, ALSO refresh shop_services/{shopId}.ownerFcmToken
     // here (not only when the owner opens their dashboard) so client→owner and
@@ -365,7 +368,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
      * lock them out with RoleLoadState.Error. phoneVerified starts false so the
      * phone-verification gate runs before they reach the app.
      */
-    fun signInWithGoogle(idToken: String) {
+    fun signInWithGoogle(idToken: String, isOwnerMode: Boolean = false) {
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
@@ -375,20 +378,54 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 val docRef = firestore.collection("users").document(user.uid)
                 val snapshot = docRef.get().await()
                 if (!snapshot.exists()) {
-                    val userData = CarWashUser(
-                        userId = user.uid,
-                        fullName = user.displayName ?: "",
-                        email = user.email ?: "",
-                        phoneNumber = "",
-                        phoneVerified = false,
-                        createdAt = System.currentTimeMillis(),
-                        role = "customer",
-                        savedCars = emptyList()
-                    )
-                    docRef.set(userData).await()
-                    _currentUserData.value = userData
-                    uploadFcmToken(user.uid)
-                    _roleLoadState.value = RoleLoadState.Ready
+                    if (isOwnerMode) {
+                        // Owner mode: write user and shop documents immediately.
+                        val shopId = firestore.collection("shop_services").document().id
+                        val userData = CarWashUser(
+                            userId = user.uid,
+                            fullName = user.displayName ?: "",
+                            email = user.email ?: "",
+                            phoneNumber = "",
+                            phoneVerified = false,
+                            createdAt = System.currentTimeMillis(),
+                            role = "owner",
+                            ownedShopId = shopId,
+                            isApproved = false
+                        )
+                        docRef.set(userData).await()
+
+                        val shopCustomization = ShopCustomization(
+                            shopName = "${user.displayName ?: "New"}'s Shop",
+                            shopAddress = "",
+                            status = "pending",
+                            ownerId = user.uid,
+                            ownerName = user.displayName ?: "",
+                            ownerEmail = user.email ?: "",
+                            services = emptyList(),
+                            ownerFcmToken = ""
+                        )
+                        firestore.collection("shop_services").document(shopId).set(shopCustomization).await()
+
+                        _currentUserData.value = userData
+                        uploadFcmToken(user.uid)
+                        _roleLoadState.value = RoleLoadState.Ready
+                    } else {
+                        // Customer mode: write record immediately, skip phone verification.
+                        val userData = CarWashUser(
+                            userId = user.uid,
+                            fullName = user.displayName ?: "",
+                            email = user.email ?: "",
+                            phoneNumber = "",
+                            phoneVerified = false,
+                            createdAt = System.currentTimeMillis(),
+                            role = "customer",
+                            savedCars = emptyList()
+                        )
+                        docRef.set(userData).await()
+                        _currentUserData.value = userData
+                        uploadFcmToken(user.uid)
+                        _roleLoadState.value = RoleLoadState.Ready
+                    }
                 } else {
                     loadUserData()
                 }
@@ -460,26 +497,61 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         applyPhoneCredential(PhoneAuthProvider.getCredential(vid, code))
     }
 
-    // Links (signup) or updates (change) the phone credential on the current
-    // account, then persists phoneNumber + phoneVerified=true. Firebase enforces
-    // one-account-per-number, so a squatted number fails here cleanly.
+    // Signs in, links (signup), or updates (change) the phone credential.
+    // If auth.currentUser is null, this acts as a pure SMS Sign In.
     private fun applyPhoneCredential(credential: PhoneAuthCredential) {
         viewModelScope.launch {
             _phoneVerifyState.value = PhoneVerifyState.Verifying
             try {
-                val user = auth.currentUser ?: throw Exception("You're not signed in.")
-                if (pendingMode == "change") {
-                    user.updatePhoneNumber(credential).await()
+                val user = auth.currentUser
+                val uid: String
+                
+                if (user == null) {
+                    // 1. Pure Phone Sign-In
+                    val result = auth.signInWithCredential(credential).await()
+                    val signedInUser = result.user ?: throw Exception("Phone sign-in failed")
+                    uid = signedInUser.uid
+                    
+                    // Check if Firestore record exists
+                    val docRef = firestore.collection("users").document(uid)
+                    val snapshot = docRef.get().await()
+                    if (!snapshot.exists()) {
+                        // Create basic customer profile
+                        val userData = CarWashUser(
+                            userId = uid,
+                            fullName = "New User",
+                            email = "",
+                            phoneNumber = pendingPhoneE164,
+                            phoneVerified = true,
+                            createdAt = System.currentTimeMillis(),
+                            role = "customer",
+                            savedCars = emptyList()
+                        )
+                        docRef.set(userData).await()
+                        _currentUserData.value = userData
+                    } else {
+                        // Ensure phone is marked verified if they already existed
+                        docRef.set(mapOf("phoneNumber" to pendingPhoneE164, "phoneVerified" to true), SetOptions.merge()).await()
+                        loadUserData()
+                    }
+                    _authState.value = AuthState.Authenticated
                 } else {
-                    user.linkWithCredential(credential).await()
+                    // 2. Linking / Updating an existing session
+                    uid = user.uid
+                    if (pendingMode == "change") {
+                        user.updatePhoneNumber(credential).await()
+                    } else {
+                        user.linkWithCredential(credential).await()
+                    }
+                    firestore.collection("users").document(uid)
+                        .set(
+                            mapOf("phoneNumber" to pendingPhoneE164, "phoneVerified" to true),
+                            SetOptions.merge()
+                        ).await()
+                    _currentUserData.value = _currentUserData.value
+                        ?.copy(phoneNumber = pendingPhoneE164, phoneVerified = true)
                 }
-                firestore.collection("users").document(user.uid)
-                    .set(
-                        mapOf("phoneNumber" to pendingPhoneE164, "phoneVerified" to true),
-                        SetOptions.merge()
-                    ).await()
-                _currentUserData.value = _currentUserData.value
-                    ?.copy(phoneNumber = pendingPhoneE164, phoneVerified = true)
+                
                 _phoneVerifyState.value = PhoneVerifyState.Success
             } catch (e: Exception) {
                 _phoneVerifyState.value = PhoneVerifyState.Error(mapPhoneError(e))
@@ -499,6 +571,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             "That code expired. Request a new one."
         else -> e.message ?: "Phone verification failed. Try again."
     }
+
+
 
     fun signOut() {
         auth.signOut()
@@ -539,8 +613,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     uploadFcmToken(userData.userId, userData.ownedShopId)
                     _roleLoadState.value = RoleLoadState.Ready
                 } else {
-                    // Missing profile means unknown role — must not fall through
-                    // to the default (customer) UI.
                     _roleLoadState.value = RoleLoadState.Error("Your account profile could not be found.")
                 }
             } catch (e: TimeoutCancellationException) {

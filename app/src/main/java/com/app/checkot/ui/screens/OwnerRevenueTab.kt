@@ -4,6 +4,7 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -58,6 +59,21 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
     val allBookingsLoaded by ownerViewModel.allBookingsLoaded.collectAsState()
     var selectedPeriod by remember { mutableStateOf(RevenuePeriod.TODAY) }
     val now = System.currentTimeMillis()
+    var infoDialogText by remember { mutableStateOf<String?>(null) }
+
+    if (infoDialogText != null) {
+        AlertDialog(
+            onDismissRequest = { infoDialogText = null },
+            title = { Text("About Metric") },
+            text = { Text(infoDialogText!!) },
+            confirmButton = {
+                TextButton(onClick = { infoDialogText = null }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
     val filteredBookings = remember(allBookings, selectedPeriod) {
         // Revenue is earned when a wash is completed, not when it was booked, so
         // the period is measured against completedAt.
@@ -73,7 +89,7 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues),
-        contentPadding = PaddingValues(16.dp)
+        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp)
     ) {
         item {
             Row(
@@ -119,16 +135,46 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
                 Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color(0xFF0F2530))) {
                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.AutoMirrored.Filled.ShowChart, contentDescription = null)
-                        Text(text = "₱${String.format("%,.0f", averagePerBooking)}", style = MaterialTheme.typography.headlineSmall)
-                        Text(text = "Avg/Booking", style = MaterialTheme.typography.bodySmall)
+                        Text(text = "₱${String.format("%,.0f", averagePerBooking)}", style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(text = "Avg/Booking", style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "Info",
+                                modifier = Modifier
+                                    .size(13.dp)
+                                    .clickable { infoDialogText = "Average earnings per completed booking in the selected period." },
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
                 val pendingRevenue = allBookings.filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED }.sumOf { it.price }
                 Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color(0xFF0F2530))) {
                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.HourglassEmpty, contentDescription = null)
-                        Text(text = "₱${String.format("%,.0f", pendingRevenue)}", style = MaterialTheme.typography.headlineSmall)
-                        Text(text = "Pending", style = MaterialTheme.typography.bodySmall)
+                        Text(text = "₱${String.format("%,.0f", pendingRevenue)}", style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(text = "Pending", style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "Info",
+                                modifier = Modifier
+                                    .size(13.dp)
+                                    .clickable { infoDialogText = "Potential revenue from bookings that are currently pending or confirmed." },
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
                 val startOfToday = RevenuePeriod.TODAY.startOf(now)
@@ -138,15 +184,30 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
                 Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color(0xFF0F2530))) {
                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.DirectionsCar, contentDescription = null)
-                        Text(text = todayCarCount.toString(), style = MaterialTheme.typography.headlineSmall)
-                        Text(text = "Cars Today", style = MaterialTheme.typography.bodySmall)
+                        Text(text = todayCarCount.toString(), style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(text = "Cars Today", style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "Info",
+                                modifier = Modifier
+                                    .size(13.dp)
+                                    .clickable { infoDialogText = "Total number of cars successfully washed and completed today." },
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
             }
         }
         item {
             // Average Service Duration
-            val completedWithDurations = allBookings.filter {
+            val completedWithDurations = filteredBookings.filter {
                 it.status == BookingStatus.COMPLETED && it.inProgressAt != null && it.completedAt != null
             }
             val avgDurationMin = if (completedWithDurations.isNotEmpty()) {
@@ -180,7 +241,7 @@ fun OwnerRevenueTab(ownerViewModel: OwnerDashboardViewModel, paddingValues: Padd
             val hourLabels = listOf("8AM", "9AM", "10AM", "11AM", "12PM", "1PM", "2PM", "3PM", "4PM", "5PM")
             val hourCounts = hourLabels.mapIndexed { i, _ ->
                 val hour = i + 8
-                allBookings.count { b ->
+                filteredBookings.count { b ->
                     try {
                         BookingUtils.parseTimeSlotToHourMinute(b.timeSlot).first == hour
                     } catch (e: Exception) {

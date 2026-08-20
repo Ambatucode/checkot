@@ -45,15 +45,15 @@ fun NavigationGraph(
         if (authState is AuthState.Authenticated) {
             val user = currentUser
             when {
-                user == null -> Screen.Login.route
-                // Everyone but admins must have a verified phone to enter the app.
-                user.role != "admin" && !user.phoneVerified -> "phone_verification/signup"
+                user == null -> "auth_landing"
                 user.role == "admin" -> Screen.AdminDashboard.route
                 user.role == "owner" -> Screen.OwnerDashboard.route
+                // Customers go straight to home — phone verification happens
+                // progressively when they try to book.
                 else -> Screen.Home.route
             }
         } else {
-            Screen.Login.route
+            "auth_landing"
         }
     }
 
@@ -61,6 +61,12 @@ fun NavigationGraph(
         navController = navController,
         startDestination = startDest
     ) {
+        composable("auth_landing") {
+            AuthLandingScreen(
+                navController = navController,
+                authViewModel = authViewModel
+            )
+        }
         composable(Screen.Login.route) {
             LoginScreen(
                 navController = navController,

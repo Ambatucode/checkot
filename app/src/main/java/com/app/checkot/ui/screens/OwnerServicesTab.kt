@@ -460,14 +460,14 @@ fun OwnerServicesTab(
 
         // Sticky action bar — Reset / Save always visible above the bottom nav.
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars),
             color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 3.dp
+            tonalElevation = 2.dp
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedButton(
@@ -480,10 +480,19 @@ fun OwnerServicesTab(
                         editedStaff = customization.staffNames
                         invalidDurationKeys = emptySet()
                     },
-                    modifier = Modifier.weight(1f),
-                    shape = MaterialTheme.shapes.medium
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
                 ) {
-                    Text("Reset")
+                    Text(
+                        text = "Reset",
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
                 }
                 Button(
                     onClick = {
@@ -491,24 +500,30 @@ fun OwnerServicesTab(
                         // (services, bays) save straight through.
                         if (hoursChanged) showHoursConfirm = true else performSave()
                     },
-                    modifier = Modifier.weight(1f),
-                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(24.dp),
                     enabled = canSave && !isSavingServices,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = CheckotTeal,
-                        contentColor = Color(0xFF00332B)
+                        containerColor = Color(0xFF00E6C3),
+                        contentColor = Color(0xFF0B1921),
+                        disabledContainerColor = Color(0xFF1E293B),
+                        disabledContentColor = Color(0xFF64748B)
                     )
                 ) {
                     if (isSavingServices) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            color = Color(0xFF00332B)
+                            modifier = Modifier.size(16.dp),
+                            color = Color(0xFF0B1921),
+                            strokeWidth = 2.dp
                         )
                     } else {
-                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text(
+                            text = "Save",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Save Changes")
                 }
             }
         }

@@ -24,6 +24,8 @@ data class ShopWithOwner(
     val ownerId: String = "",
     val ownerName: String = "",
     val ownerEmail: String = "",
+    val ownerPhone: String = "",
+    val ownerPhoneVerified: Boolean = false,
     val createdAt: Long = 0,
     // Shown to the admin during review: the pin lets them verify the location is
     // a real place, and the logo/banner let them moderate the branding.
@@ -60,14 +62,28 @@ class SuperAdminViewModel(application: Application) : AndroidViewModel(applicati
                 val snapshot = firestore.collection("shop_services").get().await()
                 val shops = snapshot.documents.mapNotNull { doc ->
                     val name = doc.getString("shopName") ?: return@mapNotNull null
+                    val ownerId = doc.getString("ownerId") ?: ""
+                    var ownerPhone = ""
+                    var ownerPhoneVerified = false
+                    if (ownerId.isNotEmpty()) {
+                        try {
+                            val userDoc = firestore.collection("users").document(ownerId).get().await()
+                            ownerPhone = userDoc.getString("phoneNumber") ?: ""
+                            ownerPhoneVerified = userDoc.getBoolean("phoneVerified") ?: false
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to load owner data for user $ownerId: ${e.message}")
+                        }
+                    }
                     ShopWithOwner(
                         shopId = doc.id,
                         shopName = name,
                         shopAddress = doc.getString("shopAddress") ?: "",
                         status = doc.getString("status") ?: "active",
-                        ownerId = doc.getString("ownerId") ?: "",
+                        ownerId = ownerId,
                         ownerName = doc.getString("ownerName") ?: "Unknown",
                         ownerEmail = doc.getString("ownerEmail") ?: "",
+                        ownerPhone = ownerPhone,
+                        ownerPhoneVerified = ownerPhoneVerified,
                         createdAt = doc.getLong("createdAt") ?: 0,
                         latitude = doc.getDouble("latitude") ?: 0.0,
                         longitude = doc.getDouble("longitude") ?: 0.0,

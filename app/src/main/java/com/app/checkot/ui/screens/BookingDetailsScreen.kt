@@ -69,6 +69,7 @@ import com.app.checkot.ui.components.BackTopAppBar
 import com.app.checkot.ui.components.ConfirmDialog
 import com.app.checkot.ui.components.DetailRow
 import com.app.checkot.ui.components.ShopLocationView
+import com.app.checkot.ui.components.AppButton
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
@@ -317,44 +318,7 @@ fun BookingDetailsScreen(
                     }
                 }
             }
-            // Reassurance banner — once confirmed, the slot is protected: the
-            // shop can't change its hours to drop it, and any change is notified.
-            if (booking.status == BookingStatus.CONFIRMED) {
-                item {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                        shape = MaterialTheme.shapes.medium
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.VerifiedUser,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = "Your slot is reserved",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = "The shop can't change its hours to remove your booking. If anything changes, you'll be notified right away.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+
             // Countdown card
             item {
                 val countdownEnd = remember(booking.bookingId) {
@@ -716,14 +680,11 @@ private fun RateShopCard(booking: Booking) {
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                 )
-                Button(
+                AppButton(
+                    text = "Rate this shop",
                     onClick = { showDialog = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Rate this shop")
-                }
+                    icon = Icons.Default.Star
+                )
             }
         }
     }

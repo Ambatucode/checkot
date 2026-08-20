@@ -45,6 +45,8 @@ fun OwnerSettingsTab(
     var bayCountText by remember { mutableStateOf(customization.bayCount.toString()) }
     var editedStaff by remember { mutableStateOf(customization.staffNames) }
     var staffNameInput by remember { mutableStateOf("") }
+    var shopNameInput by remember { mutableStateOf(customization.shopName) }
+    var shopAddressInput by remember { mutableStateOf(customization.shopAddress) }
     // Service currently being edited in the modal (null = no dialog open).
     var editingService by remember { mutableStateOf<CustomServiceConfig?>(null) }
     var openMinutes by remember { mutableStateOf(customization.openMinutes) }
@@ -121,10 +123,13 @@ fun OwnerSettingsTab(
     // change. Closing a date or adding an hours override must never be blocked
     // by it — that was a deadlock: a booking at the last slot made close < end,
     // which disabled the whole Save button.
+    val shopNameChanged = shopNameInput != customization.shopName
+    val shopAddressChanged = shopAddressInput != customization.shopAddress
     val canSave = (editedServices != customization.services || bayCountChanged || hoursChanged ||
-        closedDatesChanged || dayOverridesChanged || editedStaff != customization.staffNames) &&
+        closedDatesChanged || dayOverridesChanged || editedStaff != customization.staffNames ||
+        shopNameChanged || shopAddressChanged) &&
         !hasInvalidPrice && !hasInvalidDuration && !hasBlankDescription &&
-        (!hoursChanged || hoursValid)
+        (!hoursChanged || hoursValid) && shopNameInput.trim().isNotEmpty() && shopAddressInput.trim().isNotEmpty()
 
     LaunchedEffect(customization) {
         editedServices = normalizeConfigs(customization.services)
@@ -135,6 +140,8 @@ fun OwnerSettingsTab(
         dayOverrides = customization.dayOverrides
         editedStaff = customization.staffNames
         invalidDurationKeys = emptySet()
+        shopNameInput = customization.shopName
+        shopAddressInput = customization.shopAddress
     }
 
     val atMaxLimit = editedServices.size >= maxServices
@@ -154,6 +161,8 @@ fun OwnerSettingsTab(
             else config.copy(durationMinutes = defaultDurationMinutes(config))
         }
         val updated = customization.copy(
+            shopName = shopNameInput.trim(),
+            shopAddress = shopAddressInput.trim(),
             services = normalizedServices,
             bayCount = bayCount,
             openMinutes = openMinutes,
@@ -239,6 +248,42 @@ fun OwnerSettingsTab(
         LazyColumn(modifier = Modifier.weight(1f)) {
         item {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+            // Card 0: Shop Profile
+            SettingsCard(title = "Shop Profile", icon = Icons.Default.Store) {
+                OutlinedTextField(
+                    value = shopNameInput,
+                    onValueChange = { if (it.length <= 40) shopNameInput = it },
+                    label = { Text("Shop Name") },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = CheckotCardSurface,
+                        unfocusedContainerColor = CheckotCardSurface,
+                        focusedBorderColor = CheckotTeal,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                        errorContainerColor = CheckotCardSurface,
+                        disabledContainerColor = CheckotCardSurface
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = shopAddressInput,
+                    onValueChange = { if (it.length <= 100) shopAddressInput = it },
+                    label = { Text("Shop Address") },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = CheckotCardSurface,
+                        unfocusedContainerColor = CheckotCardSurface,
+                        focusedBorderColor = CheckotTeal,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                        errorContainerColor = CheckotCardSurface,
+                        disabledContainerColor = CheckotCardSurface
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
             // Card 1: Schedule & Availability — Working Hours, Closed Dates, Overrides.
             SettingsCard(title = "Schedule & Availability", icon = Icons.Default.Schedule) {
                 WorkingHoursSection(
@@ -374,12 +419,12 @@ fun OwnerSettingsTab(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 3.dp
+            tonalElevation = 2.dp
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedButton(
@@ -390,12 +435,26 @@ fun OwnerSettingsTab(
                         closedDates = customization.closedDates
                         dayOverrides = customization.dayOverrides
                         editedStaff = customization.staffNames
+                        shopNameInput = customization.shopName
+                        shopAddressInput = customization.shopAddress
                         invalidDurationKeys = emptySet()
                     },
-                    modifier = Modifier.weight(1f),
-                    shape = MaterialTheme.shapes.medium
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
+                    )
                 ) {
-                    Text("Reset")
+                    Text(
+                        text = "Reset",
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
                 }
                 Button(
                     onClick = {
@@ -403,8 +462,8 @@ fun OwnerSettingsTab(
                         // (services, bays) save straight through.
                         if (hoursChanged) showHoursConfirm = true else performSave()
                     },
-                    modifier = Modifier.weight(1f),
-                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(24.dp),
                     enabled = canSave && !isSavingServices,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = CheckotTeal,
@@ -413,14 +472,18 @@ fun OwnerSettingsTab(
                 ) {
                     if (isSavingServices) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            color = Color(0xFF00332B)
+                            modifier = Modifier.size(16.dp),
+                            color = Color(0xFF00332B),
+                            strokeWidth = 2.dp
                         )
                     } else {
-                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text(
+                            text = "Save",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Save Changes")
                 }
             }
         }

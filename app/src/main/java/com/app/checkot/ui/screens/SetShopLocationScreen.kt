@@ -33,6 +33,7 @@ import com.app.checkot.ui.components.LocationPickerMap
 import com.app.checkot.viewmodel.OwnerDashboardViewModel
 import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.launch
+import com.app.checkot.ui.components.AppButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,9 +79,10 @@ fun SetShopLocationScreen(
                     .fillMaxWidth()
                     .weight(1f)
             )
-            Button(
+            AppButton(
+                text = "Save Location",
                 onClick = {
-                    val p = picked ?: return@Button
+                    val p = picked ?: return@AppButton
                     isSaving = true
                     ownerViewModel.saveShopCustomization(
                         customization.copy(latitude = p.latitude, longitude = p.longitude)
@@ -91,19 +93,11 @@ fun SetShopLocationScreen(
                         navController.popBackStack()
                     }
                 },
-                enabled = picked != null && !isSaving,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 24.dp)
-            ) {
-                if (isSaving) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
-                } else {
-                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Save Location")
-                }
-            }
+                enabled = picked != null,
+                isLoading = isSaving,
+                icon = Icons.Default.Save,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 24.dp)
+            )
         }
     }
 }

@@ -22,6 +22,7 @@ import com.app.checkot.ui.components.ConfirmDialog
 import com.app.checkot.ui.components.ShopLogo
 import com.app.checkot.ui.components.ShopLocationView
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import com.app.checkot.utils.BiometricAuth
@@ -416,7 +417,73 @@ private fun PendingShopCard(
                 )
             }
 
-            // Location map — lets the admin verify the shop is a real place
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Phone Badge
+                val isPhoneVerified = shop.ownerPhoneVerified && shop.ownerPhone.isNotBlank()
+                Surface(
+                    color = if (isPhoneVerified) Color(0xFF00E6C3).copy(alpha = 0.15f) else MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isPhoneVerified) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isPhoneVerified) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                            contentDescription = null,
+                            tint = if (isPhoneVerified) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isPhoneVerified) "Phone: ${shop.ownerPhone}" else "Phone Unverified",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isPhoneVerified) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                // Location Badge
+                val isLocationSet = shop.latitude != 0.0 || shop.longitude != 0.0
+                Surface(
+                    color = if (isLocationSet) Color(0xFF00E6C3).copy(alpha = 0.15f) else MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isLocationSet) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isLocationSet) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                            contentDescription = null,
+                            tint = if (isLocationSet) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isLocationSet) "Location Set" else "Location Missing",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isLocationSet) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
             // before approving (tap Directions to look it up).
             if (shop.latitude != 0.0 || shop.longitude != 0.0) {
                 Spacer(modifier = Modifier.height(12.dp))
@@ -456,7 +523,10 @@ private fun PendingShopCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            val isPhoneVerified = shop.ownerPhoneVerified && shop.ownerPhone.isNotBlank()
+            val isLocationSet = shop.latitude != 0.0 || shop.longitude != 0.0
+            val isAddressSet = shop.shopAddress.isNotBlank()
+            val isApproveEnabled = !isProcessing && isPhoneVerified && isLocationSet && isAddressSet
 
             // Action buttons
             Row(
@@ -481,7 +551,7 @@ private fun PendingShopCard(
                     onClick = { confirm(AdminDialogType.APPROVE) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(8.dp),
-                    enabled = !isProcessing
+                    enabled = isApproveEnabled
                 ) {
                     if (isProcessing) {
                         CircularProgressIndicator(
@@ -495,6 +565,28 @@ private fun PendingShopCard(
                         Text("Approve")
                     }
                 }
+            }
+
+            if (!isApproveEnabled && !isProcessing) {
+                val missingPhone = !isPhoneVerified
+                val missingLocation = !isLocationSet
+                val missingAddress = !isAddressSet
+                val missingText = when {
+                    missingPhone && missingLocation && missingAddress -> "Pending phone verification, location setup, and shop profile details"
+                    missingPhone && missingLocation -> "Pending phone verification and location setup"
+                    missingPhone && missingAddress -> "Pending phone verification and shop profile details"
+                    missingLocation && missingAddress -> "Pending location setup and shop profile details"
+                    missingPhone -> "Pending phone verification"
+                    missingLocation -> "Pending location setup"
+                    else -> "Pending shop profile details (name/address)"
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "* $missingText before approval can be granted.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             if (actionError != null) {

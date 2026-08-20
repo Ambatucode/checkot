@@ -28,6 +28,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.app.checkot.ui.components.AppButton
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
@@ -390,7 +391,8 @@ fun SignupScreen(
         }
 
         // Sign Up Button — vibrant teal
-        Button(
+        AppButton(
+            text = "Sign Up",
             onClick = {
                 val trimmedName = fullName.trim()
                 if (trimmedName.isNotEmpty() &&
@@ -404,32 +406,9 @@ fun SignupScreen(
                     authViewModel.signUp(email.trim(), password, trimmedName, "+63${phoneNumber.trim()}")
                 }
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF00E6C3),
-                contentColor = Color(0xFF0B1E28),
-                disabledContainerColor = Color(0xFF00E6C3).copy(alpha = 0.3f),
-                disabledContentColor = Color(0xFF0B1E28).copy(alpha = 0.5f)
-            ),
-            enabled = authState != AuthState.Loading && isFormValid
-        ) {
-            if (authState is AuthState.Loading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = Color(0xFF0B1E28),
-                    strokeWidth = 2.dp
-                )
-            } else {
-                Text(
-                    text = "Sign Up",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
+            enabled = isFormValid,
+            isLoading = authState is AuthState.Loading
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
 

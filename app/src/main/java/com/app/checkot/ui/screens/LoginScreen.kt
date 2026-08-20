@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import com.app.checkot.ui.components.ConfirmDialog
+import com.app.checkot.ui.components.AppButton
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.platform.LocalContext
@@ -118,8 +119,8 @@ fun LoginScreen(
     LaunchedEffect(authState, currentUserData) {
         val user = currentUserData
         if (authState is AuthState.Authenticated && user != null) {
-            // Everyone but admins must have a verified phone before entering the app.
-            if (user.role != "admin" && !user.phoneVerified) {
+            // Customers must have a verified phone before entering the app.
+            if (user.role == "customer" && !user.phoneVerified) {
                 navController.navigate("phone_verification/signup") {
                     popUpTo("login") { inclusive = true }
                 }
@@ -271,29 +272,14 @@ fun LoginScreen(
         }
 
         // Login Button
-        Button(
+        AppButton(
+            text = "Login",
             onClick = {
                 authViewModel.signIn(email, password)
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            shape = RoundedCornerShape(16.dp),
-            enabled = authState != AuthState.Loading && email.isNotEmpty() && password.isNotEmpty()
-        ) {
-            if (authState is AuthState.Loading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-            } else {
-                Text(
-                    text = "Login",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
+            enabled = email.isNotEmpty() && password.isNotEmpty(),
+            isLoading = authState is AuthState.Loading
+        )
         
         Spacer(modifier = Modifier.height(16.dp))
 

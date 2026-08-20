@@ -29,6 +29,24 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.google.android.gms.maps.model.LatLng
+import android.content.Context
+import android.util.Log
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
+import com.app.checkot.ui.components.AppButton
+
+private fun resolveWebClientId(context: Context): String? {
+    val resId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
+    return if (resId != 0) context.getString(resId) else null
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,6 +55,47 @@ fun OwnerSignupScreen(
     onSignupSuccess: () -> Unit,
     authViewModel: AuthViewModel = viewModel()
 ) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var googleError by remember { mutableStateOf<String?>(null) }
+
+    fun signInWithGoogle() {
+        googleError = null
+        val webClientId = resolveWebClientId(context)
+        if (webClientId == null) {
+            googleError = "Google Sign-In isn't set up yet. Add the app's SHA-1 in Firebase and drop in the new google-services.json."
+            return
+        }
+        val buttonOption = GetSignInWithGoogleOption.Builder(webClientId).build()
+        val credentialManager = CredentialManager.create(context)
+
+        scope.launch {
+            try {
+                val request = GetCredentialRequest.Builder().addCredentialOption(buttonOption).build()
+                val cred = credentialManager.getCredential(context, request).credential
+                Log.d("GoogleSignIn", "credential class=${cred.javaClass.name} type=${cred.type}")
+                if (cred is CustomCredential &&
+                    cred.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                ) {
+                    val googleCred = GoogleIdTokenCredential.createFrom(cred.data)
+                    Log.d("GoogleSignIn", "got id token len=${googleCred.idToken.length}, calling Firebase")
+                    authViewModel.signInWithGoogle(googleCred.idToken, isOwnerMode = true)
+                } else {
+                    googleError = "Unexpected credential type: ${cred.type}"
+                }
+            } catch (e: GetCredentialCancellationException) {
+                // User dismissed the picker on purpose — no error to show.
+            } catch (e: NoCredentialException) {
+                googleError = "No Google account is available on this device. Add a Google account in Settings → Accounts, then try again."
+            } catch (e: GetCredentialException) {
+                Log.e("GoogleSignIn", "GetCredentialException", e)
+                googleError = "Google sign-in failed (${e.type}). ${e.message ?: ""}"
+            } catch (e: Exception) {
+                Log.e("GoogleSignIn", "Unexpected", e)
+                googleError = "Google sign-in failed: ${e.javaClass.simpleName} ${e.message ?: ""}"
+            }
+        }
+    }
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var phoneNumber by remember { mutableStateOf("") }
@@ -479,7 +538,8 @@ fun OwnerSignupScreen(
             }
 
             // Submit Button
-            Button(
+            AppButton(
+                text = "Register Shop",
                 onClick = {
                     val trimmedName = fullName.trim()
                     val trimmedShopName = shopName.trim()
@@ -497,33 +557,59 @@ fun OwnerSignupScreen(
                         )
                     }
                 },
+                enabled = isFormValid,
+                isLoading = authState is AuthState.Loading,
+                icon = Icons.Default.Store
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Or divider
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HorizontalDivider(modifier = Modifier.weight(1f))
+                Text(
+                    text = " OR ",
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                    fontSize = 13.sp
+                )
+                HorizontalDivider(modifier = Modifier.weight(1f))
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Continue with Google
+            OutlinedButton(
+                onClick = { signInWithGoogle() },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp),
-                shape = RoundedCornerShape(24.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF00E6C3),
-                    contentColor = Color(0xFF0B1E28),
-                    disabledContainerColor = Color(0xFF00E6C3).copy(alpha = 0.3f),
-                    disabledContentColor = Color(0xFF0B1E28).copy(alpha = 0.5f)
-                ),
-                enabled = authState != AuthState.Loading && isFormValid
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                enabled = authState != AuthState.Loading
             ) {
-                if (authState is AuthState.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = Color(0xFF0B1E28),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Icon(Icons.Default.Store, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Register Shop",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.AccountCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "Continue with Google",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            if (googleError != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = googleError!!,
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 13.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -590,20 +676,11 @@ fun OwnerSignupScreen(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                Button(
+                AppButton(
+                    text = "Confirm Location",
                     onClick = { showMapPicker = false },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .padding(bottom = 8.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF00E6C3),
-                        contentColor = Color(0xFF0B1E28)
-                    )
-                ) {
-                    Text("Confirm Location", fontWeight = FontWeight.SemiBold)
-                }
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
             }
         }
     }

@@ -31,8 +31,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.app.checkot.ui.components.AppButton
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.Dispatchers
@@ -237,28 +239,13 @@ fun ProfileScreen(
                                 )
                             }
 
-                            Button(
+                            AppButton(
+                                text = if (hasLogo) "Upload New Logo" else "Upload Logo",
                                 onClick = { imagePickerLauncher.launch("image/*") },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = MaterialTheme.shapes.medium,
-                                enabled = !isSavingLogo
-                            ) {
-                                if (isSavingLogo) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        color = MaterialTheme.colorScheme.onPrimary,
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    Icon(
-                                        if (hasLogo) Icons.Default.Refresh else Icons.Default.Upload,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(if (hasLogo) "Upload New Logo" else "Upload Logo")
-                                }
-                            }
+                                enabled = !isSavingLogo,
+                                isLoading = isSavingLogo,
+                                icon = if (hasLogo) Icons.Default.Refresh else Icons.Default.Upload
+                            )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "PNG or JPG, max 2MB",
@@ -349,28 +336,13 @@ fun ProfileScreen(
                                 )
                             }
 
-                            Button(
+                            AppButton(
+                                text = if (hasBanner) "Upload New Banner" else "Upload Banner",
                                 onClick = { bannerPickerLauncher.launch("image/*") },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = MaterialTheme.shapes.medium,
-                                enabled = !isSavingBanner
-                            ) {
-                                if (isSavingBanner) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        color = MaterialTheme.colorScheme.onPrimary,
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    Icon(
-                                        if (hasBanner) Icons.Default.Refresh else Icons.Default.Upload,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(if (hasBanner) "Upload New Banner" else "Upload Banner")
-                                }
-                            }
+                                enabled = !isSavingBanner,
+                                isLoading = isSavingBanner,
+                                icon = if (hasBanner) Icons.Default.Refresh else Icons.Default.Upload
+                            )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "Wide cover photo shown on your booking page. PNG or JPG.",
@@ -545,21 +517,11 @@ fun ProfileScreen(
             }
             // Edit Profile — standalone full-width primary button
             item {
-                Button(
+                AppButton(
+                    text = "Edit Profile",
                     onClick = { navController.navigate("edit_profile") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF00E6C3),
-                        contentColor = Color(0xFF0F2530)
-                    )
-                ) {
-                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Edit Profile", fontWeight = FontWeight.SemiBold)
-                }
+                    icon = Icons.Default.Edit
+                )
             }
             // Logout — standalone danger outlined button
             item {

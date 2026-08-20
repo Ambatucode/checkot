@@ -28,3 +28,10 @@ skills-lock.json
 # Firebase service-account key used by FCMSender — grants push-send
 # credentials, must never be committed
 app/src/main/res/raw/service_account.json
+
+# Capstone documents
+CHAP-1-3-REVISED-1.*
+PROJECT_CONTEXT.md
+BUILD_PLAN.md
+CHANGES_WALKTHROUGH.txt
+

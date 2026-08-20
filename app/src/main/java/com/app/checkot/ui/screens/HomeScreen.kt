@@ -98,37 +98,16 @@ fun HomeScreen(
                     }
                 }
             )
-        },
-        bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = true,
-                    onClick = { },
-                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                    label = { Text("Home") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = { navController.navigate("my_bookings") },
-                    icon = { Icon(Icons.Default.Bookmark, contentDescription = "Bookings") },
-                    label = { Text("Bookings") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = { navController.navigate("cars") },
-                    icon = { Icon(Icons.Default.DirectionsCar, contentDescription = "Cars") },
-                    label = { Text("My Cars") }
-                )
-            }
         }
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(16.dp)
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = paddingValues.calculateTopPadding()),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 100.dp)
+            ) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -377,6 +356,15 @@ fun HomeScreen(
                     )
                 }
             }
+        }
+        
+        com.app.checkot.ui.components.FloatingBottomNavBar(
+            navController = navController,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 28.dp, vertical = 12.dp)
+        )
         }
     }
 }

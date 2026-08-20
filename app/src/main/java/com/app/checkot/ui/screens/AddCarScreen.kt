@@ -28,6 +28,8 @@ import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 import java.util.UUID
 import com.app.checkot.ui.components.BackTopAppBar
+import com.app.checkot.ui.components.AppButton
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddCarScreen(
@@ -288,7 +290,8 @@ fun AddCarScreen(
                 )
             }
             // Add Car Button
-            Button(
+            AppButton(
+                text = "Add Car",
                 onClick = {
                     val newCar = Car(
                         carId = UUID.randomUUID().toString(),
@@ -307,18 +310,9 @@ fun AddCarScreen(
                         }
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = plateNumber.isNotBlank() && plateError == null && brand.isNotBlank() && model.isNotBlank() && !isLoading && !carLimitReached
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text("Add Car")
-                }
-            }
+                enabled = plateNumber.isNotBlank() && plateError == null && brand.isNotBlank() && model.isNotBlank() && !carLimitReached,
+                isLoading = isLoading
+            )
         }
     }
 }

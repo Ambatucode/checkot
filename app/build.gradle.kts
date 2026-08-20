@@ -133,6 +133,7 @@ dependencies {
     // Coil — async image loading + disk/memory caching for shop logos (Storage URLs)
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+
     // AndroidX Core
     implementation("androidx.core:core-ktx:1.18.0")
     implementation("androidx.core:core-splashscreen:1.0.1")

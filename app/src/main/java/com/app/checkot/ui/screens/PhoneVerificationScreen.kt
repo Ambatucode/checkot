@@ -20,6 +20,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.app.checkot.ui.components.AppButton
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.app.checkot.viewmodel.AuthViewModel
@@ -74,6 +75,7 @@ fun PhoneVerificationScreen(
             if (isChange) {
                 navController.popBackStack()
             } else {
+
                 val dest = when (currentUser?.role) {
                     "admin" -> "admin_dashboard"
                     "owner" -> "owner_dashboard"
@@ -155,22 +157,17 @@ fun PhoneVerificationScreen(
                 )
                 val validNumber = localDigits.length == 10 && localDigits.startsWith("9")
                 Spacer(Modifier.height(24.dp))
-                Button(
+                AppButton(
+                    text = "Send code",
                     onClick = {
                         val act = activity
                         if (act != null) {
                             authViewModel.startPhoneVerification(act, "+63$localDigits", mode)
                         }
                     },
-                    enabled = validNumber && !busy && activity != null,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    if (busy) CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    ) else Text("Send code", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                }
+                    enabled = validNumber && activity != null,
+                    isLoading = busy
+                )
             } else {
                 // --- Step 2: enter code ---
                 OutlinedTextField(
@@ -187,17 +184,12 @@ fun PhoneVerificationScreen(
                     )
                 )
                 Spacer(Modifier.height(24.dp))
-                Button(
+                AppButton(
+                    text = "Verify",
                     onClick = { authViewModel.confirmPhoneCode(code) },
-                    enabled = code.length == 6 && !busy,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    if (busy) CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    ) else Text("Verify", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                }
+                    enabled = code.length == 6,
+                    isLoading = busy
+                )
                 Spacer(Modifier.height(8.dp))
                 TextButton(
                     onClick = { authViewModel.resetPhoneVerify(); code = "" },

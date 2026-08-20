@@ -19,6 +19,7 @@ data class CarWashUser(
     val createdAt: Long = 0,
     val role: String = "customer", // "customer" or "owner"
     val ownedShopId: String? = null, // Only used if role == "owner"
+    val isApproved: Boolean = true,
     val defaultCar: Car? = null,
     val savedCars: List<Car> = emptyList(),
     val shopCustomization: ShopCustomization? = null // Owner-only
