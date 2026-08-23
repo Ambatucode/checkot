@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,6 +23,11 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         cache: gradle
+
+    - name: Setup Android Debug Keystore
+      run: |
+        mkdir -p ~/.android
+        keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
     - name: Inject Real google-services.json from GitHub Secrets (or dummy if empty)
       run: |
@@ -56,3 +64,17 @@ jobs:
       with:
         name: checkot-debug-apk
         path: app/build/outputs/apk/debug/app-debug.apk
+
+    - name: Create GitHub Release and Upload APK
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: build-${{ github.run_number }}
+        name: Build #${{ github.run_number }}
+        body: |
+          Automated CI/CD build from push to main.
+          
+          **Commit**: ${{ github.sha }}
+          **Branch**: ${{ github.ref }}
+        files: |
+          app/build/outputs/apk/debug/app-debug.apk
