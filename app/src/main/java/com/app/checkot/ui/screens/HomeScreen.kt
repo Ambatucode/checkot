@@ -605,66 +605,61 @@ fun BookingCard(
                     }
                 }
             }
-            // Countdown timer for pending/confirmed bookings
+            // Countdown timer for pending / Arrival text for confirmed
             val countdownText = remember { mutableStateOf("") }
             val countdownEnd = remember(booking.bookingId) {
-                when (booking.status) {
-                    BookingStatus.PENDING -> booking.createdAt + 2 * 60 * 60 * 1000L
-                    BookingStatus.CONFIRMED -> {
-                        try {
-                            val parts = booking.timeSlot.split(" ")
-                            val t = parts[0].split(":")
-                            var h = t[0].toInt()
-                            val m = t[1].toInt()
-                            if (parts[1] == "PM" && h != 12) h += 12
-                            if (parts[1] == "AM" && h == 12) h = 0
-                            val cal = java.util.Calendar.getInstance().apply {
-                                timeInMillis = booking.bookingDate
-                                set(java.util.Calendar.HOUR_OF_DAY, h)
-                                set(java.util.Calendar.MINUTE, m)
-                                add(java.util.Calendar.MINUTE, 30)
-                            }
-                            cal.timeInMillis
-                        } catch (e: Exception) { 0L }
+                if (booking.status == BookingStatus.PENDING) {
+                    booking.createdAt + 2 * 60 * 60 * 1000L
+                } else {
+                    0L
+                }
+            }
+            val arrivalText = remember(booking.bookingId, booking.status) {
+                if (booking.status == BookingStatus.CONFIRMED) {
+                    try {
+                        val sdf = java.text.SimpleDateFormat("EEE, MMM d", java.util.Locale.getDefault())
+                        val dayOfWeekAndDate = sdf.format(java.util.Date(booking.bookingDate))
+                        "Arrive: $dayOfWeekAndDate • ${booking.timeSlot}"
+                    } catch (e: Exception) {
+                        "Arrive at ${booking.timeSlot}"
                     }
-                    else -> 0L
+                } else {
+                    ""
                 }
             }
             LaunchedEffect(countdownEnd) {
-                while (countdownEnd > 0 && countdownEnd > System.currentTimeMillis()) {
-                    val diff = countdownEnd - System.currentTimeMillis()
-                    val totalMin = (diff / 60000).toInt()
-                    if (totalMin > 0) {
-                        val h = totalMin / 60
-                        val m = totalMin % 60
-                        countdownText.value = when (booking.status) {
-                            BookingStatus.PENDING -> if (h > 0) "Auto-cancels in ${h}h ${m}m" else "Auto-cancels in ${m}m"
-                            BookingStatus.CONFIRMED -> if (h > 0) "Arrive within ${h}h ${m}m" else "Arrive within ${m}m"
-                            else -> ""
+                if (countdownEnd > 0) {
+                    while (countdownEnd > System.currentTimeMillis()) {
+                        val diff = countdownEnd - System.currentTimeMillis()
+                        val totalMin = (diff / 60000).toInt()
+                        countdownText.value = if (totalMin > 0) {
+                            val h = totalMin / 60
+                            val m = totalMin % 60
+                            if (h > 0) "Auto-cancels in ${h}h ${m}m" else "Auto-cancels in ${m}m"
+                        } else {
+                            "Cancelling soon..."
                         }
-                    } else {
-                        countdownText.value = when (booking.status) {
-                            BookingStatus.PENDING -> "Cancelling soon..."
-                            BookingStatus.CONFIRMED -> "Almost expired!"
-                            else -> ""
-                        }
+                        kotlinx.coroutines.delay(1000)
                     }
-                    kotlinx.coroutines.delay(1000)
-                }
-                countdownText.value = when (booking.status) {
-                    BookingStatus.PENDING -> "Booking expired"
-                    BookingStatus.CONFIRMED -> "Time expired"
-                    else -> ""
+                    countdownText.value = "Booking expired"
+                } else {
+                    countdownText.value = ""
                 }
             }
-            if (countdownText.value.isNotEmpty()) {
+
+            val displayTimeText = if (booking.status == BookingStatus.CONFIRMED) arrivalText else countdownText.value
+
+            if (displayTimeText.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = countdownText.value,
+                    text = displayTimeText,
                     style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     color = when (booking.status) {
                         BookingStatus.PENDING -> MaterialTheme.colorScheme.secondary
-                        BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.error
+                        BookingStatus.CONFIRMED -> Color(0xFF00E6C3)
                         else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     }
                 )
