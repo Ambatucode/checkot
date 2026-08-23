@@ -177,7 +177,17 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("com.google.maps.android:maps-compose:6.4.1")
     // Kept at 1.23.0: 1.30+ pulls io.grpc 1.70.x, which clashes with the
-    // grpc 1.57.x that firebase-firestore ships and crashes at runtime
     // (NoClassDefFoundError: io.grpc.InternalGlobalInterceptors).
     implementation("com.google.auth:google-auth-library-oauth2-http:1.23.0")
 }
+
+tasks.withType<Test> {
+    testLogging {
+        events("passed", "skipped", "failed")
+        showExceptions = true
+        showStackTraces = true
+        showCauses = true
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
+
