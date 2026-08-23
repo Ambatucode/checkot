@@ -574,6 +574,46 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
 
 
+    fun deleteClientAccount(onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            val user = auth.currentUser
+            if (user == null) {
+                onError("No authenticated user found")
+                return@launch
+            }
+            val userId = user.uid
+
+            try {
+                // 1. Check for any active customer bookings
+                val activeBookings = firestore.collection("bookings")
+                    .whereEqualTo("userId", userId)
+                    .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
+                    .get().await()
+
+                if (!activeBookings.isEmpty) {
+                    onError("Cannot delete account while you have active or pending bookings. Please cancel them first.")
+                    return@launch
+                }
+
+                // 2. Delete user record from users collection (savedCars embedded inside)
+                firestore.collection("users").document(userId).delete().await()
+
+                // 3. Delete Firebase Auth user
+                user.delete().await()
+
+                Log.d(TAG, "✅ Client account deleted successfully.")
+                signOut()
+                onSuccess()
+            } catch (e: com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException) {
+                Log.e(TAG, "❌ Firebase Auth delete requires recent login: ${e.message}")
+                onError("For security, please log out, log back in, and try again.")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Failed to delete client account: ${e.message}")
+                onError(e.localizedMessage ?: "Unknown error occurred")
+            }
+        }
+    }
+
     fun signOut() {
         auth.signOut()
         _authState.value = AuthState.Unauthenticated

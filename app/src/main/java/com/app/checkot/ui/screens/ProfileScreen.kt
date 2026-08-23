@@ -53,6 +53,9 @@ fun ProfileScreen(
     val userData by authViewModel.currentUserData.collectAsState()
     val scope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var isDeletingAccount by remember { mutableStateOf(false) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
 
     // Logo state for owners — the logo lives in Firebase Storage now; we render
@@ -110,6 +113,98 @@ fun ProfileScreen(
                 })
             }
         }
+    }
+
+    val activity = remember(context) { context.findFragmentActivity() }
+
+    fun performDelete() {
+        isDeletingAccount = true
+        deleteError = null
+        authViewModel.deleteClientAccount(
+            onSuccess = {
+                isDeletingAccount = false
+                showDeleteConfirm = false
+                onLogout()
+                navController.navigate("login") {
+                    popUpTo(0)
+                }
+            },
+            onError = { msg ->
+                isDeletingAccount = false
+                deleteError = msg
+                showDeleteConfirm = true // Force dialog open if error occurred during biometric flow
+            }
+        )
+    }
+
+    fun confirmDelete() {
+        deleteError = null
+        val act = activity
+        if (act != null && BiometricAuth.canAuthenticate(context)) {
+            BiometricAuth.prompt(
+                activity = act,
+                title = "Delete Account",
+                subtitle = "Confirm identity to permanently delete your account and cars",
+                onSuccess = { performDelete() },
+                onError = { msg -> deleteError = msg }
+            )
+        } else {
+            showDeleteConfirm = true
+        }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isDeletingAccount) {
+                    showDeleteConfirm = false
+                    deleteError = null
+                }
+            },
+            title = { Text("Delete Account?") },
+            text = {
+                Column {
+                    Text(
+                        "This will permanently delete your account, your profile details, and all your saved vehicles. Past completed bookings will be preserved for history. This cannot be undone.",
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (deleteError != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = deleteError!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { performDelete() },
+                    enabled = !isDeletingAccount,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    if (isDeletingAccount) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    } else {
+                        Text("Delete Account")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        deleteError = null
+                    },
+                    enabled = !isDeletingAccount
+                ) { Text("Cancel") }
+            }
+        )
     }
 
     Scaffold(
@@ -554,6 +649,56 @@ fun ProfileScreen(
                         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Logout", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+            if (!isOwner) {
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.05f)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.2f)),
+                        elevation = CardDefaults.cardElevation(0.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Danger Zone",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Once you delete your account, all your profile details and saved cars will be permanently removed.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = { confirmDelete() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(44.dp),
+                                shape = RoundedCornerShape(22.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                ),
+                                enabled = !isDeletingAccount
+                            ) {
+                                Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Delete Account", fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
             }
