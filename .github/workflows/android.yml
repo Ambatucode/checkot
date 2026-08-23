@@ -26,6 +26,9 @@ jobs:
         mkdir -p app
         echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
 
+    - name: Inject Google Maps API Key into local.properties
+      run: echo "MAPS_API_KEY=${{ secrets.MAPS_API_KEY }}" > local.properties
+
     - name: Grant Execute Permission to Gradle Wrapper
       run: chmod +x gradlew
 
