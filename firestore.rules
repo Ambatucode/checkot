@@ -93,8 +93,8 @@ service cloud.firestore {
             || request.resource.data.savedCars.size() <= 5);
 
       // --- DELETE ---
-      // Nobody can delete accounts from the client
-      allow delete: if false;
+      // Users can delete their own profile
+      allow delete: if isSignedIn() && request.auth.uid == userId;
     }
 
     // ============================================================
@@ -200,7 +200,8 @@ service cloud.firestore {
       // Admin can ONLY change the 'status' field (approve/reject)
       // bayCount is bounded to match the app's own stepper limit (1-10)
       allow update: if (ownsShop(shopId)
-        && isNotChanging(['status'])
+        && (isNotChanging(['status', 'isDeleted'])
+            || (request.resource.data.status == 'closed' && request.resource.data.isDeleted == true))
         && request.resource.data.services is list
         && request.resource.data.services.size() <= 50
         && request.resource.data.bayCount is number
@@ -209,8 +210,12 @@ service cloud.firestore {
         || (isAdmin()
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly(['status']))
-        // Owner may refresh only their FCM token without re-validating the
-        // whole shop doc (services/bayCount), so token writes aren't rejected.
+        // Owner may close the shop or update token
+        || (ownsShop(shopId)
+          && request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['ownerFcmToken', 'status', 'isDeleted'])
+            && request.resource.data.status == 'closed'
+            && request.resource.data.isDeleted == true)
         || (ownsShop(shopId)
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly(['ownerFcmToken']));

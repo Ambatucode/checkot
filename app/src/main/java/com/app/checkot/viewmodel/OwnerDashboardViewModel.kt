@@ -607,6 +607,56 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    fun deleteOwnerAccount(onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            val user = Firebase.auth.currentUser
+            if (user == null) {
+                onError("No authenticated user found")
+                return@launch
+            }
+            val shopId = _currentOwnerShopId.value
+            val ownerUid = user.uid
+
+            try {
+                // 1. Check for any active customer bookings
+                if (shopId != null) {
+                    val activeBookings = firestore.collection("bookings")
+                        .whereEqualTo("shopId", shopId)
+                        .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
+                        .get().await()
+
+                    if (!activeBookings.isEmpty) {
+                        onError("Cannot delete account while you have active or pending customer bookings. Please resolve them first.")
+                        return@launch
+                    }
+
+                    // 2. Set shop status = "closed" and isDeleted = true
+                    firestore.collection("shop_services").document(shopId)
+                        .update(mapOf(
+                            "status" to "closed",
+                            "isDeleted" to true,
+                            "ownerFcmToken" to ""
+                        )).await()
+                }
+
+                // 3. Delete user record from users collection
+                firestore.collection("users").document(ownerUid).delete().await()
+
+                // 4. Delete Firebase Auth user
+                user.delete().await()
+
+                Log.d(TAG, "✅ Owner account deleted and shop closed successfully.")
+                onSuccess()
+            } catch (e: com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException) {
+                Log.e(TAG, "❌ Firebase Auth delete requires recent login: ${e.message}")
+                onError("For security, please log out, log back in, and try again.")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Failed to delete account: ${e.message}")
+                onError(e.localizedMessage ?: "Unknown error occurred")
+            }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         bookingsListenerRegistration?.remove()

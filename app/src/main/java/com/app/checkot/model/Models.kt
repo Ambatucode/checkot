@@ -152,7 +152,8 @@ data class ShopCustomization(
     val ownerFcmToken: String = "", // FCM token for sending notifications to the owner
     // Staff the owner can assign to a service when starting it. Display-only —
     // does not affect bay count or booking capacity.
-    val staffNames: List<String> = emptyList()
+    val staffNames: List<String> = emptyList(),
+    val isDeleted: Boolean = false
 )
 
 @Immutable

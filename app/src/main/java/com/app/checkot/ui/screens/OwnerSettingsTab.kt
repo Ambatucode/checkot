@@ -61,6 +61,9 @@ fun OwnerSettingsTab(
     var showHoursConfirm by remember { mutableStateOf(false) }
     // Services whose duration field currently holds invalid/empty text
     var invalidDurationKeys by remember { mutableStateOf(setOf<String>()) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var isDeletingAccount by remember { mutableStateOf(false) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val maxServices = 15
 
@@ -196,6 +199,98 @@ fun OwnerSettingsTab(
             },
             dismissButton = {
                 TextButton(onClick = { showHoursConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    val context = LocalContext.current
+    val activity = remember(context) { context.findFragmentActivity() }
+
+    fun performDelete() {
+        isDeletingAccount = true
+        deleteError = null
+        ownerViewModel.deleteOwnerAccount(
+            onSuccess = {
+                isDeletingAccount = false
+                showDeleteConfirm = false
+                navController.navigate("login") {
+                    popUpTo(0)
+                }
+            },
+            onError = { msg ->
+                isDeletingAccount = false
+                deleteError = msg
+                showDeleteConfirm = true // Force dialog open if error occurred during biometric flow
+            }
+        )
+    }
+
+    fun confirmDelete() {
+        deleteError = null
+        val act = activity
+        if (act != null && BiometricAuth.canAuthenticate(context)) {
+            BiometricAuth.prompt(
+                activity = act,
+                title = "Close Business & Delete Account",
+                subtitle = "Confirm identity to permanently delete your shop and account",
+                onSuccess = { performDelete() },
+                onError = { msg -> deleteError = msg }
+            )
+        } else {
+            showDeleteConfirm = true
+        }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isDeletingAccount) {
+                    showDeleteConfirm = false
+                    deleteError = null
+                }
+            },
+            title = { Text("Close Business & Delete Account?") },
+            text = {
+                Column {
+                    Text(
+                        "This will permanently remove your shop from the customer app, delist your services, and delete your owner login. Past completed transactions will be archived. This cannot be undone.",
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (deleteError != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = deleteError!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { performDelete() },
+                    enabled = !isDeletingAccount,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    if (isDeletingAccount) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    } else {
+                        Text("Close & Delete")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        deleteError = null
+                    },
+                    enabled = !isDeletingAccount
+                ) { Text("Cancel") }
             }
         )
     }
@@ -409,6 +504,30 @@ fun OwnerSettingsTab(
                             }
                         }
                     }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            // Danger Zone Card
+            SettingsCard(title = "Danger Zone", icon = Icons.Default.Warning) {
+                Text(
+                    text = "Once you close your shop and delete your account, this action cannot be undone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { confirmDelete() },
+                    modifier = Modifier.fillMaxWidth().height(40.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Close Business & Delete Account", fontWeight = FontWeight.Bold)
                 }
             }
         }
