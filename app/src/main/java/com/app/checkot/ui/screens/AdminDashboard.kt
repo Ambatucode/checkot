@@ -141,7 +141,7 @@ fun AdminDashboard(
                 selectedTab == 0 -> PendingShopsTab(pendingShops, adminViewModel)
                 selectedTab == 1 -> ActiveShopsTab(activeShops, adminViewModel)
                 selectedTab == 2 -> RejectedShopsTab(rejectedShops, adminViewModel)
-                selectedTab == 3 -> ReviewsTab(reviews, adminViewModel)
+                selectedTab == 3 -> ReviewsTab(reviews, activeShops, adminViewModel)
             }
         }
     }
@@ -205,7 +205,6 @@ private fun PendingShopsTab(
             items(pendingShops, key = { it.shopId }) { shop ->
                 PendingShopCard(
                     shop = shop,
-                    verifyPassword = { password, callback -> adminViewModel.verifyPassword(password, callback) },
                     onApprove = { callback -> adminViewModel.approveShop(shop.shopId, callback) },
                     onReject = { callback -> adminViewModel.rejectShop(shop.shopId, callback) }
                 )
@@ -217,30 +216,26 @@ private fun PendingShopsTab(
 @Composable
 private fun PendingShopCard(
     shop: ShopWithOwner,
-    verifyPassword: (password: String, onResult: (Boolean, String) -> Unit) -> Unit,
     onApprove: (onResult: (Boolean) -> Unit) -> Unit,
     onReject: (onResult: (Boolean) -> Unit) -> Unit
 ) {
-    var activeDialog by remember { mutableStateOf<AdminDialogType?>(null) }
-    var password by remember { mutableStateOf("") }
-    var passwordError by remember { mutableStateOf<String?>(null) }
-    var isVerifying by remember { mutableStateOf(false) }
+    var showConfirmDialog by remember { mutableStateOf<AdminDialogType?>(null) }
     var isProcessing by remember { mutableStateOf(false) }
     var actionError by remember { mutableStateOf<String?>(null) }
-
+ 
     val context = LocalContext.current
     val activity = remember(context) { context.findFragmentActivity() }
-
+ 
     // Runs the actual approve/reject once the admin's identity is confirmed.
     fun runAction(type: AdminDialogType) {
         isProcessing = true
         if (type == AdminDialogType.APPROVE) onApprove { isProcessing = false }
         else onReject { isProcessing = false }
     }
-
+ 
     // Confirm the admin before a sensitive action: prefer the device
     // biometric/lock (works for Google- and password-signed admins alike); fall
-    // back to the password dialog on devices with no biometric or screen lock.
+    // back to the clean confirmation dialog on devices with no biometric or screen lock.
     fun confirm(type: AdminDialogType) {
         actionError = null
         val act = activity
@@ -254,97 +249,43 @@ private fun PendingShopCard(
                 onError = { msg -> actionError = msg }
             )
         } else {
-            activeDialog = type // no biometric/lock available → password fallback
+            showConfirmDialog = type // no biometric/lock available → simple confirmation fallback
         }
     }
-
-    // Shared password confirmation dialog for both Approve and Reject
-    activeDialog?.let { type ->
+ 
+    // Shared confirmation dialog fallback for both Approve and Reject
+    showConfirmDialog?.let { type ->
         val title = if (type == AdminDialogType.APPROVE) "Approve Shop" else "Reject Shop"
         val verb = if (type == AdminDialogType.APPROVE) "approve" else "reject"
         val actionColor = if (type == AdminDialogType.APPROVE) MaterialTheme.colorScheme.primary
                           else MaterialTheme.colorScheme.error
-
+ 
         AlertDialog(
             onDismissRequest = {
-                if (!isVerifying) {
-                    activeDialog = null
-                    password = ""
-                    passwordError = null
+                if (!isProcessing) {
+                    showConfirmDialog = null
                 }
             },
             title = { Text(title) },
             text = {
-                Column {
-                    Text("Are you sure you want to $verb \"${shop.shopName}\"?")
-                    Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = {
-                            password = it
-                            passwordError = null
-                        },
-                        label = { Text("Enter your password to confirm") },
-                        singleLine = true,
-                        enabled = !isVerifying,
-                        isError = passwordError != null,
-                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
-                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (passwordError != null) {
-                        Text(
-                            text = passwordError!!,
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(start = 4.dp, top = 4.dp)
-                        )
-                    }
-                }
+                Text("Are you sure you want to $verb \"${shop.shopName}\"?")
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        if (password.isEmpty()) {
-                            passwordError = "Please enter your password"
-                            return@TextButton
-                        }
-                        isVerifying = true
-                        passwordError = null
-                        verifyPassword(password) { success, errorMsg ->
-                            if (success) {
-                                password = ""
-                                passwordError = null
-                                isVerifying = false
-                                activeDialog = null
-                                runAction(type)
-                            } else {
-                                isVerifying = false
-                                passwordError = errorMsg
-                            }
-                        }
+                        showConfirmDialog = null
+                        runAction(type)
                     },
-                    enabled = !isVerifying,
+                    enabled = !isProcessing,
                     colors = ButtonDefaults.textButtonColors(contentColor = actionColor)
                 ) {
-                    if (isVerifying) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text(if (type == AdminDialogType.APPROVE) "Yes, Approve" else "Yes, Reject")
-                    }
+                    Text(if (type == AdminDialogType.APPROVE) "Yes, Approve" else "Yes, Reject")
                 }
             },
             dismissButton = {
                 TextButton(
-                    onClick = {
-                        activeDialog = null
-                        password = ""
-                        passwordError = null
-                    },
-                    enabled = !isVerifying
+                    onClick = { showConfirmDialog = null },
+                    enabled = !isProcessing
                 ) { Text("Cancel") }
             }
         )
@@ -645,7 +586,6 @@ private fun ActiveShopsTab(
                 ShopInfoCard(
                     shop = shop,
                     statusColor = MaterialTheme.colorScheme.primary,
-                    verifyPassword = { password, callback -> adminViewModel.verifyPassword(password, callback) },
                     onAction = { callback -> adminViewModel.rejectShop(shop.shopId, callback) }
                 )
             }
@@ -689,7 +629,6 @@ private fun RejectedShopsTab(
                 ShopInfoCard(
                     shop = shop,
                     statusColor = MaterialTheme.colorScheme.error,
-                    verifyPassword = { password, callback -> adminViewModel.verifyPassword(password, callback) },
                     onAction = { callback -> adminViewModel.approveShop(shop.shopId, callback) }
                 )
             }
@@ -701,13 +640,9 @@ private fun RejectedShopsTab(
 private fun ShopInfoCard(
     shop: ShopWithOwner,
     statusColor: androidx.compose.ui.graphics.Color,
-    verifyPassword: (password: String, onResult: (Boolean, String) -> Unit) -> Unit,
     onAction: (onResult: (Boolean) -> Unit) -> Unit
 ) {
-    var activeDialog by remember { mutableStateOf<AdminDialogType?>(null) }
-    var password by remember { mutableStateOf("") }
-    var passwordError by remember { mutableStateOf<String?>(null) }
-    var isVerifying by remember { mutableStateOf(false) }
+    var showConfirmDialog by remember { mutableStateOf<AdminDialogType?>(null) }
     var isProcessing by remember { mutableStateOf(false) }
     var actionError by remember { mutableStateOf<String?>(null) }
 
@@ -721,8 +656,7 @@ private fun ShopInfoCard(
         onAction { success ->
             isProcessing = false
             if (success) {
-                activeDialog = null
-                password = ""
+                showConfirmDialog = null
             } else {
                 actionError = "Action failed. Check connection."
             }
@@ -742,12 +676,12 @@ private fun ShopInfoCard(
                 onError = { msg -> actionError = msg }
             )
         } else {
-            activeDialog = type
+            showConfirmDialog = type // fallback to simple confirmation dialog
         }
     }
 
-    // Shared password confirmation dialog
-    activeDialog?.let { type ->
+    // Shared confirmation dialog
+    showConfirmDialog?.let { type ->
         val title = if (type == AdminDialogType.APPROVE) "Approve Shop" else "Suspend Shop"
         val verb = if (type == AdminDialogType.APPROVE) "approve" else "suspend"
         val actionColor = if (type == AdminDialogType.APPROVE) MaterialTheme.colorScheme.primary
@@ -755,81 +689,30 @@ private fun ShopInfoCard(
 
         AlertDialog(
             onDismissRequest = {
-                if (!isVerifying) {
-                    activeDialog = null
-                    password = ""
-                    passwordError = null
+                if (!isProcessing) {
+                    showConfirmDialog = null
                 }
             },
             title = { Text(title) },
             text = {
-                Column {
-                    Text("Are you sure you want to $verb \"${shop.shopName}\"?")
-                    Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = {
-                            password = it
-                            passwordError = null
-                        },
-                        label = { Text("Enter your password to confirm") },
-                        singleLine = true,
-                        enabled = !isVerifying,
-                        isError = passwordError != null,
-                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
-                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (passwordError != null) {
-                        Text(
-                            text = passwordError!!,
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(start = 4.dp, top = 4.dp)
-                        )
-                    }
-                }
+                Text("Are you sure you want to $verb \"${shop.shopName}\"?")
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        if (password.isEmpty()) {
-                            passwordError = "Please enter your password"
-                            return@TextButton
-                        }
-                        isVerifying = true
-                        passwordError = null
-                        verifyPassword(password) { success, errorMsg ->
-                            if (success) {
-                                isVerifying = false
-                                runAction(type)
-                            } else {
-                                isVerifying = false
-                                passwordError = errorMsg
-                            }
-                        }
+                        showConfirmDialog = null
+                        runAction(type)
                     },
-                    enabled = !isVerifying,
+                    enabled = !isProcessing,
                     colors = ButtonDefaults.textButtonColors(contentColor = actionColor)
                 ) {
-                    if (isVerifying) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text(if (type == AdminDialogType.APPROVE) "Yes, Approve" else "Yes, Suspend")
-                    }
+                    Text(if (type == AdminDialogType.APPROVE) "Yes, Approve" else "Yes, Suspend")
                 }
             },
             dismissButton = {
                 TextButton(
-                    onClick = {
-                        activeDialog = null
-                        password = ""
-                        passwordError = null
-                    },
-                    enabled = !isVerifying
+                    onClick = { showConfirmDialog = null },
+                    enabled = !isProcessing
                 ) { Text("Cancel") }
             }
         )
@@ -879,6 +762,11 @@ private fun ShopInfoCard(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Spacer(modifier = Modifier.height(12.dp))
 
+            val isPhoneVerified = shop.ownerPhoneVerified && shop.ownerPhone.isNotBlank()
+            val isLocationSet = shop.latitude != 0.0 || shop.longitude != 0.0
+            val isAddressSet = shop.shopAddress.isNotBlank()
+            val isApproveEnabled = !isProcessing && isPhoneVerified && isLocationSet && isAddressSet
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
@@ -904,7 +792,7 @@ private fun ShopInfoCard(
                         modifier = Modifier.height(36.dp),
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        enabled = !isProcessing
+                        enabled = isApproveEnabled
                     ) {
                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
@@ -927,8 +815,91 @@ private fun ShopInfoCard(
 @Composable
 private fun ReviewsTab(
     reviews: List<Review>,
+    activeShops: List<ShopWithOwner>,
     adminViewModel: SuperAdminViewModel
 ) {
+    var selectedShopId by remember { mutableStateOf("all") }
+    var dropdownExpanded by remember { mutableStateOf(false) }
+    var reviewToDelete by remember { mutableStateOf<Review?>(null) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
+    var isProcessing by remember { mutableStateOf(false) }
+    var actionError by remember { mutableStateOf<String?>(null) }
+
+    val context = LocalContext.current
+    val activity = remember(context) { context.findFragmentActivity() }
+
+    val selectedShopName = remember(selectedShopId, activeShops) {
+        if (selectedShopId == "all") "All Shops"
+        else activeShops.find { it.shopId == selectedShopId }?.shopName ?: "Unknown Shop"
+    }
+
+    val filteredReviews = remember(selectedShopId, reviews) {
+        if (selectedShopId == "all") reviews
+        else reviews.filter { it.shopId == selectedShopId }
+    }
+
+    fun runDelete(review: Review) {
+        isProcessing = true
+        adminViewModel.deleteReview(review) { success ->
+            isProcessing = false
+            if (success) {
+                reviewToDelete = null
+                showConfirmDialog = false
+            } else {
+                actionError = "Failed to delete review. Try again."
+            }
+        }
+    }
+
+    fun confirmDelete(review: Review) {
+        reviewToDelete = review
+        actionError = null
+        val act = activity
+        if (act != null && BiometricAuth.canAuthenticate(context)) {
+            BiometricAuth.prompt(
+                activity = act,
+                title = "Delete Review",
+                subtitle = "Confirm identity to delete review from ${review.userName}",
+                onSuccess = { runDelete(review) },
+                onError = { msg -> actionError = msg }
+            )
+        } else {
+            showConfirmDialog = true
+        }
+    }
+
+    if (showConfirmDialog && reviewToDelete != null) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isProcessing) {
+                    showConfirmDialog = false
+                }
+            },
+            title = { Text("Delete Review") },
+            text = {
+                Text("Are you sure you want to delete this review by \"${reviewToDelete?.userName}\"?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showConfirmDialog = false
+                        runDelete(reviewToDelete!!)
+                    },
+                    enabled = !isProcessing,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showConfirmDialog = false },
+                    enabled = !isProcessing
+                ) { Text("Cancel") }
+            }
+        )
+    }
+
     if (reviews.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -943,139 +914,57 @@ private fun ReviewsTab(
             }
         }
     } else {
-        var reviewToDelete by remember { mutableStateOf<Review?>(null) }
-        var showConfirmDialog by remember { mutableStateOf(false) }
-        var password by remember { mutableStateOf("") }
-        var passwordError by remember { mutableStateOf<String?>(null) }
-        var isVerifying by remember { mutableStateOf(false) }
-        var isProcessing by remember { mutableStateOf(false) }
-        var actionError by remember { mutableStateOf<String?>(null) }
-
-        val context = LocalContext.current
-        val activity = remember(context) { context.findFragmentActivity() }
-
-        fun runDelete(review: Review) {
-            isProcessing = true
-            adminViewModel.deleteReview(review) { success ->
-                isProcessing = false
-                if (success) {
-                    reviewToDelete = null
-                    showConfirmDialog = false
-                    password = ""
-                } else {
-                    actionError = "Failed to delete review. Try again."
-                }
-            }
-        }
-
-        fun confirmDelete(review: Review) {
-            reviewToDelete = review
-            actionError = null
-            val act = activity
-            if (act != null && BiometricAuth.canAuthenticate(context)) {
-                BiometricAuth.prompt(
-                    activity = act,
-                    title = "Delete Review",
-                    subtitle = "Confirm identity to delete review from ${review.userName}",
-                    onSuccess = { runDelete(review) },
-                    onError = { msg -> actionError = msg }
-                )
-            } else {
-                showConfirmDialog = true
-            }
-        }
-
-        if (showConfirmDialog && reviewToDelete != null) {
-            AlertDialog(
-                onDismissRequest = {
-                    if (!isVerifying) {
-                        showConfirmDialog = false
-                        password = ""
-                        passwordError = null
-                    }
-                },
-                title = { Text("Delete Review") },
-                text = {
-                    Column {
-                        Text("Are you sure you want to delete this review by \"${reviewToDelete?.userName}\"?")
-                        Spacer(modifier = Modifier.height(16.dp))
-                        OutlinedTextField(
-                            value = password,
-                            onValueChange = {
-                                password = it
-                                passwordError = null
-                            },
-                            label = { Text("Enter your password to confirm") },
-                            singleLine = true,
-                            enabled = !isVerifying,
-                            isError = passwordError != null,
-                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
-                                imeAction = androidx.compose.ui.text.input.ImeAction.Done
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        if (passwordError != null) {
-                            Text(
-                                text = passwordError!!,
-                                color = MaterialTheme.colorScheme.error,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(start = 4.dp, top = 4.dp)
-                            )
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            if (password.isEmpty()) {
-                                passwordError = "Please enter your password"
-                                return@TextButton
-                            }
-                            isVerifying = true
-                            passwordError = null
-                            adminViewModel.verifyPassword(password) { success, errorMsg ->
-                                if (success) {
-                                    isVerifying = false
-                                    runDelete(reviewToDelete!!)
-                                } else {
-                                    isVerifying = false
-                                    passwordError = errorMsg
-                                }
-                            }
-                        },
-                        enabled = !isVerifying,
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                    ) {
-                        if (isVerifying) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                        } else {
-                            Text("Delete")
-                        }
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = {
-                            showConfirmDialog = false
-                            password = ""
-                            passwordError = null
-                        },
-                        enabled = !isVerifying
-                    ) { Text("Cancel") }
-                }
-            )
-        }
-
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { dropdownExpanded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Filter: $selectedShopName", color = MaterialTheme.colorScheme.onSurface)
+                            Icon(
+                                Icons.Default.ArrowDropDown,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    DropdownMenu(
+                        expanded = dropdownExpanded,
+                        onDismissRequest = { dropdownExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.9f)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("All Shops") },
+                            onClick = {
+                                selectedShopId = "all"
+                                dropdownExpanded = false
+                            }
+                        )
+                        activeShops.forEach { shop ->
+                            DropdownMenuItem(
+                                text = { Text(shop.shopName) },
+                                onClick = {
+                                    selectedShopId = shop.shopId
+                                    dropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "${reviews.size} review${if (reviews.size > 1) "s" else ""}",
+                    "${filteredReviews.size} review${if (filteredReviews.size > 1) "s" else ""}",
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
@@ -1085,7 +974,7 @@ private fun ReviewsTab(
                 }
                 Spacer(modifier = Modifier.height(4.dp))
             }
-            items(reviews, key = { it.bookingId }) { review ->
+            items(filteredReviews, key = { it.bookingId }) { review ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
