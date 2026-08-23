@@ -261,7 +261,8 @@ service cloud.firestore {
         && request.resource.data.createdAt is int
         && get(/databases/$(database)/documents/bookings/$(bookingId)).data.userId == request.auth.uid
         && get(/databases/$(database)/documents/bookings/$(bookingId)).data.status == 'COMPLETED';
-      allow update, delete: if false;
+      allow delete: if isAdmin();
+      allow update: if false;
     }
 
     // ============================================================

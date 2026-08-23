@@ -44,6 +44,7 @@ fun AdminDashboard(
     val pendingShops by adminViewModel.pendingShops.collectAsState()
     val activeShops by adminViewModel.activeShops.collectAsState()
     val rejectedShops by adminViewModel.rejectedShops.collectAsState()
+    val reviews by adminViewModel.reviews.collectAsState()
     val isLoading by adminViewModel.isLoading.collectAsState()
     val loadError by adminViewModel.error.collectAsState()
 
@@ -103,6 +104,12 @@ fun AdminDashboard(
                     icon = { Icon(Icons.Default.Cancel, contentDescription = "Rejected") },
                     label = { Text("Rejected") }
                 )
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    icon = { Icon(Icons.Default.Comment, contentDescription = "Reviews") },
+                    label = { Text("Reviews") }
+                )
             }
         }
     ) { paddingValues ->
@@ -132,8 +139,9 @@ fun AdminDashboard(
                     }
                 }
                 selectedTab == 0 -> PendingShopsTab(pendingShops, adminViewModel)
-                selectedTab == 1 -> ActiveShopsTab(activeShops)
-                selectedTab == 2 -> RejectedShopsTab(rejectedShops)
+                selectedTab == 1 -> ActiveShopsTab(activeShops, adminViewModel)
+                selectedTab == 2 -> RejectedShopsTab(rejectedShops, adminViewModel)
+                selectedTab == 3 -> ReviewsTab(reviews, adminViewModel)
             }
         }
     }
@@ -602,7 +610,10 @@ private fun PendingShopCard(
 }
 
 @Composable
-private fun ActiveShopsTab(activeShops: List<ShopWithOwner>) {
+private fun ActiveShopsTab(
+    activeShops: List<ShopWithOwner>,
+    adminViewModel: SuperAdminViewModel
+) {
     if (activeShops.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -631,14 +642,22 @@ private fun ActiveShopsTab(activeShops: List<ShopWithOwner>) {
                 Spacer(modifier = Modifier.height(4.dp))
             }
             items(activeShops, key = { it.shopId }) { shop ->
-                ShopInfoCard(shop = shop, statusColor = MaterialTheme.colorScheme.primary)
+                ShopInfoCard(
+                    shop = shop,
+                    statusColor = MaterialTheme.colorScheme.primary,
+                    verifyPassword = { password, callback -> adminViewModel.verifyPassword(password, callback) },
+                    onAction = { callback -> adminViewModel.rejectShop(shop.shopId, callback) }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun RejectedShopsTab(rejectedShops: List<ShopWithOwner>) {
+private fun RejectedShopsTab(
+    rejectedShops: List<ShopWithOwner>,
+    adminViewModel: SuperAdminViewModel
+) {
     if (rejectedShops.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -667,50 +686,457 @@ private fun RejectedShopsTab(rejectedShops: List<ShopWithOwner>) {
                 Spacer(modifier = Modifier.height(4.dp))
             }
             items(rejectedShops, key = { it.shopId }) { shop ->
-                ShopInfoCard(shop = shop, statusColor = MaterialTheme.colorScheme.error)
+                ShopInfoCard(
+                    shop = shop,
+                    statusColor = MaterialTheme.colorScheme.error,
+                    verifyPassword = { password, callback -> adminViewModel.verifyPassword(password, callback) },
+                    onAction = { callback -> adminViewModel.approveShop(shop.shopId, callback) }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun ShopInfoCard(shop: ShopWithOwner, statusColor: androidx.compose.ui.graphics.Color) {
+private fun ShopInfoCard(
+    shop: ShopWithOwner,
+    statusColor: androidx.compose.ui.graphics.Color,
+    verifyPassword: (password: String, onResult: (Boolean, String) -> Unit) -> Unit,
+    onAction: (onResult: (Boolean) -> Unit) -> Unit
+) {
+    var activeDialog by remember { mutableStateOf<AdminDialogType?>(null) }
+    var password by remember { mutableStateOf("") }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    var isVerifying by remember { mutableStateOf(false) }
+    var isProcessing by remember { mutableStateOf(false) }
+    var actionError by remember { mutableStateOf<String?>(null) }
+
+    val context = LocalContext.current
+    val activity = remember(context) { context.findFragmentActivity() }
+
+    val isSuspend = shop.status == "active"
+
+    fun runAction(type: AdminDialogType) {
+        isProcessing = true
+        onAction { success ->
+            isProcessing = false
+            if (success) {
+                activeDialog = null
+                password = ""
+            } else {
+                actionError = "Action failed. Check connection."
+            }
+        }
+    }
+
+    fun confirm(type: AdminDialogType) {
+        actionError = null
+        val act = activity
+        if (act != null && BiometricAuth.canAuthenticate(context)) {
+            val verb = if (type == AdminDialogType.APPROVE) "approve" else "suspend"
+            BiometricAuth.prompt(
+                activity = act,
+                title = if (type == AdminDialogType.APPROVE) "Approve Shop" else "Suspend Shop",
+                subtitle = "Confirm it's you to $verb \"${shop.shopName}\"",
+                onSuccess = { runAction(type) },
+                onError = { msg -> actionError = msg }
+            )
+        } else {
+            activeDialog = type
+        }
+    }
+
+    // Shared password confirmation dialog
+    activeDialog?.let { type ->
+        val title = if (type == AdminDialogType.APPROVE) "Approve Shop" else "Suspend Shop"
+        val verb = if (type == AdminDialogType.APPROVE) "approve" else "suspend"
+        val actionColor = if (type == AdminDialogType.APPROVE) MaterialTheme.colorScheme.primary
+                          else MaterialTheme.colorScheme.error
+
+        AlertDialog(
+            onDismissRequest = {
+                if (!isVerifying) {
+                    activeDialog = null
+                    password = ""
+                    passwordError = null
+                }
+            },
+            title = { Text(title) },
+            text = {
+                Column {
+                    Text("Are you sure you want to $verb \"${shop.shopName}\"?")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = {
+                            password = it
+                            passwordError = null
+                        },
+                        label = { Text("Enter your password to confirm") },
+                        singleLine = true,
+                        enabled = !isVerifying,
+                        isError = passwordError != null,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (passwordError != null) {
+                        Text(
+                            text = passwordError!!,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (password.isEmpty()) {
+                            passwordError = "Please enter your password"
+                            return@TextButton
+                        }
+                        isVerifying = true
+                        passwordError = null
+                        verifyPassword(password) { success, errorMsg ->
+                            if (success) {
+                                isVerifying = false
+                                runAction(type)
+                            } else {
+                                isVerifying = false
+                                passwordError = errorMsg
+                            }
+                        }
+                    },
+                    enabled = !isVerifying,
+                    colors = ButtonDefaults.textButtonColors(contentColor = actionColor)
+                ) {
+                    if (isVerifying) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text(if (type == AdminDialogType.APPROVE) "Yes, Approve" else "Yes, Suspend")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        activeDialog = null
+                        password = ""
+                        passwordError = null
+                    },
+                    enabled = !isVerifying
+                ) { Text("Cancel") }
+            }
+        )
+    }
+
     Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                modifier = Modifier.size(44.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = statusColor.copy(alpha = 0.15f)
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Default.Store,
-                        contentDescription = null,
-                        tint = statusColor,
-                        modifier = Modifier.size(22.dp)
+                Surface(
+                    modifier = Modifier.size(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    color = statusColor.copy(alpha = 0.15f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.Store,
+                            contentDescription = null,
+                            tint = statusColor,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        shop.shopName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        shop.shopAddress,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                    Text(
+                        "Owner: ${shop.ownerName}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                     )
                 }
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                if (isSuspend) {
+                    OutlinedButton(
+                        onClick = { confirm(AdminDialogType.REJECT) },
+                        modifier = Modifier.height(36.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                        enabled = !isProcessing
+                    ) {
+                        Icon(Icons.Default.Block, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Suspend", fontSize = 12.sp)
+                    }
+                } else {
+                    Button(
+                        onClick = { confirm(AdminDialogType.APPROVE) },
+                        modifier = Modifier.height(36.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        enabled = !isProcessing
+                    ) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Approve", fontSize = 12.sp)
+                    }
+                }
+            }
+            if (actionError != null) {
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    shop.shopName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    text = actionError!!,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewsTab(
+    reviews: List<Review>,
+    adminViewModel: SuperAdminViewModel
+) {
+    if (reviews.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    Icons.Default.Comment,
+                    contentDescription = null,
+                    modifier = Modifier.size(72.dp),
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("No reviews yet", style = MaterialTheme.typography.titleLarge)
+            }
+        }
+    } else {
+        var reviewToDelete by remember { mutableStateOf<Review?>(null) }
+        var showConfirmDialog by remember { mutableStateOf(false) }
+        var password by remember { mutableStateOf("") }
+        var passwordError by remember { mutableStateOf<String?>(null) }
+        var isVerifying by remember { mutableStateOf(false) }
+        var isProcessing by remember { mutableStateOf(false) }
+        var actionError by remember { mutableStateOf<String?>(null) }
+
+        val context = LocalContext.current
+        val activity = remember(context) { context.findFragmentActivity() }
+
+        fun runDelete(review: Review) {
+            isProcessing = true
+            adminViewModel.deleteReview(review) { success ->
+                isProcessing = false
+                if (success) {
+                    reviewToDelete = null
+                    showConfirmDialog = false
+                    password = ""
+                } else {
+                    actionError = "Failed to delete review. Try again."
+                }
+            }
+        }
+
+        fun confirmDelete(review: Review) {
+            reviewToDelete = review
+            actionError = null
+            val act = activity
+            if (act != null && BiometricAuth.canAuthenticate(context)) {
+                BiometricAuth.prompt(
+                    activity = act,
+                    title = "Delete Review",
+                    subtitle = "Confirm identity to delete review from ${review.userName}",
+                    onSuccess = { runDelete(review) },
+                    onError = { msg -> actionError = msg }
+                )
+            } else {
+                showConfirmDialog = true
+            }
+        }
+
+        if (showConfirmDialog && reviewToDelete != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    if (!isVerifying) {
+                        showConfirmDialog = false
+                        password = ""
+                        passwordError = null
+                    }
+                },
+                title = { Text("Delete Review") },
+                text = {
+                    Column {
+                        Text("Are you sure you want to delete this review by \"${reviewToDelete?.userName}\"?")
+                        Spacer(modifier = Modifier.height(16.dp))
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = {
+                                password = it
+                                passwordError = null
+                            },
+                            label = { Text("Enter your password to confirm") },
+                            singleLine = true,
+                            enabled = !isVerifying,
+                            isError = passwordError != null,
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+                                imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (passwordError != null) {
+                            Text(
+                                text = passwordError!!,
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (password.isEmpty()) {
+                                passwordError = "Please enter your password"
+                                return@TextButton
+                            }
+                            isVerifying = true
+                            passwordError = null
+                            adminViewModel.verifyPassword(password) { success, errorMsg ->
+                                if (success) {
+                                    isVerifying = false
+                                    runDelete(reviewToDelete!!)
+                                } else {
+                                    isVerifying = false
+                                    passwordError = errorMsg
+                                }
+                            }
+                        },
+                        enabled = !isVerifying,
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        if (isVerifying) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text("Delete")
+                        }
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showConfirmDialog = false
+                            password = ""
+                            passwordError = null
+                        },
+                        enabled = !isVerifying
+                    ) { Text("Cancel") }
+                }
+            )
+        }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
                 Text(
-                    shop.shopAddress,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    "${reviews.size} review${if (reviews.size > 1) "s" else ""}",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
-                Text(
-                    "Owner: ${shop.ownerName}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                )
+                if (actionError != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(actionError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+            items(reviews, key = { it.bookingId }) { review ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = review.userName,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    (1..5).forEach { i ->
+                                        Icon(
+                                            imageVector = if (i <= review.rating) Icons.Default.Star else Icons.Default.StarBorder,
+                                            contentDescription = null,
+                                            tint = if (i <= review.rating) Color(0xFFFFB300) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            IconButton(
+                                onClick = { confirmDelete(review) },
+                                enabled = !isProcessing
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "Delete review",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                        if (review.comment.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = review.comment,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
             }
         }
     }

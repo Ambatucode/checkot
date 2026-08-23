@@ -48,6 +48,9 @@ class SuperAdminViewModel(application: Application) : AndroidViewModel(applicati
     private val _rejectedShops = MutableStateFlow<List<ShopWithOwner>>(emptyList())
     val rejectedShops: StateFlow<List<ShopWithOwner>> = _rejectedShops
 
+    private val _reviews = MutableStateFlow<List<Review>>(emptyList())
+    val reviews: StateFlow<List<Review>> = _reviews
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
@@ -95,11 +98,40 @@ class SuperAdminViewModel(application: Application) : AndroidViewModel(applicati
                 _pendingShops.value = shops.filter { it.status == "pending" }
                 _activeShops.value = shops.filter { it.status == "active" }
                 _rejectedShops.value = shops.filter { it.status == "rejected" }
+                loadReviews()
             } catch (e: Exception) {
                 Log.e(TAG, "❌ SuperAdmin: Failed to load shops: ${e.message}")
                 _error.value = "Couldn't load shops. Check your connection and try again."
             } finally {
                 _isLoading.value = false
+            }
+        }
+    }
+
+    fun loadReviews() {
+        viewModelScope.launch {
+            try {
+                val snapshot = firestore.collection("reviews").get().await()
+                val reviewList = snapshot.documents.mapNotNull { doc ->
+                    doc.toObject(Review::class.java)
+                }.sortedByDescending { it.createdAt }
+                _reviews.value = reviewList
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ SuperAdmin: Failed to load reviews: ${e.message}")
+            }
+        }
+    }
+
+    fun deleteReview(review: Review, onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                firestore.collection("reviews").document(review.bookingId).delete().await()
+                Log.d(TAG, "✅ SuperAdmin: Review ${review.bookingId} deleted")
+                loadReviews()
+                onResult(true)
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ SuperAdmin: Failed to delete review ${review.bookingId}: ${e.message}")
+                onResult(false)
             }
         }
     }
