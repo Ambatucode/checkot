@@ -21,10 +21,23 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    - name: Inject Real google-services.json from GitHub Secrets
+    - name: Inject Real google-services.json from GitHub Secrets (or dummy if empty)
       run: |
         mkdir -p app
-        echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
+        if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
+          echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
+        else
+          echo '{"project_info":{"project_number":"0","project_id":"dummy","storage_bucket":"dummy"}}' > app/google-services.json
+        fi
+
+    - name: Inject service_account.json from GitHub Secrets (or dummy if empty)
+      run: |
+        mkdir -p app/src/main/res/raw
+        if [ -n "${{ secrets.SERVICE_ACCOUNT_JSON }}" ]; then
+          echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > app/src/main/res/raw/service_account.json
+        else
+          echo '{"type": "service_account", "project_id": "dummy", "private_key_id": "dummy", "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC7\n-----END PRIVATE KEY-----\n", "client_email": "dummy@dummy.iam.gserviceaccount.com"}' > app/src/main/res/raw/service_account.json
+        fi
 
     - name: Inject Google Maps API Key into local.properties
       run: echo "MAPS_API_KEY=${{ secrets.MAPS_API_KEY }}" > local.properties
