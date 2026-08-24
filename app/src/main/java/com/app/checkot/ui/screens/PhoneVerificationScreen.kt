@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -66,6 +67,31 @@ fun PhoneVerificationScreen(
     }
     var code by remember { mutableStateOf("") }
 
+    // We're in the code-entry step once a code has been sent (stays there while
+    // verifying, and while showing a "wrong code" error so the field remains).
+    val awaitingCode = verifyState is PhoneVerifyState.CodeSent ||
+        verifyState is PhoneVerifyState.Verifying ||
+        (verifyState is PhoneVerifyState.Error && authViewModel.hasPendingCode())
+    val busy = verifyState is PhoneVerifyState.Sending || verifyState is PhoneVerifyState.Verifying
+
+    var timerSeconds by remember { mutableStateOf(60) }
+    var isTimerActive by remember { mutableStateOf(false) }
+    var resendTrigger by remember { mutableStateOf(0) }
+
+    // Start a 60-second countdown whenever we transition into the code entry step,
+    // or when the user triggers a resend.
+    LaunchedEffect(awaitingCode, resendTrigger) {
+        if (awaitingCode) {
+            timerSeconds = 60
+            isTimerActive = true
+            while (timerSeconds > 0) {
+                kotlinx.coroutines.delay(1000)
+                timerSeconds--
+            }
+            isTimerActive = false
+        }
+    }
+
     // Fresh start each time this screen opens.
     LaunchedEffect(Unit) { authViewModel.resetPhoneVerify() }
 
@@ -87,13 +113,6 @@ fun PhoneVerificationScreen(
             }
         }
     }
-
-    // We're in the code-entry step once a code has been sent (stays there while
-    // verifying, and while showing a "wrong code" error so the field remains).
-    val awaitingCode = verifyState is PhoneVerifyState.CodeSent ||
-        verifyState is PhoneVerifyState.Verifying ||
-        (verifyState is PhoneVerifyState.Error && authViewModel.hasPendingCode())
-    val busy = verifyState is PhoneVerifyState.Sending || verifyState is PhoneVerifyState.Verifying
 
     Scaffold(
         topBar = {
@@ -190,6 +209,28 @@ fun PhoneVerificationScreen(
                     enabled = code.length == 6,
                     isLoading = busy
                 )
+                Spacer(Modifier.height(8.dp))
+                if (isTimerActive) {
+                    Text(
+                        text = "Resend code in ${timerSeconds}s",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        modifier = Modifier.padding(vertical = 12.dp)
+                    )
+                } else {
+                    TextButton(
+                        onClick = {
+                            val act = activity
+                            if (act != null) {
+                                authViewModel.startPhoneVerification(act, "+63$localDigits", mode)
+                                resendTrigger++
+                            }
+                        },
+                        enabled = !busy && activity != null
+                    ) {
+                        Text("Resend code", color = Color(0xFF00E6C3), fontWeight = FontWeight.Bold)
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
                 TextButton(
                     onClick = { authViewModel.resetPhoneVerify(); code = "" },
