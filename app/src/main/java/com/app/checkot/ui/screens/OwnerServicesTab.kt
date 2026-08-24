@@ -581,6 +581,30 @@ private fun ServiceRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.85f)
                 )
+
+                // Inline validation warnings
+                val isDescriptionBlank = config.description.isBlank()
+                val isPriceInvalid = (config.customPrice > 0.0 && config.customPrice < 150) ||
+                        config.customPrice > 5000 ||
+                        (config.isCustom && config.customPrice == 0.0)
+                val effectiveDuration = if (config.durationMinutes > 0) config.durationMinutes
+                                         else defaultDurationMinutes(config)
+                val isDurationInvalid = effectiveDuration < MIN_SERVICE_DURATION_MIN || effectiveDuration > MAX_SERVICE_DURATION_MIN
+
+                if (isDescriptionBlank || isPriceInvalid || isDurationInvalid) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        if (isDescriptionBlank) {
+                            Text("⚠️ Description is required", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (isPriceInvalid) {
+                            Text("⚠️ Price must be ₱150 - ₱5,000", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (isDurationInvalid) {
+                            Text("⚠️ Duration must be 20 - 180 mins", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
             }
             IconButton(onClick = onEdit) {
                 Icon(Icons.Default.Edit, contentDescription = "Edit ${config.displayName}", modifier = Modifier.size(18.dp), tint = Color.White)
@@ -622,38 +646,60 @@ private fun EditServiceDialog(
     var showDatePicker by remember { mutableStateOf(false) }
     val parsedDuration = remember(durationText) { BookingUtils.parseDurationMinutes(durationText) }
     val price = priceText.toDoubleOrNull()
-    val valid = (price != null && price > 0) && parsedDuration != null
+    val isPriceValid = price != null && price >= 150 && price <= 5000
+    val isDurationValid = parsedDuration != null && parsedDuration >= MIN_SERVICE_DURATION_MIN && parsedDuration <= MAX_SERVICE_DURATION_MIN
+    val isDescriptionValid = descriptionText.isNotBlank()
+    val valid = isPriceValid && isDurationValid && isDescriptionValid
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Edit ${service.displayName}") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = priceText,
-                    onValueChange = { priceText = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("Price (₱)") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = durationText,
-                    onValueChange = { durationText = it },
-                    label = { Text("Duration") },
-                    placeholder = { Text("e.g. 30 mins, 1 hour, 1.5 hours") },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = descriptionText,
-                    onValueChange = { descriptionText = it },
-                    label = { Text("Description") },
-                    minLines = 2,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Column {
+                    OutlinedTextField(
+                        value = priceText,
+                        onValueChange = { priceText = it.filter { c -> c.isDigit() || c == '.' } },
+                        label = { Text("Price (₱)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (priceText.isNotEmpty() && !isPriceValid) {
+                        Text("Price must be between ₱150 and ₱5,000", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+
+                Column {
+                    OutlinedTextField(
+                        value = durationText,
+                        onValueChange = { durationText = it },
+                        label = { Text("Duration") },
+                        placeholder = { Text("e.g. 30 mins, 1 hour, 1.5 hours") },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (durationText.isNotEmpty() && !isDurationValid) {
+                        Text("Duration must be between 20 and 180 mins", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+
+                Column {
+                    OutlinedTextField(
+                        value = descriptionText,
+                        onValueChange = { if (it.length <= MAX_SERVICE_DESCRIPTION_LEN) descriptionText = it },
+                        label = { Text("Description") },
+                        minLines = 2,
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (descriptionText.isBlank()) {
+                        Text("Description is required", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
@@ -703,7 +749,7 @@ private fun EditServiceDialog(
                         }
                     }
                 }
-                if (parsedDuration == null) {
+                if (durationText.isNotEmpty() && parsedDuration == null) {
                     Text(
                         "Enter a valid duration like \"30 mins\" or \"1.5 hours\".",
                         color = MaterialTheme.colorScheme.error,

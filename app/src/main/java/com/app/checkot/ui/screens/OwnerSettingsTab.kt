@@ -67,22 +67,7 @@ fun OwnerSettingsTab(
     val scope = rememberCoroutineScope()
     val maxServices = 15
 
-    // A price is invalid if below 150, above 5000, or 0.0 for custom services (no default)
-    val hasInvalidPrice = editedServices.any { config ->
-        (config.customPrice > 0.0 && config.customPrice < 150) ||
-        config.customPrice > 5000 ||
-        (config.isCustom && config.customPrice == 0.0)
-    }
-    // A duration is invalid if the field text is invalid, or the effective
-    // value (saved value, else the built-in default) is outside 20..180
-    val hasInvalidDuration = invalidDurationKeys.isNotEmpty() || editedServices.any { config ->
-        val effective = if (config.durationMinutes > 0) config.durationMinutes
-                        else defaultDurationMinutes(config)
-        effective < MIN_SERVICE_DURATION_MIN || effective > MAX_SERVICE_DURATION_MIN
-    }
     val bayCountChanged = bayCountText.toIntOrNull() != customization.bayCount
-    // Every service must have a description so clients know what it is.
-    val hasBlankDescription = editedServices.any { it.description.isBlank() }
 
     // Active bookings constrain how far hours can be narrowed — same spirit as
     // "can't delete a service that has active bookings". Opening can't move past
@@ -131,7 +116,6 @@ fun OwnerSettingsTab(
     val canSave = (editedServices != customization.services || bayCountChanged || hoursChanged ||
         closedDatesChanged || dayOverridesChanged || editedStaff != customization.staffNames ||
         shopNameChanged || shopAddressChanged) &&
-        !hasInvalidPrice && !hasInvalidDuration && !hasBlankDescription &&
         (!hoursChanged || hoursValid) && shopNameInput.trim().isNotEmpty() && shopAddressInput.trim().isNotEmpty()
 
     LaunchedEffect(customization) {
