@@ -24,9 +24,6 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    - name: Inject Google Maps API Key into local.properties
-      run: echo "MAPS_API_KEY=${{ secrets.MAPS_API_KEY }}" > local.properties
-
     - name: Inject Real google-services.json from GitHub Secrets (or dummy if empty)
       run: |
         mkdir -p app
@@ -51,8 +48,11 @@ jobs:
     - name: Run Unit Tests
       run: ./gradlew test
 
+    - name: Inject Google Maps API Key into local.properties
+      run: echo "MAPS_API_KEY=${{ secrets.MAPS_API_KEY }}" >> local.properties
+
     - name: Build Functional Debug APK
-      run: ./gradlew assembleDebug
+      run: ./gradlew clean assembleDebug
 
     - name: Upload Debug APK Artifact
       uses: actions/upload-artifact@v4
