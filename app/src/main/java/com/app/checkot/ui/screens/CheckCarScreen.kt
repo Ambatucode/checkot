@@ -252,15 +252,15 @@ fun CheckCarScreen(navController: NavController) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 280.dp)
+                        .aspectRatio(16f / 9f)
                         .clip(RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
                         bitmap = bmp.asImageBitmap(),
                         contentDescription = "Your car",
-                        modifier = Modifier.fillMaxWidth(),
-                        contentScale = ContentScale.Fit
+                        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(16.dp)),
+                        contentScale = ContentScale.Crop
                     )
                     if (phase == Phase.ANALYZING) {
                         Surface(
