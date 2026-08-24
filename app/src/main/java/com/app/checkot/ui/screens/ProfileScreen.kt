@@ -48,6 +48,7 @@ import com.app.checkot.ui.components.AppVersionFooter
 fun ProfileScreen(
     authViewModel: AuthViewModel = viewModel(),
     ownerViewModel: OwnerDashboardViewModel = viewModel(),
+    profileViewModel: ProfileViewModel = viewModel(),
     onLogout: () -> Unit,
     navController: NavController
 ) {
@@ -57,6 +58,12 @@ fun ProfileScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var isDeletingAccount by remember { mutableStateOf(false) }
     var deleteError by remember { mutableStateOf<String?>(null) }
+    
+    var showEditNameDialog by remember { mutableStateOf(false) }
+    var nameInput by remember { mutableStateOf(userData?.fullName ?: "") }
+    var isSavingName by remember { mutableStateOf(false) }
+    var saveNameError by remember { mutableStateOf<String?>(null) }
+
     val context = LocalContext.current
 
     // Logo state for owners — the logo lives in Firebase Storage now; we render
@@ -204,6 +211,75 @@ fun ProfileScreen(
                         deleteError = null
                     },
                     enabled = !isDeletingAccount
+                ) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showEditNameDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isSavingName) {
+                    showEditNameDialog = false
+                    saveNameError = null
+                }
+            },
+            title = { Text("Edit Full Name") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = nameInput,
+                        onValueChange = { nameInput = it },
+                        label = { Text("Full Name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        enabled = !isSavingName
+                    )
+                    if (saveNameError != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = saveNameError!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (nameInput.isBlank()) {
+                            saveNameError = "Name cannot be empty."
+                            return@TextButton
+                        }
+                        isSavingName = true
+                        saveNameError = null
+                        profileViewModel.updateUserProfile(mapOf("fullName" to nameInput)) { success, error ->
+                            isSavingName = false
+                            if (success) {
+                                showEditNameDialog = false
+                            } else {
+                                saveNameError = error ?: "Failed to save changes."
+                            }
+                        }
+                    },
+                    enabled = !isSavingName
+                ) {
+                    if (isSavingName) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                    } else {
+                        Text("Save")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showEditNameDialog = false
+                        saveNameError = null
+                    },
+                    enabled = !isSavingName
                 ) { Text("Cancel") }
             }
         )
@@ -616,7 +692,10 @@ fun ProfileScreen(
             item {
                 AppButton(
                     text = "Edit Profile",
-                    onClick = { navController.navigate("edit_profile") },
+                    onClick = {
+                        nameInput = userData?.fullName ?: ""
+                        showEditNameDialog = true
+                    },
                     icon = Icons.Default.Edit
                 )
             }
