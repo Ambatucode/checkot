@@ -42,6 +42,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import com.app.checkot.ui.components.BackTopAppBar
+import com.app.checkot.ui.components.AppVersionFooter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
@@ -701,6 +702,9 @@ fun ProfileScreen(
                         }
                     }
                 }
+            }
+            item {
+                AppVersionFooter()
             }
         }
     }

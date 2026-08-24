@@ -70,6 +70,14 @@ fun AdminDashboard(
                     IconButton(onClick = { adminViewModel.loadShops() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
+                    IconButton(
+                        onClick = { navController.navigate("profile") }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Profile"
+                        )
+                    }
                     IconButton(onClick = { showLogoutDialog = true }) {
                         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Logout")
                     }

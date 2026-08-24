@@ -6,6 +6,7 @@ import com.app.checkot.utils.*
 import com.app.checkot.service.*
 import com.app.checkot.ui.theme.CheckotCardSurface
 import com.app.checkot.ui.theme.CheckotTeal
+import com.app.checkot.ui.components.AppVersionFooter
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -515,6 +516,9 @@ fun OwnerSettingsTab(
                 }
             }
         }
+        }
+        item {
+            AppVersionFooter()
         }
         }
 

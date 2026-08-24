@@ -210,3 +210,24 @@ fun AnimatedStatusIcon(
         }
     )
 }
+
+/**
+ * A standard, centralized footer that displays the application version
+ * and code (e.g. "Checkot v1.4 (5)").
+ */
+@Composable
+fun AppVersionFooter(modifier: Modifier = Modifier) {
+    androidx.compose.foundation.layout.Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        contentAlignment = androidx.compose.ui.Alignment.Center
+    ) {
+        Text(
+            text = "Checkot v${com.app.checkot.BuildConfig.VERSION_NAME} (${com.app.checkot.BuildConfig.VERSION_CODE})",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+        )
+    }
+}
