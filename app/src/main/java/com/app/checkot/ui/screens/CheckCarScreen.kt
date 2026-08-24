@@ -42,6 +42,14 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
 import androidx.compose.foundation.border
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.EaseInOut
 
 // Phases of the check flow.
 private enum class Phase { IDLE, ANALYZING, RESULT, ERROR }
@@ -279,22 +287,26 @@ fun CheckCarScreen(navController: NavController) {
                 Spacer(Modifier.height(20.dp))
 
                 when (phase) {
-                    Phase.IDLE, Phase.ANALYZING -> {
+                    Phase.IDLE -> {
                         Button(
                             onClick = { analyze() },
-                            enabled = phase != Phase.ANALYZING,
                             modifier = Modifier.fillMaxWidth().height(52.dp)
                         ) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text(if (phase == Phase.ANALYZING) "Analyzing…" else "Analyze this photo")
+                            Text("Analyze this photo")
                         }
                         Spacer(Modifier.height(8.dp))
                         TextButton(
                             onClick = { reset() },
-                            enabled = phase != Phase.ANALYZING,
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("Choose a different photo") }
+                    }
+
+                    Phase.ANALYZING -> {
+                        VerdictCardSkeleton()
+                        Spacer(Modifier.height(12.dp))
+                        DisclaimerBannerSkeleton()
                     }
 
                     Phase.RESULT -> {
@@ -547,5 +559,126 @@ private fun getUriFileSize(context: Context, uri: Uri): Long {
         context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: 0L
     } catch (e: Exception) {
         0L
+    }
+}
+
+@Composable
+private fun VerdictCardSkeleton() {
+    val transition = rememberInfiniteTransition(label = "skeletonPulse")
+    val alpha by transition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.7f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = EaseInOut),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse"
+    )
+    val color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Icon placeholder
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(color)
+                )
+                Spacer(Modifier.width(12.dp))
+                // Verdict title placeholder
+                Box(
+                    modifier = Modifier
+                        .width(160.dp)
+                        .height(24.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(color)
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+            // Reason line 1 placeholder
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .height(16.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(color)
+            )
+            Spacer(Modifier.height(8.dp))
+            // Reason line 2 placeholder
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.6f)
+                    .height(16.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(color)
+            )
+        }
+    }
+}
+
+@Composable
+private fun DisclaimerBannerSkeleton() {
+    val transition = rememberInfiniteTransition(label = "bannerPulse")
+    val alpha by transition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.7f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = EaseInOut),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse"
+    )
+    val color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(color)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Box(
+                    modifier = Modifier
+                        .width(180.dp)
+                        .height(20.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(color)
+                )
+                Spacer(Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.95f)
+                        .height(14.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(color)
+                )
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .height(14.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(color)
+                )
+            }
+        }
     }
 }
