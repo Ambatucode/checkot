@@ -306,7 +306,8 @@ fun OwnerServicesTab(
                                     serviceName = type.name,
                                     displayName = type.displayName,
                                     customPrice = type.price,
-                                    durationMinutes = BookingUtils.parseDurationMinutes(type.duration)
+                                    durationMinutes = BookingUtils.parseDurationMinutes(type.duration),
+                                    description = type.defaultDescription
                                 )
                                 showAddDropdown = false
                             }

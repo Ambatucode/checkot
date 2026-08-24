@@ -84,19 +84,24 @@ data class Booking(
     // Server timestamp when the owner confirmed cash received. null = not yet.
     val paidAt: Long? = null
 )
-enum class ServiceType(val displayName: String, val price: Double, val duration: String) {
-    // Prices (₱) and durations below are sensible PLACEHOLDERS — tweak freely.
+enum class ServiceType(
+    val displayName: String,
+    val price: Double,
+    val duration: String,
+    val defaultDescription: String
+) {
+    // Prices (₱) and durations below are standardized — tweak freely.
     // The enum NAME (left side) is what's stored in Firestore; the displayName,
     // price, and duration are read generically everywhere, so changing values
     // here is safe. Duration strings must stay in the "30 mins" / "1 hour"
     // format the scheduler's parseDurationMinutes() understands.
-    EXTERIOR_WASH("Exterior Wash", 150.0, "30 mins"),
-    UNDERWASH("Underwash", 200.0, "30 mins"),
-    WAX("Wax", 350.0, "45 mins"),
-    INTERIOR_VACUUM("Interior Vacuum", 200.0, "30 mins"),
-    TIRE_SHINE("Tire Shine", 100.0, "15 mins"),
-    ENGINE_WASH("Engine Wash", 500.0, "1 hour"),
-    CUSTOM("Custom Service", 0.0, "N/A")
+    EXTERIOR_WASH("Exterior Wash", 150.0, "30 mins", "Complete exterior wash and dry."),
+    UNDERWASH("Underwash", 200.0, "30 mins", "High-pressure chassis and undercarriage wash."),
+    WAX("Wax", 350.0, "45 mins", "Premium hand wax and polish."),
+    INTERIOR_VACUUM("Interior Vacuum", 200.0, "30 mins", "Deep vacuum cleaning of seats, carpets, and mats."),
+    TIRE_SHINE("Tire Shine", 150.0, "30 mins", "Tire cleaning and premium dressing for a deep shine."),
+    ENGINE_WASH("Engine Wash", 500.0, "1 hour", "Professional engine bay detailing and wash."),
+    CUSTOM("Custom Service", 0.0, "N/A", "")
 }
 enum class BookingStatus(val displayName: String) {
     PENDING("Pending"),
