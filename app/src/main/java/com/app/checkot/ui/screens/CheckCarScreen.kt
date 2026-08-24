@@ -88,8 +88,14 @@ fun CheckCarScreen(navController: NavController) {
     ) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
-                val bmp = withContext(Dispatchers.IO) { decodeSampledBitmap(context, uri) }
-                onPhotoChosen(bmp)
+                val size = withContext(Dispatchers.IO) { getUriFileSize(context, uri) }
+                if (size > 10 * 1024 * 1024) { // 10MB limit
+                    error = "The selected image is larger than 10MB. Please select a smaller photo."
+                    phase = Phase.ERROR
+                } else {
+                    val bmp = withContext(Dispatchers.IO) { decodeSampledBitmap(context, uri) }
+                    onPhotoChosen(bmp)
+                }
             }
         }
     }
@@ -440,12 +446,14 @@ private fun DisclaimerBanner() {
 
 @Composable
 private fun VerdictCard(verdict: String, reason: String) {
+    val displayVerdict = if (verdict == "Photo unclear") "Photo Unclear / Retake Photo" else verdict
     val (container, content, icon) = verdictStyle(verdict)
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .then(
                 if (verdict == "Needs a wash") Modifier.border(1.dp, Color(0xFF7F1D1D), MaterialTheme.shapes.medium)
+                else if (verdict == "Photo unclear") Modifier.border(1.dp, Color(0xFFD4AF37), MaterialTheme.shapes.medium)
                 else Modifier
             ),
         colors = CardDefaults.cardColors(containerColor = container)
@@ -455,7 +463,7 @@ private fun VerdictCard(verdict: String, reason: String) {
                 Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(28.dp))
                 Spacer(Modifier.width(12.dp))
                 Text(
-                    verdict,
+                    displayVerdict,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = content
@@ -486,6 +494,9 @@ private fun verdictStyle(verdict: String): Triple<Color, Color, ImageVector> = w
     "Needs a wash" -> Triple(
         Color(0xFF2A1215), Color(0xFFFF8080), Icons.Default.LocalCarWash
     )
+    "Photo unclear" -> Triple(
+        Color(0xFFFFFDE7), Color(0xFF424242), Icons.Default.WarningAmber
+    )
     else -> Triple( // "Not a car" / unknown
         MaterialTheme.colorScheme.surfaceVariant,
         MaterialTheme.colorScheme.onSurfaceVariant,
@@ -497,7 +508,7 @@ private fun verdictStyle(verdict: String): Triple<Color, Color, ImageVector> = w
 
 // Decodes a gallery Uri to a memory-safe software bitmap (two-pass so a huge
 // phone photo never OOMs), capped near [reqDim] on its longest side.
-private fun decodeSampledBitmap(context: Context, uri: Uri, reqDim: Int = 1024): Bitmap? {
+private fun decodeSampledBitmap(context: Context, uri: Uri, reqDim: Int = 1920): Bitmap? {
     val resolver = context.contentResolver
     return try {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -513,7 +524,7 @@ private fun decodeSampledBitmap(context: Context, uri: Uri, reqDim: Int = 1024):
 }
 
 // Scales down to [maxDim] and encodes as a base64 JPEG for the function payload.
-private fun encodeToBase64Jpeg(bitmap: Bitmap, maxDim: Int = 1024, quality: Int = 80): String {
+private fun encodeToBase64Jpeg(bitmap: Bitmap, maxDim: Int = 1920, quality: Int = 80): String {
     val longest = max(bitmap.width, bitmap.height)
     val scaled = if (longest > maxDim) {
         val ratio = maxDim.toFloat() / longest
@@ -528,4 +539,13 @@ private fun encodeToBase64Jpeg(bitmap: Bitmap, maxDim: Int = 1024, quality: Int 
     scaled.compress(Bitmap.CompressFormat.JPEG, quality, baos)
     if (scaled !== bitmap) scaled.recycle()
     return Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+}
+
+// Reads the file size of a gallery Uri in bytes.
+private fun getUriFileSize(context: Context, uri: Uri): Long {
+    return try {
+        context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: 0L
+    } catch (e: Exception) {
+        0L
+    }
 }
