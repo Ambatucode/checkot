@@ -174,6 +174,13 @@ fun PhoneVerificationScreen(
                         imeAction = ImeAction.Done
                     )
                 )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "ℹ Firebase SMS gateway works best with Globe, Smart, TM, and TNT. GOMO/DITO numbers may experience delivery delays due to gateway routing.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    textAlign = TextAlign.Center
+                )
                 val validNumber = localDigits.length == 10 && localDigits.startsWith("9")
                 Spacer(Modifier.height(24.dp))
                 AppButton(
