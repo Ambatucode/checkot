@@ -62,6 +62,7 @@ fun ProfileScreen(
     // Logo state for owners — the logo lives in Firebase Storage now; we render
     // it straight from its download URL via Coil (no base64 decode needed).
     val isOwner = userData?.role == "owner"
+    val isClient = userData?.role == "client"
     var logoError by remember { mutableStateOf<String?>(null) }
     var isSavingLogo by remember { mutableStateOf(false) }
     val shopCustomization by ownerViewModel.shopCustomization.collectAsState()
@@ -520,7 +521,7 @@ fun ProfileScreen(
             }
             item {
                 // Client-only navigation rows
-                if (!isOwner) {
+                if (isClient) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = com.app.checkot.ui.theme.CheckotCardSurface),
