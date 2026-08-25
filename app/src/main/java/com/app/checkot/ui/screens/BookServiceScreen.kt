@@ -468,6 +468,7 @@ fun BookServiceScreen(
         selectedServiceConfigs.isNotEmpty() && selectedCar != null && selectedTimeSlot.isNotEmpty()
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
