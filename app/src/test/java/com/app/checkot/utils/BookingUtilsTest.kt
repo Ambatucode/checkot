@@ -228,4 +228,33 @@ class BookingUtilsTest {
         assertFalse(BookingUtils.hasFreeBay(ranges, start = 0, end = 30)) // bay0 busy...
         assertTrue(BookingUtils.hasFreeBay(ranges, start = 45, end = 60)) // ...but a gap exists in bay0
     }
+
+    // ---- utcMidnightToLocalMidnight ----
+    @Test
+    fun `utcMidnightToLocalMidnight parses utc millis and outputs local timezone midnight`() {
+        val calUtc = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+            set(2026, java.util.Calendar.AUGUST, 25, 0, 0, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val utcMillis = calUtc.timeInMillis
+        val localMidnight = BookingUtils.utcMidnightToLocalMidnight(utcMillis)
+
+        val calLocal = java.util.Calendar.getInstance()
+        calLocal.timeInMillis = localMidnight
+        assertEquals(2026, calLocal.get(java.util.Calendar.YEAR))
+        assertEquals(java.util.Calendar.AUGUST, calLocal.get(java.util.Calendar.MONTH))
+        assertEquals(25, calLocal.get(java.util.Calendar.DAY_OF_MONTH))
+        assertEquals(0, calLocal.get(java.util.Calendar.HOUR_OF_DAY))
+        assertEquals(0, calLocal.get(java.util.Calendar.MINUTE))
+        assertEquals(0, calLocal.get(java.util.Calendar.SECOND))
+        assertEquals(0, calLocal.get(java.util.Calendar.MILLISECOND))
+    }
+
+    // ---- parseTimeSlotToMinutes ----
+    @Test
+    fun `parseTimeSlotToMinutes parses slot strings to minutes since midnight`() {
+        assertEquals(540, BookingUtils.parseTimeSlotToMinutes("09:00 AM"))
+        assertEquals(810, BookingUtils.parseTimeSlotToMinutes("01:30 PM"))
+        assertEquals(0, BookingUtils.parseTimeSlotToMinutes("invalid"))
+    }
 }

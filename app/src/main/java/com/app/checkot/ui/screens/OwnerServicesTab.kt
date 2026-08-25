@@ -1025,7 +1025,7 @@ private fun UnavailableDatePickerDialog(
         confirmButton = {
             TextButton(onClick = {
                 val millis = state.selectedDateMillis
-                if (millis != null) onAdd(BookingUtils.startOfDay(millis))
+                if (millis != null) onAdd(BookingUtils.utcMidnightToLocalMidnight(millis))
             }) { Text("OK") }
         },
         dismissButton = {

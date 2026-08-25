@@ -484,7 +484,11 @@ fun BookingCard(
             .addSnapshotListener { snapshot, error ->
                 if (error != null || snapshot == null) return@addSnapshotListener
                 val bookings = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
-                val sorted = bookings.sortedBy { it.createdAt }
+                val sorted = bookings.sortedWith(
+                    compareBy<Booking> { it.status != com.app.checkot.model.BookingStatus.IN_PROGRESS }
+                        .thenBy { com.app.checkot.utils.BookingUtils.parseTimeSlotToMinutes(it.timeSlot) }
+                        .thenBy { it.createdAt }
+                )
                 val index = sorted.indexOfFirst { it.bookingId == booking.bookingId }
                 val position = if (index != -1) index + 1 else -1
                 val ahead = if (index > 0) sorted.subList(0, index) else emptyList()

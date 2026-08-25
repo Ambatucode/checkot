@@ -255,7 +255,12 @@ fun BookServiceScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        selectedDate = datePickerState.selectedDateMillis ?: System.currentTimeMillis()
+                        val rawDate = datePickerState.selectedDateMillis
+                        selectedDate = if (rawDate != null) {
+                            com.app.checkot.utils.BookingUtils.utcMidnightToLocalMidnight(rawDate)
+                        } else {
+                            com.app.checkot.utils.BookingUtils.startOfDay(System.currentTimeMillis())
+                        }
                         showDatePicker.value = false
                     }
                 ) {

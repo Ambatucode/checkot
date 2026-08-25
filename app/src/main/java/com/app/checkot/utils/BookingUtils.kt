@@ -24,6 +24,31 @@ object BookingUtils {
         return h to m
     }
 
+    /** Parses a "hh:mm AM/PM" slot label into minutes since midnight (e.g., "09:00 AM" -> 540). */
+    fun parseTimeSlotToMinutes(slot: String): Int {
+        val hm = runCatching { parseTimeSlotToHourMinute(slot) }.getOrNull()
+        return if (hm != null) hm.first * 60 + hm.second else 0
+    }
+
+    /** Converts a UTC midnight timestamp to a local timezone midnight timestamp. */
+    fun utcMidnightToLocalMidnight(utcMillis: Long): Long {
+        val calUtc = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
+        calUtc.timeInMillis = utcMillis
+        val year = calUtc.get(java.util.Calendar.YEAR)
+        val month = calUtc.get(java.util.Calendar.MONTH)
+        val day = calUtc.get(java.util.Calendar.DAY_OF_MONTH)
+
+        val calLocal = java.util.Calendar.getInstance()
+        calLocal.set(java.util.Calendar.YEAR, year)
+        calLocal.set(java.util.Calendar.MONTH, month)
+        calLocal.set(java.util.Calendar.DAY_OF_MONTH, day)
+        calLocal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        calLocal.set(java.util.Calendar.MINUTE, 0)
+        calLocal.set(java.util.Calendar.SECOND, 0)
+        calLocal.set(java.util.Calendar.MILLISECOND, 0)
+        return calLocal.timeInMillis
+    }
+
     /** Minutes since 09:00 (the start of the booking day) for a "hh:mm AM/PM" slot label. */
     fun parseTimeSlotToMinutesSince9AM(slot: String): Int {
         val (h, m) = parseTimeSlotToHourMinute(slot)

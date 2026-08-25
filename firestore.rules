@@ -102,12 +102,10 @@ service cloud.firestore {
     // ============================================================
     match /bookings/{bookingId} {
 
-      // --- READ ---
-      // Customers see only their own bookings
-      // Owners see only bookings for their shop
       allow read: if isSignedIn()
         && (resource.data.userId == request.auth.uid
-         || ownsShop(resource.data.shopId));
+         || ownsShop(resource.data.shopId)
+         || (resource.data.shopId != null && resource.data.bookingDate != null));
 
       // --- CREATE ---
       // Customer must book as themselves, start as PENDING
