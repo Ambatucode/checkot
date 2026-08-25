@@ -38,6 +38,7 @@ import com.app.checkot.ui.components.BackTopAppBar
 import com.app.checkot.ui.components.ShopLogo
 import com.app.checkot.ui.components.DetailRow
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -467,16 +468,6 @@ fun BookServiceScreen(
         selectedServiceConfigs.isNotEmpty() && selectedCar != null && selectedTimeSlot.isNotEmpty()
 
     Scaffold(
-        topBar = {
-            BackTopAppBar(
-                title = "Book Car Wash",
-                onBack = {
-                    if (navController.previousBackStackEntry != null) {
-                        navController.popBackStack(Screen.Home.route, inclusive = false)
-                    }
-                }
-            )
-        },
         bottomBar = {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -598,137 +589,199 @@ fun BookServiceScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(
+                    bottom = paddingValues.calculateBottomPadding()
+                )
         ) {
-            // Stepper
-            LinearProgressIndicator(
-                progress = { step / 4f },
-                modifier = Modifier.fillMaxWidth()
-            )
             LazyColumn(
                 modifier = Modifier
-                    .weight(1f)
-                    .padding(16.dp),
+                    .weight(1f),
                 contentPadding = PaddingValues(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Shop header — always a cover: the banner if the owner set one,
-                // else a branded teal→navy placeholder, with the logo + name
-                // overlaid. The logo is tappable so clients can view it larger.
                 item {
+                    val logoSize = 80.dp
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(120.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .then(
-                                if (shopBannerUrl.isBlank())
-                                    Modifier.background(
-                                        Brush.linearGradient(
-                                            listOf(Color(0xFF00BFA5), Color(0xFF0D2B35))
-                                        )
-                                    )
-                                else Modifier
-                            )
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        if (shopBannerUrl.isNotBlank()) {
-                            AsyncImage(
-                                model = shopBannerUrl,
-                                contentDescription = "Shop banner",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                        // Bottom scrim keeps the logo/name legible over any image.
+                        // 180.dp Banner (edge-to-edge)
                         Box(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.verticalGradient(
-                                        0.45f to Color.Transparent,
-                                        1f to Color.Black.copy(alpha = 0.55f)
-                                    )
+                                .fillMaxWidth()
+                                .height(180.dp)
+                                .then(
+                                    if (shopBannerUrl.isBlank())
+                                        Modifier.background(
+                                            Brush.linearGradient(
+                                                listOf(Color(0xFF00BFA5), Color(0xFF0D2B35))
+                                            )
+                                        )
+                                    else Modifier
                                 )
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .align(Alignment.BottomStart)
-                                .padding(12.dp)
                         ) {
-                            ShopLogo(
-                                logoUrl = shopLogoUrl,
-                                size = 48.dp,
-                                modifier = Modifier.clickable { showLogoViewer = true }
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = shopDisplayName,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold
+                            if (shopBannerUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model = shopBannerUrl,
+                                    contentDescription = "Shop banner",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
                                 )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.clickable { showShopInfoSheet = true }
+                            }
+                            // Scrim
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            0.45f to Color.Transparent,
+                                            1f to Color.Black.copy(alpha = 0.45f)
+                                        )
+                                    )
+                            )
+                            // Floating back and info buttons (statusBarsPadding-aligned)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .statusBarsPadding()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        if (navController.previousBackStackEntry != null) {
+                                            navController.popBackStack(Screen.Home.route, inclusive = false)
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(Color.White, shape = RoundedCornerShape(50))
                                 ) {
-                                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "View Map >",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color.White
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowBack,
+                                        contentDescription = "Back",
+                                        tint = Color.Black,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                
+                                IconButton(
+                                    onClick = { showShopInfoSheet = true },
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(Color.White, shape = RoundedCornerShape(50))
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = "Shop Info",
+                                        tint = Color.Black,
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }
                         }
-                        IconButton(
-                            onClick = { showShopInfoSheet = true },
+
+                        // Logo overlapping
+                        Box(
                             modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(8.dp)
-                                .background(Color.Black.copy(alpha = 0.4f), shape = RoundedCornerShape(50))
-                                .size(36.dp)
+                                .align(Alignment.BottomCenter)
+                                .offset(y = logoSize / 2)
                         ) {
-                            Icon(Icons.Default.LocationOn, contentDescription = "Shop Info", tint = Color.White, modifier = Modifier.size(18.dp))
+                            ShopLogo(
+                                logoUrl = shopLogoUrl,
+                                size = logoSize,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .border(4.dp, MaterialTheme.colorScheme.surface, RoundedCornerShape(50))
+                                    .clickable { showLogoViewer = true }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(logoSize / 2 + 16.dp))
+                }
+
+                // Shop details on solid background surface (high contrast)
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = shopDisplayName,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            val ratingInfo = shopRating
+                            if (ratingInfo != null) {
+                                Icon(
+                                    Icons.Default.Star,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFFB300),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "%.1f (%d review%s)".format(
+                                        ratingInfo.first,
+                                        ratingInfo.second,
+                                        if (ratingInfo.second == 1) "" else "s"
+                                    ),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                            }
+                            
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable { showShopInfoSheet = true }
+                            ) {
+                                Icon(
+                                    Icons.Default.LocationOn,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "View Map >",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
                 }
-                // Shop rating — shown under the shop header.
-                val ratingInfo = shopRating
-                if (ratingInfo != null) {
-                    item {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Star,
-                                contentDescription = null,
-                                tint = Color(0xFFFFB300),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "%.1f (%d review%s)".format(
-                                    ratingInfo.first,
-                                    ratingInfo.second,
-                                    if (ratingInfo.second == 1) "" else "s"
-                                ),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                            )
-                        }
-                    }
+
+                // Stepper right below header details
+                item {
+                    LinearProgressIndicator(
+                        progress = { step / 4f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    )
                 }
 
                 // Step 1: Select Service
                 if (step >= 1) {
                     item {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
@@ -745,7 +798,7 @@ fun BookServiceScreen(
                     if (droppedNotice != null) {
                         item {
                             Card(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.tertiaryContainer
                                 )
@@ -766,7 +819,7 @@ fun BookServiceScreen(
                     if (shopClosedOnSelected) {
                         item {
                             Card(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                                 )
@@ -803,7 +856,7 @@ fun BookServiceScreen(
                     if (activeOverride != null && !shopClosedOnSelected) {
                         item {
                             Card(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.secondaryContainer
                                 )
@@ -829,7 +882,7 @@ fun BookServiceScreen(
                     if (servicesLoadError != null) {
                         item {
                             Card(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.errorContainer
                                 )
@@ -849,7 +902,7 @@ fun BookServiceScreen(
                     } else if (availableServices.isEmpty() && !loadingServices) {
                         item {
                             Card(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                                 )
@@ -891,22 +944,24 @@ fun BookServiceScreen(
                                                else avail.serviceType?.price ?: 0.0
                             val displayName = if (avail.config.isCustom) avail.config.customName
                                               else avail.config.displayName
-                            ShopServiceSelectionCard(
-                                name = displayName,
-                                price = displayPrice,
-                                description = avail.config.description,
-                                isSelected = isSelected,
-                                unavailable = isUnavailable,
-                                onSelect = {
-                                    if (!isUnavailable) {
-                                        selectedServiceConfigs = if (isSelected) {
-                                            selectedServiceConfigs - avail.config.serviceName
-                                        } else {
-                                            selectedServiceConfigs + avail.config.serviceName
+                            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                ShopServiceSelectionCard(
+                                    name = displayName,
+                                    price = displayPrice,
+                                    description = avail.config.description,
+                                    isSelected = isSelected,
+                                    unavailable = isUnavailable,
+                                    onSelect = {
+                                        if (!isUnavailable) {
+                                            selectedServiceConfigs = if (isSelected) {
+                                                selectedServiceConfigs - avail.config.serviceName
+                                            } else {
+                                                selectedServiceConfigs + avail.config.serviceName
+                                            }
                                         }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
@@ -917,13 +972,13 @@ fun BookServiceScreen(
                             text = "Step 2: Select Car",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 16.dp)
+                            modifier = Modifier.padding(top = 16.dp).padding(horizontal = 16.dp)
                         )
                     }
                     if (savedCars.isEmpty()) {
                         item {
                             Card(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.secondaryContainer
                                 )
@@ -946,11 +1001,13 @@ fun BookServiceScreen(
                         }
                     } else {
                         items(savedCars, key = { it.carId }) { car ->
-                            CarSelectionCard(
-                                car = car,
-                                isSelected = selectedCar?.carId == car.carId,
-                                onSelect = { selectedCar = car }
-                            )
+                            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                CarSelectionCard(
+                                    car = car,
+                                    isSelected = selectedCar?.carId == car.carId,
+                                    onSelect = { selectedCar = car }
+                                )
+                            }
                         }
                     }
                 }
@@ -961,7 +1018,7 @@ fun BookServiceScreen(
                             text = "Step 3: Select Date & Time",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 16.dp)
+                            modifier = Modifier.padding(top = 16.dp).padding(horizontal = 16.dp)
                         )
                     }
                     // Date strip — rendered as a composable Column inside item{} so
@@ -984,8 +1041,8 @@ fun BookServiceScreen(
                         Column {
                             androidx.compose.foundation.lazy.LazyRow(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
+                                    .fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 items(dates) { date ->
@@ -1031,7 +1088,7 @@ fun BookServiceScreen(
                         Text(
                             text = "Available Time Slots",
                             style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(vertical = 8.dp)
+                            modifier = Modifier.padding(vertical = 8.dp).padding(horizontal = 16.dp)
                         )
                     }
                     // Time slot grid — rendered as a regular Column+FlowRow equivalent
@@ -1039,6 +1096,7 @@ fun BookServiceScreen(
                     item {
                         val slotRows = availableTimeSlots.chunked(3)
                         Column(
+                            modifier = Modifier.padding(horizontal = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             for (row in slotRows) {
@@ -1101,7 +1159,7 @@ fun BookServiceScreen(
                             text = "Step 4: Additional Notes",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 16.dp)
+                            modifier = Modifier.padding(top = 16.dp).padding(horizontal = 16.dp)
                         )
                     }
                     item {
@@ -1113,7 +1171,7 @@ fun BookServiceScreen(
                                 }
                             },
                             label = { Text("Special requests or notes (Optional)") },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                             minLines = 3,
                             maxLines = 5
                         )
@@ -1128,7 +1186,7 @@ fun BookServiceScreen(
                             else it.serviceType?.price ?: 0.0
                         }
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer
                             )
