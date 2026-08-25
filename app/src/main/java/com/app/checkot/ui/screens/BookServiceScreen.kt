@@ -89,7 +89,7 @@ fun BookServiceScreen(
     var shopBannerUrl by remember { mutableStateOf("") }
     var showLogoViewer by remember { mutableStateOf(false) }
     var showShopInfoSheet by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
     // Dates the whole shop is closed — clients can't book these.
     var shopClosedDates by remember { mutableStateOf(emptyList<Long>()) }
@@ -384,7 +384,7 @@ fun BookServiceScreen(
             onDismissRequest = { showShopInfoSheet = false },
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.surface,
-            sheetGesturesEnabled = false,
+            sheetGesturesEnabled = true,
             modifier = Modifier.nestedScroll(nestedScrollConnection)
         ) {
             LazyColumn(
