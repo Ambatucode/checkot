@@ -71,7 +71,7 @@ fun ProfileScreen(
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             try {
-                val url = java.net.URL("https://api.github.com/repos/Ambatucode/checkot/releases/latest")
+                val url = java.net.URL("https://api.github.com/repos/Ambatucode/checkot/releases")
                 val connection = url.openConnection() as java.net.HttpURLConnection
                 connection.requestMethod = "GET"
                 connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
@@ -81,28 +81,42 @@ fun ProfileScreen(
                 
                 if (connection.responseCode == 200) {
                     val response = connection.inputStream.bufferedReader().use { it.readText() }
-                    val json = org.json.JSONObject(response)
-                    val tagName = json.optString("tag_name", "")
-                    val htmlUrl = json.optString("html_url", "")
-                    val assets = json.optJSONArray("assets")
+                    val jsonArray = org.json.JSONArray(response)
                     
-                    var apkUrl = htmlUrl
-                    if (assets != null) {
-                        for (i in 0 until assets.length()) {
-                            val asset = assets.getJSONObject(i)
-                            val name = asset.optString("name", "")
-                            if (name.endsWith(".apk", ignoreCase = true)) {
-                                apkUrl = asset.optString("browser_download_url", htmlUrl)
-                                break
+                    var latestTagName = ""
+                    var latestDownloadUrl = ""
+                    
+                    for (i in 0 until jsonArray.length()) {
+                        val release = jsonArray.getJSONObject(i)
+                        val tagName = release.optString("tag_name", "")
+                        
+                        // Ignore automated build-XX tags; find the latest manual version tag
+                        if (tagName.startsWith("v", ignoreCase = true)) {
+                            latestTagName = tagName
+                            val htmlUrl = release.optString("html_url", "")
+                            val assets = release.optJSONArray("assets")
+                            
+                            var apkUrl = htmlUrl
+                            if (assets != null) {
+                                for (j in 0 until assets.length()) {
+                                    val asset = assets.getJSONObject(j)
+                                    val name = asset.optString("name", "")
+                                    if (name.endsWith(".apk", ignoreCase = true)) {
+                                        apkUrl = asset.optString("browser_download_url", htmlUrl)
+                                        break
+                                    }
+                                }
                             }
+                            latestDownloadUrl = apkUrl
+                            break // Stop scanning once the newest versioned release is found
                         }
                     }
                     
                     val currentVersion = com.app.checkot.BuildConfig.VERSION_NAME
-                    if (tagName.isNotBlank() && isUpdateAvailable(currentVersion, tagName)) {
+                    if (latestTagName.isNotBlank() && isUpdateAvailable(currentVersion, latestTagName)) {
                         withContext(Dispatchers.Main) {
-                            updateAvailableVersion = tagName
-                            updateDownloadUrl = apkUrl
+                            updateAvailableVersion = latestTagName
+                            updateDownloadUrl = latestDownloadUrl
                         }
                     }
                 }
