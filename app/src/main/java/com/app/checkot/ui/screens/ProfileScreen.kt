@@ -13,6 +13,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -63,6 +64,53 @@ fun ProfileScreen(
     var nameInput by remember { mutableStateOf(userData?.fullName ?: "") }
     var isSavingName by remember { mutableStateOf(false) }
     var saveNameError by remember { mutableStateOf<String?>(null) }
+
+    var updateAvailableVersion by remember { mutableStateOf<String?>(null) }
+    var updateDownloadUrl by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            try {
+                val url = java.net.URL("https://api.github.com/repos/Ambatucode/checkot/releases/latest")
+                val connection = url.openConnection() as java.net.HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
+                connection.setRequestProperty("User-Agent", "checkot-app")
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+                
+                if (connection.responseCode == 200) {
+                    val response = connection.inputStream.bufferedReader().use { it.readText() }
+                    val json = org.json.JSONObject(response)
+                    val tagName = json.optString("tag_name", "")
+                    val htmlUrl = json.optString("html_url", "")
+                    val assets = json.optJSONArray("assets")
+                    
+                    var apkUrl = htmlUrl
+                    if (assets != null) {
+                        for (i in 0 until assets.length()) {
+                            val asset = assets.getJSONObject(i)
+                            val name = asset.optString("name", "")
+                            if (name.endsWith(".apk", ignoreCase = true)) {
+                                apkUrl = asset.optString("browser_download_url", htmlUrl)
+                                break
+                            }
+                        }
+                    }
+                    
+                    val currentVersion = com.app.checkot.BuildConfig.VERSION_NAME
+                    if (tagName.isNotBlank() && isUpdateAvailable(currentVersion, tagName)) {
+                        withContext(Dispatchers.Main) {
+                            updateAvailableVersion = tagName
+                            updateDownloadUrl = apkUrl
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 
     val context = LocalContext.current
 
@@ -301,6 +349,69 @@ fun ProfileScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(16.dp)
         ) {
+            if (updateAvailableVersion != null && updateDownloadUrl != null) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        ),
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.SystemUpdate,
+                                    contentDescription = "New update available",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Update Available (${updateAvailableVersion})",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "A newer version of the Checkot app is available for download. Get the latest fixes and features now.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Button(
+                                    onClick = {
+                                        val intent = android.content.Intent(
+                                            android.content.Intent.ACTION_VIEW,
+                                            Uri.parse(updateDownloadUrl)
+                                        )
+                                        context.startActivity(intent)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
+                                    ),
+                                    shape = RoundedCornerShape(20.dp),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                    modifier = Modifier.height(36.dp)
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Download APK", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             item {
                 // Profile Picture — clean teal-ringed avatar
                 Surface(
@@ -859,4 +970,22 @@ private suspend fun processSelectedLogo(
             }
         }
     }
+}
+
+private fun isUpdateAvailable(current: String, latestTag: String): Boolean {
+    val cleanLatest = latestTag.trim()
+        .replace(Regex("^v"), "")
+        .split("-")[0]
+    
+    val currentParts = current.split(".")
+    val latestParts = cleanLatest.split(".")
+    
+    val length = maxOf(currentParts.size, latestParts.size)
+    for (i in 0 until length) {
+        val currentVal = currentParts.getOrNull(i)?.toIntOrNull() ?: 0
+        val latestVal = latestParts.getOrNull(i)?.toIntOrNull() ?: 0
+        if (latestVal > currentVal) return true
+        if (currentVal > latestVal) return false
+    }
+    return false
 }
