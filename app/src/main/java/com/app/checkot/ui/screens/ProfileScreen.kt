@@ -93,21 +93,7 @@ fun ProfileScreen(
                         // Ignore automated build-XX tags; find the latest manual version tag
                         if (tagName.startsWith("v", ignoreCase = true)) {
                             latestTagName = tagName
-                            val htmlUrl = release.optString("html_url", "")
-                            val assets = release.optJSONArray("assets")
-                            
-                            var apkUrl = htmlUrl
-                            if (assets != null) {
-                                for (j in 0 until assets.length()) {
-                                    val asset = assets.getJSONObject(j)
-                                    val name = asset.optString("name", "")
-                                    if (name.endsWith(".apk", ignoreCase = true)) {
-                                        apkUrl = asset.optString("browser_download_url", htmlUrl)
-                                        break
-                                    }
-                                }
-                            }
-                            latestDownloadUrl = apkUrl
+                            latestDownloadUrl = release.optString("html_url", "")
                             break // Stop scanning once the newest versioned release is found
                         }
                     }
@@ -407,7 +393,7 @@ fun ProfileScreen(
                                 )
                             ) {
                                 Text(
-                                    text = "Download",
+                                    text = "Update",
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold
                                 )
