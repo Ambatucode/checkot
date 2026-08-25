@@ -47,6 +47,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.Velocity
 import com.app.checkot.viewmodel.PhoneVerifyState
 import coil.compose.AsyncImage
 
@@ -358,11 +363,28 @@ fun BookServiceScreen(
         }
     }
 
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                return Offset(x = 0f, y = available.y)
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                return Velocity(x = 0f, y = available.y)
+            }
+        }
+    }
+
     if (showShopInfoSheet) {
         ModalBottomSheet(
             onDismissRequest = { showShopInfoSheet = false },
             sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.nestedScroll(nestedScrollConnection)
         ) {
             LazyColumn(
                 modifier = Modifier
