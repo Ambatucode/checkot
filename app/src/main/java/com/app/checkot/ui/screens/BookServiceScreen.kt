@@ -364,101 +364,110 @@ fun BookServiceScreen(
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.surface
         ) {
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = shopDisplayName,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+                item {
+                    Text(
+                        text = shopDisplayName,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
                 
                 // Map and Address
                 if (shopLatitude != 0.0 || shopLongitude != 0.0) {
-                    // ShopLocationView already includes its own Get Directions button
-                    com.app.checkot.ui.components.ShopLocationView(
-                        latitude = shopLatitude,
-                        longitude = shopLongitude,
-                        shopName = shopDisplayName
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    item {
+                        com.app.checkot.ui.components.ShopLocationView(
+                            latitude = shopLatitude,
+                            longitude = shopLongitude,
+                            shopName = shopDisplayName
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
                 }
                 
                 // Store Hours
-                Text(
-                    text = "Store Hours",
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
+                item {
                     Text(
-                        text = "${BookingUtils.minutesToSlotLabel(shopOpenMinutes)} - ${BookingUtils.minutesToSlotLabel(shopCloseMinutes)}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Reviews
-                if (shopReviews.isNotEmpty()) {
-                    Text(
-                        text = "Reviews (${shopReviews.size})",
+                        text = "Store Hours",
                         style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LazyColumn(modifier = Modifier.fillMaxHeight(0.6f)) {
-                        items(shopReviews) { review ->
-                            Card(
+                      )
+                      Spacer(modifier = Modifier.height(4.dp))
+                      Row(verticalAlignment = Alignment.CenterVertically) {
+                          Icon(Icons.Default.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                          Spacer(modifier = Modifier.width(6.dp))
+                          Text(
+                              text = "${BookingUtils.minutesToSlotLabel(shopOpenMinutes)} - ${BookingUtils.minutesToSlotLabel(shopCloseMinutes)}",
+                              style = MaterialTheme.typography.bodyMedium
+                          )
+                      }
+                      Spacer(modifier = Modifier.height(16.dp))
+                }
+                
+                // Reviews Header
+                item {
+                    if (shopReviews.isNotEmpty()) {
+                        Text(
+                            text = "Reviews (${shopReviews.size})",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    } else {
+                        Text(
+                            text = "No reviews yet.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                }
+                
+                // Reviews Items
+                if (shopReviews.isNotEmpty()) {
+                    items(shopReviews) { review ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                                    .padding(12.dp)
                             ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(12.dp)
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        repeat(review.rating) {
-                                            Icon(
-                                                Icons.Default.Star,
-                                                contentDescription = null,
-                                                tint = Color(0xFFFFB300),
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.weight(1f))
-                                        Text(
-                                            text = "${review.userName.split(" ").first()} · " +
-                                                DateUtils.formatDate(review.createdAt),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    repeat(review.rating) {
+                                        Icon(
+                                            Icons.Default.Star,
+                                            contentDescription = null,
+                                            tint = Color(0xFFFFB300),
+                                            modifier = Modifier.size(14.dp)
                                         )
                                     }
-                                    if (review.comment.isNotBlank()) {
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = review.comment,
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                    }
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Text(
+                                        text = "${review.userName.split(" ").first()} · " +
+                                            DateUtils.formatDate(review.createdAt),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                    )
+                                }
+                                if (review.comment.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = review.comment,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
                                 }
                             }
                         }
                     }
-                } else {
-                    Text(
-                        text = "No reviews yet.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    )
                 }
-                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
@@ -644,7 +653,7 @@ fun BookServiceScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .statusBarsPadding()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    .padding(top = 16.dp, start = 14.dp, end = 14.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -662,7 +671,7 @@ fun BookServiceScreen(
                                         imageVector = Icons.Default.ArrowBack,
                                         contentDescription = "Back",
                                         tint = Color.Black,
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
                                 
@@ -676,7 +685,7 @@ fun BookServiceScreen(
                                         imageVector = Icons.Default.Info,
                                         contentDescription = "Shop Info",
                                         tint = Color.Black,
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
                             }
