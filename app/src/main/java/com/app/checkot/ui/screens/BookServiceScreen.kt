@@ -384,6 +384,7 @@ fun BookServiceScreen(
             onDismissRequest = { showShopInfoSheet = false },
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.surface,
+            sheetGesturesEnabled = false,
             modifier = Modifier.nestedScroll(nestedScrollConnection)
         ) {
             LazyColumn(
@@ -394,11 +395,24 @@ fun BookServiceScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 item {
-                    Text(
-                        text = shopDisplayName,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = shopDisplayName,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = { showShopInfoSheet = false }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close"
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
                 }
                 
