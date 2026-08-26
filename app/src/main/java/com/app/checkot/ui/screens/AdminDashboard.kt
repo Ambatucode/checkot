@@ -468,7 +468,13 @@ private fun PendingShopCard(
 
             // Banner preview — so the admin can moderate the cover image.
             if (shop.bannerUrl.isNotBlank()) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Shop Banner",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
                 AsyncImage(
                     model = shop.bannerUrl,
                     contentDescription = "Shop banner",
@@ -486,6 +492,7 @@ private fun PendingShopCard(
             val isApproveEnabled = !isProcessing && isPhoneVerified && isLocationSet && isAddressSet
 
             // Action buttons
+            Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
