@@ -48,7 +48,7 @@ fun NavigationGraph(
                 user.role == "admin" -> Screen.AdminDashboard.route
                 user.role == "owner" -> Screen.OwnerDashboard.route
                 // Customers who registered via phone must complete profile first
-                user.fullName == "New User" || user.email.isEmpty() -> "complete_profile"
+                user.fullName == "New User" -> "complete_profile"
                 else -> Screen.Home.route
             }
         } else {

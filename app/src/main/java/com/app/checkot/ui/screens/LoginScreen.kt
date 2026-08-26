@@ -129,7 +129,7 @@ fun LoginScreen(
             val dest = when {
                 user.role == "admin" -> "admin_dashboard"
                 user.role == "owner" -> "owner_dashboard"
-                user.fullName == "New User" || user.email.isEmpty() -> "complete_profile"
+                user.fullName == "New User" -> "complete_profile"
                 else -> "home"
             }
             if (dest == "home") {

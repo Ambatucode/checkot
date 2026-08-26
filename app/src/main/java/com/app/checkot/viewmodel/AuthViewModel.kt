@@ -670,48 +670,28 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         return auth.currentUser
     }
 
-    fun sendEmailOtp(
-        email: String,
-        onSuccess: () -> Unit,
-        onFailure: (String) -> Unit
-    ) {
-        viewModelScope.launch {
-            try {
-                val data = hashMapOf("email" to email)
-                Firebase.functions("asia-southeast1")
-                    .getHttpsCallable("sendEmailOtp")
-                    .call(data)
-                    .await()
-                onSuccess()
-            } catch (e: Exception) {
-                onFailure(e.message ?: "Failed to send verification code. Please try again.")
-            }
-        }
-    }
-
-    fun verifyEmailOtp(
+    fun completeProfile(
         fullName: String,
-        email: String,
-        code: String,
         onSuccess: () -> Unit,
         onFailure: (String) -> Unit
     ) {
+        val user = auth.currentUser ?: return
+        val phoneNumber = user.phoneNumber ?: ""
         viewModelScope.launch {
             try {
-                val data = hashMapOf(
+                val updates = mapOf(
                     "fullName" to fullName,
-                    "email" to email,
-                    "code" to code
+                    "phoneNumber" to phoneNumber,
+                    "phoneVerified" to true
                 )
-                Firebase.functions("asia-southeast1")
-                    .getHttpsCallable("verifyEmailOtp")
-                    .call(data)
+                firestore.collection("users").document(user.uid)
+                    .set(updates, SetOptions.merge())
                     .await()
                 
                 loadUserData()
                 onSuccess()
             } catch (e: Exception) {
-                onFailure(e.message ?: "Incorrect code or verification failed.")
+                onFailure(e.message ?: "Failed to update profile.")
             }
         }
     }
