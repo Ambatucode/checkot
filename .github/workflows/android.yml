@@ -70,8 +70,8 @@ jobs:
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v${{ steps.get_version.outputs.version }}
-        name: Version ${{ steps.get_version.outputs.version }}
+        tag_name: v${{ steps.get_version.outputs.version }}-test
+        name: Test Build v${{ steps.get_version.outputs.version }}
         body: |
           Automated CI/CD build from push to main.
           
