@@ -57,7 +57,7 @@ fun AddCarScreen(
     val scope = rememberCoroutineScope()
     val isLoading by carViewModel.isLoading.collectAsState()
     val savedCars by carViewModel.savedCars.collectAsState()
-    val carLimitReached = savedCars.size >= 5
+    val carLimitReached = savedCars.size >= 3
     Scaffold(
         topBar = {
             BackTopAppBar(
@@ -354,7 +354,7 @@ fun AddCarScreen(
             Spacer(modifier = Modifier.weight(1f))
             if (carLimitReached) {
                 Text(
-                    text = "You can only save up to 5 cars per account.",
+                    text = "You can only save up to 3 cars per account.",
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium
                 )

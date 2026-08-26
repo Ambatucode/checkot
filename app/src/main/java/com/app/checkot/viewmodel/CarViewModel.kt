@@ -73,9 +73,9 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
             }
             try {
                 val currentCars = _savedCars.value.toMutableList()
-                if (currentCars.size >= 5) {
-                    Log.d(TAG, "Car limit reached. Cannot add more than 5 cars.")
-                    onResult(false, "You can only save up to 5 cars per account.")
+                if (currentCars.size >= 3) {
+                    Log.d(TAG, "Car limit reached. Cannot add more than 3 cars.")
+                    onResult(false, "You can only save up to 3 cars per account.")
                     return@launch
                 }
 
