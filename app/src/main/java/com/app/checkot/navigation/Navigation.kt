@@ -47,8 +47,8 @@ fun NavigationGraph(
                 user == null -> "auth_landing"
                 user.role == "admin" -> Screen.AdminDashboard.route
                 user.role == "owner" -> Screen.OwnerDashboard.route
-                // Customers go straight to home — phone verification happens
-                // progressively when they try to book.
+                // Customers who registered via phone must complete profile first
+                user.fullName == "New User" || user.email.isEmpty() -> "complete_profile"
                 else -> Screen.Home.route
             }
         } else {
@@ -121,6 +121,12 @@ fun NavigationGraph(
             PhoneVerificationScreen(
                 navController = navController,
                 mode = mode,
+                authViewModel = authViewModel
+            )
+        }
+        composable("complete_profile") {
+            CompleteProfileScreen(
+                navController = navController,
                 authViewModel = authViewModel
             )
         }

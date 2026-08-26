@@ -669,6 +669,32 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         return auth.currentUser
     }
 
+    fun completeProfile(
+        fullName: String,
+        email: String,
+        onSuccess: () -> Unit,
+        onFailure: (String) -> Unit
+    ) {
+        val uid = auth.currentUser?.uid ?: return
+        viewModelScope.launch {
+            try {
+                val updates = mapOf(
+                    "fullName" to fullName,
+                    "email" to email
+                )
+                firestore.collection("users").document(uid)
+                    .set(updates, SetOptions.merge())
+                    .await()
+                
+                // Refresh local user data
+                loadUserData()
+                onSuccess()
+            } catch (e: Exception) {
+                onFailure(e.message ?: "Failed to update profile.")
+            }
+        }
+    }
+
     fun clearError() {
         if (_authState.value is AuthState.Error) {
             _authState.value = AuthState.Unauthenticated

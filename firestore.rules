@@ -82,7 +82,7 @@ service cloud.firestore {
       // --- UPDATE ---
       // Users can update their own profile
       // Cannot change: role, userId, ownedShopId (prevents privilege escalation)
-      // savedCars is capped to match the app's own 5-car limit
+      // savedCars is capped to match the app's own 3-car limit
       // savedCars is capped ONLY when present, so an fcmToken-only write (or
       // any account that never seeded savedCars, e.g. admins) isn't rejected
       // by evaluating .size() on a missing field.
@@ -90,7 +90,7 @@ service cloud.firestore {
         && request.auth.uid == userId
         && isNotChanging(['role', 'userId', 'ownedShopId'])
         && (!('savedCars' in request.resource.data)
-            || request.resource.data.savedCars.size() <= 5);
+            || request.resource.data.savedCars.size() <= 3);
 
       // --- DELETE ---
       // Users can delete their own profile
