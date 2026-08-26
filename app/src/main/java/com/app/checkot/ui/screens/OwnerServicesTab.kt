@@ -714,7 +714,7 @@ private fun EditServiceDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Pricing by Vehicle Size (100  30,000)",
+                    text = "Pricing by Vehicle Size (100 - 30,000)",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
