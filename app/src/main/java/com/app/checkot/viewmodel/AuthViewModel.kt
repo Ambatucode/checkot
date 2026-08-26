@@ -699,6 +699,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         val phoneNumber = user.phoneNumber ?: ""
         viewModelScope.launch {
             try {
+                // 1. Fetch the fresh user doc to get the latest role and ownedShopId
+                val snapshot = firestore.collection("users").document(user.uid).get().await()
+                val userData = snapshot.toObject(CarWashUser::class.java)
+
                 val updates = mapOf(
                     "fullName" to fullName,
                     "phoneNumber" to phoneNumber,
@@ -707,6 +711,16 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 firestore.collection("users").document(user.uid)
                     .set(updates, SetOptions.merge())
                     .await()
+                
+                // 2. If they are an owner, sync the ownerName to their shop profile
+                if (userData != null && userData.role == "owner") {
+                    val ownedShopId = userData.ownedShopId
+                    if (!ownedShopId.isNullOrEmpty()) {
+                        firestore.collection("shop_services").document(ownedShopId)
+                            .update("ownerName", fullName)
+                            .await()
+                    }
+                }
                 
                 loadUserData()
                 onSuccess()

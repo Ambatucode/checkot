@@ -47,10 +47,9 @@ fun NavigationGraph(
             val user = currentUser
             when {
                 user == null -> "auth_landing"
+                user.fullName == "New User" -> "complete_profile"
                 user.role == "admin" -> Screen.AdminDashboard.route
                 user.role == "owner" -> Screen.OwnerDashboard.route
-                // Customers who registered via phone must complete profile first
-                user.fullName == "New User" -> "complete_profile"
                 else -> Screen.Home.route
             }
         } else {

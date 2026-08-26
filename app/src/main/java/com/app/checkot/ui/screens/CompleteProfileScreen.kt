@@ -34,6 +34,8 @@ fun CompleteProfileScreen(
     var fullName by remember { mutableStateOf("") }
     var fullNameError by remember { mutableStateOf<String?>(null) }
     
+    val currentUser by authViewModel.currentUserData.collectAsState()
+    
     var isSubmitting by remember { mutableStateOf(false) }
     var submitError by remember { mutableStateOf<String?>(null) }
     
@@ -143,9 +145,14 @@ fun CompleteProfileScreen(
                             fullName = fullName.trim(),
                             onSuccess = {
                                 isSubmitting = false
-                                navController.navigate(Screen.Home.route) {
-                                    popUpTo("complete_profile") { inclusive = true }
-                                }
+                                val dest = if (currentUser?.role == "owner") {
+                                     Screen.OwnerDashboard.route
+                                 } else {
+                                     Screen.Home.route
+                                 }
+                                 navController.navigate(dest) {
+                                     popUpTo("complete_profile") { inclusive = true }
+                                 }
                             },
                             onFailure = { err ->
                                 isSubmitting = false
