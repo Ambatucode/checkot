@@ -200,7 +200,8 @@ fun AuthLandingScreen(
             OutlinedButton(
                 onClick = {
                     // Navigate to pure phone sign-in flow
-                    navController.navigate("phone_verification/signin")
+                    val route = if (isOwnerMode) "phone_verification/signin?isOwner=true" else "phone_verification/signin"
+                    navController.navigate(route)
                 },
                 modifier = Modifier
                     .fillMaxWidth(0.88f)

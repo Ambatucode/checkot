@@ -12,6 +12,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
+import androidx.navigation.NavType
 sealed class Screen(val route: String) {
     object Login : Screen("login")
     object Signup : Screen("signup")
@@ -116,11 +118,21 @@ fun NavigationGraph(
                 authViewModel = authViewModel
             )
         }
-        composable("phone_verification/{mode}") { backStackEntry ->
+        composable(
+            route = "phone_verification/{mode}?isOwner={isOwner}",
+            arguments = listOf(
+                navArgument("isOwner") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                }
+            )
+        ) { backStackEntry ->
             val mode = backStackEntry.arguments?.getString("mode") ?: "signup"
+            val isOwner = backStackEntry.arguments?.getBoolean("isOwner") ?: false
             PhoneVerificationScreen(
                 navController = navController,
                 mode = mode,
+                isOwner = isOwner,
                 authViewModel = authViewModel
             )
         }

@@ -49,6 +49,7 @@ private fun Context.findActivity(): Activity? {
 fun PhoneVerificationScreen(
     navController: NavController,
     mode: String,
+    isOwner: Boolean = false,
     authViewModel: AuthViewModel = viewModel()
 ) {
     val isChange = mode == "change"
@@ -201,7 +202,7 @@ fun PhoneVerificationScreen(
                     onClick = {
                         val act = activity
                         if (act != null) {
-                            authViewModel.startPhoneVerification(act, "+63$localDigits", mode)
+                            authViewModel.startPhoneVerification(act, "+63$localDigits", mode, isOwner)
                         }
                     },
                     enabled = validNumber && activity != null,
@@ -242,7 +243,7 @@ fun PhoneVerificationScreen(
                         onClick = {
                             val act = activity
                             if (act != null) {
-                                authViewModel.startPhoneVerification(act, "+63$localDigits", mode)
+                                authViewModel.startPhoneVerification(act, "+63$localDigits", mode, isOwner)
                                 resendTrigger++
                             }
                         },

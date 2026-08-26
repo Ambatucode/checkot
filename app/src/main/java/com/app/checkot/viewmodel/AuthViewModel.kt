@@ -444,6 +444,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private var storedVerificationId: String? = null
     private var pendingPhoneE164: String = ""
+    private var pendingIsOwner: Boolean = false
     // "signup" -> link the number to the account; "change" -> replace the number.
     private var pendingMode: String = "signup"
 
@@ -456,9 +457,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun hasPendingCode(): Boolean = storedVerificationId != null
 
     /** Send an SMS code to a full E.164 number (e.g. +639123456789). */
-    fun startPhoneVerification(activity: Activity, phoneE164: String, mode: String) {
+    fun startPhoneVerification(activity: Activity, phoneE164: String, mode: String, isOwner: Boolean = false) {
         pendingMode = mode
         pendingPhoneE164 = phoneE164
+        pendingIsOwner = isOwner
         storedVerificationId = null
         _phoneVerifyState.value = PhoneVerifyState.Sending
         val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
@@ -517,7 +519,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     val docRef = firestore.collection("users").document(uid)
                     val snapshot = docRef.get().await()
                     if (!snapshot.exists()) {
-                        // Create basic customer profile
+                        val role = if (pendingIsOwner) "owner" else "customer"
+                        val ownedShopId = if (pendingIsOwner) firestore.collection("shop_services").document().id else null
+                        
                         val userData = CarWashUser(
                             userId = uid,
                             fullName = "New User",
@@ -525,10 +529,26 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                             phoneNumber = pendingPhoneE164,
                             phoneVerified = true,
                             createdAt = System.currentTimeMillis(),
-                            role = "customer",
+                            role = role,
+                            ownedShopId = ownedShopId,
                             savedCars = emptyList()
                         )
                         docRef.set(userData).await()
+                        
+                        if (pendingIsOwner && ownedShopId != null) {
+                            val shopCustomization = ShopCustomization(
+                                shopName = "New Car Wash Shop",
+                                shopAddress = "",
+                                status = "pending",
+                                ownerId = uid,
+                                ownerName = "New User",
+                                ownerEmail = "",
+                                services = emptyList(),
+                                ownerFcmToken = ""
+                            )
+                            firestore.collection("shop_services").document(ownedShopId).set(shopCustomization).await()
+                        }
+                        
                         _currentUserData.value = userData
                     } else {
                         // Ensure phone is marked verified if they already existed
