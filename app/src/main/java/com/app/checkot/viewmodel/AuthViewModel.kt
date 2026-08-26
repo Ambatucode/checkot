@@ -669,28 +669,67 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         return auth.currentUser
     }
 
-    fun completeProfile(
+    fun startEmailVerification(
+        email: String,
+        onSuccess: () -> Unit,
+        onFailure: (String) -> Unit
+    ) {
+        val user = auth.currentUser ?: return
+        viewModelScope.launch {
+            try {
+                // verifyBeforeUpdateEmail sends verification mail before changing primary email
+                user.verifyBeforeUpdateEmail(email).await()
+                onSuccess()
+            } catch (e: Exception) {
+                onFailure(e.message ?: "Failed to send verification email.")
+            }
+        }
+    }
+
+    fun checkEmailVerification(
         fullName: String,
         email: String,
         onSuccess: () -> Unit,
         onFailure: (String) -> Unit
     ) {
-        val uid = auth.currentUser?.uid ?: return
+        val user = auth.currentUser ?: return
         viewModelScope.launch {
             try {
-                val updates = mapOf(
-                    "fullName" to fullName,
-                    "email" to email
-                )
-                firestore.collection("users").document(uid)
-                    .set(updates, SetOptions.merge())
-                    .await()
-                
-                // Refresh local user data
-                loadUserData()
+                user.reload().await()
+                if (user.isEmailVerified) {
+                    val verifiedEmail = user.email ?: email
+                    val updates = mapOf(
+                        "fullName" to fullName,
+                        "email" to verifiedEmail,
+                        "phoneVerified" to true
+                    )
+                    firestore.collection("users").document(user.uid)
+                        .set(updates, SetOptions.merge())
+                        .await()
+                    
+                    loadUserData()
+                    onSuccess()
+                } else {
+                    onFailure("Email has not been verified yet. Please check your inbox.")
+                }
+            } catch (e: Exception) {
+                onFailure(e.message ?: "Failed to check email verification status.")
+            }
+        }
+    }
+
+    fun resendVerificationEmail(
+        email: String,
+        onSuccess: () -> Unit,
+        onFailure: (String) -> Unit
+    ) {
+        val user = auth.currentUser ?: return
+        viewModelScope.launch {
+            try {
+                user.verifyBeforeUpdateEmail(email).await()
                 onSuccess()
             } catch (e: Exception) {
-                onFailure(e.message ?: "Failed to update profile.")
+                onFailure(e.message ?: "Failed to resend verification email.")
             }
         }
     }
