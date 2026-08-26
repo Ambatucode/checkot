@@ -126,9 +126,10 @@ fun AuthLandingScreen(
 
             // Customer without verified phone -> skip phone, go straight to home
             // (progressive guard will catch them at booking time)
-            val dest = when (user.role) {
-                "admin" -> "admin_dashboard"
-                "owner" -> "owner_dashboard"
+            val dest = when {
+                user.role == "admin" -> "admin_dashboard"
+                user.role == "owner" -> "owner_dashboard"
+                user.fullName == "New User" || user.email.isEmpty() -> "complete_profile"
                 else -> "home"
             }
             navController.navigate(dest) {

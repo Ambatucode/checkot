@@ -103,9 +103,10 @@ fun PhoneVerificationScreen(
                 navController.popBackStack()
             } else {
 
-                val dest = when (currentUser?.role) {
-                    "admin" -> "admin_dashboard"
-                    "owner" -> "owner_dashboard"
+                val dest = when {
+                    currentUser?.role == "admin" -> "admin_dashboard"
+                    currentUser?.role == "owner" -> "owner_dashboard"
+                    currentUser?.fullName == "New User" || currentUser?.email.isNullOrEmpty() -> "complete_profile"
                     else -> "home"
                 }
                 navController.navigate(dest) {

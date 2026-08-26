@@ -126,14 +126,18 @@ fun LoginScreen(
                 }
                 return@LaunchedEffect
             }
-            when (user.role) {
-                "admin" -> navController.navigate("admin_dashboard") {
+            val dest = when {
+                user.role == "admin" -> "admin_dashboard"
+                user.role == "owner" -> "owner_dashboard"
+                user.fullName == "New User" || user.email.isEmpty() -> "complete_profile"
+                else -> "home"
+            }
+            if (dest == "home") {
+                onLoginSuccess()
+            } else {
+                navController.navigate(dest) {
                     popUpTo("login") { inclusive = true }
                 }
-                "owner" -> navController.navigate("owner_dashboard") {
-                    popUpTo("login") { inclusive = true }
-                }
-                else -> onLoginSuccess() // goes to home
             }
         }
     }
