@@ -60,12 +60,18 @@ jobs:
         name: checkot-debug-apk
         path: app/build/outputs/apk/debug/app-debug.apk
 
+    - name: Extract Version Name
+      id: get_version
+      run: |
+        VERSION_NAME=$(grep "versionName =" app/build.gradle.kts | head -n 1 | awk -F'"' '{print $2}')
+        echo "version=$VERSION_NAME" >> $GITHUB_OUTPUT
+
     - name: Create GitHub Release and Upload APK
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: build-${{ github.run_number }}
-        name: Build #${{ github.run_number }}
+        tag_name: v${{ steps.get_version.outputs.version }}
+        name: Version ${{ steps.get_version.outputs.version }}
         body: |
           Automated CI/CD build from push to main.
           
