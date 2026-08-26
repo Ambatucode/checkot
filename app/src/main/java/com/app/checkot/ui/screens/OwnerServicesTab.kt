@@ -91,13 +91,13 @@ fun OwnerServicesTab(
     val scope = rememberCoroutineScope()
     val maxServices = 15
 
-    // A price is invalid if below 100, above 5000, or 0.0 for custom services (no default)
+    // A price is invalid if below 100, above 30000, or 0.0 for custom services (no default)
     val hasInvalidPrice = editedServices.any { config ->
         if (config.pricing.isNotEmpty()) {
-            config.pricing.values.any { p -> p < 100.0 || p > 5000.0 }
+            config.pricing.values.any { p -> p < 100.0 || p > 30000.0 }
         } else {
             (config.customPrice > 0.0 && config.customPrice < 100.0) ||
-            config.customPrice > 5000.0 ||
+            config.customPrice > 30000.0 ||
             (config.isCustom && config.customPrice == 0.0)
         }
     }
@@ -613,10 +613,10 @@ private fun ServiceRow(
                 // Inline validation warnings
                 val isDescriptionBlank = config.description.isBlank()
                 val isPriceInvalid = if (config.pricing.isNotEmpty()) {
-                    config.pricing.values.any { p -> p < 100 || p > 5000 }
+                    config.pricing.values.any { p -> p < 100 || p > 30000 }
                 } else {
                     (config.customPrice > 0.0 && config.customPrice < 100) ||
-                    config.customPrice > 5000 ||
+                    config.customPrice > 30000 ||
                     (config.isCustom && config.customPrice == 0.0)
                 }
                 val effectiveDuration = if (config.durationMinutes > 0) config.durationMinutes
@@ -630,7 +630,7 @@ private fun ServiceRow(
                             Text("⚠️ Description is required", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         }
                         if (isPriceInvalid) {
-                            Text("⚠️ Price must be ₱100 - ₱5,000", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            Text("Price must be ₱100 - ₱30,000", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         }
                         if (isDurationInvalid) {
                             Text("⚠️ Duration must be 20 - 180 mins", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -697,11 +697,11 @@ private fun EditServiceDialog(
     val xlVal = priceXLText.toDoubleOrNull()
     val xxlVal = priceXXLText.toDoubleOrNull()
 
-    val isSValid = sVal != null && sVal >= 100 && sVal <= 5000
-    val isMValid = mVal != null && mVal >= 100 && mVal <= 5000
-    val isLValid = lVal != null && lVal >= 100 && lVal <= 5000
-    val isXLValid = xlVal != null && xlVal >= 100 && xlVal <= 5000
-    val isXXLValid = xxlVal != null && xxlVal >= 100 && xxlVal <= 5000
+    val isSValid = sVal != null && sVal >= 100 && sVal <= 30000
+    val isMValid = mVal != null && mVal >= 100 && mVal <= 30000
+    val isLValid = lVal != null && lVal >= 100 && lVal <= 30000
+    val isXLValid = xlVal != null && xlVal >= 100 && xlVal <= 30000
+    val isXXLValid = xxlVal != null && xxlVal >= 100 && xxlVal <= 30000
 
     val isPricingValid = isSValid && isMValid && isLValid && isXLValid && isXXLValid
     val isDurationValid = parsedDuration != null && parsedDuration >= MIN_SERVICE_DURATION_MIN && parsedDuration <= MAX_SERVICE_DURATION_MIN
@@ -714,7 +714,7 @@ private fun EditServiceDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Pricing by Vehicle Size (₱100 - ₱5,000)",
+                    text = "Pricing by Vehicle Size (100  30,000)",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
@@ -769,7 +769,7 @@ private fun EditServiceDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (!isPricingValid && (priceSText.isNotEmpty() || priceMText.isNotEmpty() || priceLText.isNotEmpty() || priceXLText.isNotEmpty() || priceXXLText.isNotEmpty())) {
-                    Text("All prices must be between ₱100 and ₱5,000", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Text("All prices must be between ₱100 and ₱30,000", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
 
                 Column {
