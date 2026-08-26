@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,6 +36,7 @@ fun CompleteProfileScreen(
 ) {
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
+    var code by remember { mutableStateOf("") }
     
     var fullNameError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
@@ -51,6 +53,8 @@ fun CompleteProfileScreen(
             email.isNotEmpty() &&
             fullNameError == null &&
             emailError == null
+
+    val isOtpValid = code.trim().length == 6 && code.all { it.isDigit() }
 
     val textFieldColors = OutlinedTextFieldDefaults.colors(
         focusedContainerColor = Color(0xFF0F2530),
@@ -198,12 +202,13 @@ fun CompleteProfileScreen(
                         if (isFormValid) {
                             isSubmitting = true
                             submitError = null
-                            authViewModel.startEmailVerification(
+                            authViewModel.sendEmailOtp(
                                 email = email.trim(),
                                 onSuccess = {
                                     isSubmitting = false
                                     isPendingVerification = true
                                     resendTimer = 60
+                                    code = ""
                                 },
                                 onFailure = { err ->
                                     isSubmitting = false
@@ -217,7 +222,7 @@ fun CompleteProfileScreen(
                 )
             } else {
                 // ========================================================
-                // STATE 2: Pending Email Verification Check Screen
+                // STATE 2: Pending Email Verification Check Screen (OTP)
                 // ========================================================
                 Text(
                     text = "Verify Your Email",
@@ -230,7 +235,7 @@ fun CompleteProfileScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 Text(
-                    text = "We've sent a verification link to:",
+                    text = "We've sent a 6-digit verification code to:",
                     fontSize = 14.sp,
                     color = Color(0xFF94A3B8),
                     textAlign = TextAlign.Center
@@ -249,11 +254,40 @@ fun CompleteProfileScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 Text(
-                    text = "Please check your inbox (and spam folder). Click the verification link in the email, then tap the button below to complete registration.",
+                    text = "Please check your inbox (and spam folder). Enter the code below to complete registration.",
                     fontSize = 14.sp,
                     color = Color(0xFF94A3B8),
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 8.dp)
+                )
+                
+                Spacer(modifier = Modifier.height(32.dp))
+                
+                // 6-digit Code Input
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { input ->
+                        if (input.length <= 6 && input.all { it.isDigit() }) {
+                            code = input
+                        }
+                    },
+                    label = { Text("6-Digit Verification Code") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    singleLine = true,
+                    enabled = !isSubmitting,
+                    colors = textFieldColors,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done
+                    )
                 )
                 
                 Spacer(modifier = Modifier.height(32.dp))
@@ -272,24 +306,27 @@ fun CompleteProfileScreen(
                 AppButton(
                     text = "I've Verified",
                     onClick = {
-                        isSubmitting = true
-                        submitError = null
-                        authViewModel.checkEmailVerification(
-                            fullName = fullName.trim(),
-                            email = email.trim(),
-                            onSuccess = {
-                                isSubmitting = false
-                                navController.navigate(Screen.Home.route) {
-                                    popUpTo("complete_profile") { inclusive = true }
+                        if (isOtpValid) {
+                            isSubmitting = true
+                            submitError = null
+                            authViewModel.verifyEmailOtp(
+                                fullName = fullName.trim(),
+                                email = email.trim(),
+                                code = code.trim(),
+                                onSuccess = {
+                                    isSubmitting = false
+                                    navController.navigate(Screen.Home.route) {
+                                        popUpTo("complete_profile") { inclusive = true }
+                                    }
+                                },
+                                onFailure = { err ->
+                                    isSubmitting = false
+                                    submitError = err
                                 }
-                            },
-                            onFailure = { err ->
-                                isSubmitting = false
-                                submitError = err
-                            }
-                        )
+                            )
+                        }
                     },
-                    enabled = !isSubmitting,
+                    enabled = isOtpValid && !isSubmitting,
                     modifier = Modifier.fillMaxWidth()
                 )
                 
@@ -300,12 +337,12 @@ fun CompleteProfileScreen(
                     onClick = {
                         isSubmitting = true
                         submitError = null
-                        authViewModel.resendVerificationEmail(
+                        authViewModel.sendEmailOtp(
                             email = email.trim(),
                             onSuccess = {
                                 isSubmitting = false
                                 resendTimer = 60
-                                submitError = "Verification email resent successfully."
+                                submitError = "Verification code resent successfully."
                             },
                             onFailure = { err ->
                                 isSubmitting = false
@@ -317,7 +354,10 @@ fun CompleteProfileScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (resendTimer == 0) Color(0xFF00E6C3) else Color.Gray)
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (resendTimer == 0) Color(0xFF00E6C3) else Color.Gray
+                    )
                 ) {
                     Text(
                         text = if (resendTimer > 0) "Resend Email in ${resendTimer}s" else "Resend Email",

@@ -22,6 +22,7 @@ import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.functions.ktx.functions
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -669,67 +670,48 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         return auth.currentUser
     }
 
-    fun startEmailVerification(
+    fun sendEmailOtp(
         email: String,
         onSuccess: () -> Unit,
         onFailure: (String) -> Unit
     ) {
-        val user = auth.currentUser ?: return
         viewModelScope.launch {
             try {
-                // verifyBeforeUpdateEmail sends verification mail before changing primary email
-                user.verifyBeforeUpdateEmail(email).await()
+                val data = hashMapOf("email" to email)
+                Firebase.functions("asia-southeast1")
+                    .getHttpsCallable("sendEmailOtp")
+                    .call(data)
+                    .await()
                 onSuccess()
             } catch (e: Exception) {
-                onFailure(e.message ?: "Failed to send verification email.")
+                onFailure(e.message ?: "Failed to send verification code. Please try again.")
             }
         }
     }
 
-    fun checkEmailVerification(
+    fun verifyEmailOtp(
         fullName: String,
         email: String,
+        code: String,
         onSuccess: () -> Unit,
         onFailure: (String) -> Unit
     ) {
-        val user = auth.currentUser ?: return
         viewModelScope.launch {
             try {
-                user.reload().await()
-                if (user.isEmailVerified) {
-                    val verifiedEmail = user.email ?: email
-                    val updates = mapOf(
-                        "fullName" to fullName,
-                        "email" to verifiedEmail,
-                        "phoneVerified" to true
-                    )
-                    firestore.collection("users").document(user.uid)
-                        .set(updates, SetOptions.merge())
-                        .await()
-                    
-                    loadUserData()
-                    onSuccess()
-                } else {
-                    onFailure("Email has not been verified yet. Please check your inbox.")
-                }
-            } catch (e: Exception) {
-                onFailure(e.message ?: "Failed to check email verification status.")
-            }
-        }
-    }
-
-    fun resendVerificationEmail(
-        email: String,
-        onSuccess: () -> Unit,
-        onFailure: (String) -> Unit
-    ) {
-        val user = auth.currentUser ?: return
-        viewModelScope.launch {
-            try {
-                user.verifyBeforeUpdateEmail(email).await()
+                val data = hashMapOf(
+                    "fullName" to fullName,
+                    "email" to email,
+                    "code" to code
+                )
+                Firebase.functions("asia-southeast1")
+                    .getHttpsCallable("verifyEmailOtp")
+                    .call(data)
+                    .await()
+                
+                loadUserData()
                 onSuccess()
             } catch (e: Exception) {
-                onFailure(e.message ?: "Failed to resend verification email.")
+                onFailure(e.message ?: "Incorrect code or verification failed.")
             }
         }
     }
