@@ -36,6 +36,20 @@ data class CarWashShop(
     val minPrice: Double = 0.0,  // cheapest service price; 0 = unknown (legacy)
     val services: List<CustomServiceConfig> = emptyList() // offerings — drives the "From ₱X" badge
 )
+
+enum class CarSize(val label: String, val sizeKey: String) {
+    S("Hatchback", "S"),
+    M("Sedan", "M"),
+    L("Crossover", "L"),
+    XL("SUV/Pickup", "XL"),
+    XXL("Van", "XXL");
+
+    companion object {
+        fun fromKey(key: String?): CarSize = values().find { it.sizeKey == key } ?: S
+        fun fromLabel(label: String?): CarSize = values().find { it.label == label } ?: S
+    }
+}
+
 @Immutable
 data class Car(
     val carId: String = "",
@@ -43,6 +57,7 @@ data class Car(
     val model: String = "",
     val brand: String = "",
     val color: String = "",
+    val size: String = "S",
     // @PropertyName keeps the Firestore field named "isDefault": without it
     // Kotlin's is-prefixed getter makes Firestore WRITE the field as
     // "default" but READ it back as "isDefault", so the flag silently
@@ -57,6 +72,9 @@ data class Booking(
     val userId: String = "",
     val carId: String = "",
     val carDetails: String = "", // Store car plate + model for quick reference
+    val carSize: String = "",
+    val carPlateNumber: String = "",
+    val carBrandModel: String = "",
     val services: List<ServiceType> = emptyList(),
     val customServiceNames: List<String> = emptyList(), // Names for CUSTOM type services
     val bookingDate: Long = 0, // Timestamp
@@ -178,7 +196,8 @@ data class CustomServiceConfig(
     // Dates (start-of-day millis) this service can't be booked — the owner marks
     // it unavailable for a day (sold out / not offered) without deleting it.
     // Clients see it greyed out on those dates.
-    val unavailableDates: List<Long> = emptyList()
+    val unavailableDates: List<Long> = emptyList(),
+    val pricing: Map<String, Double> = emptyMap()
 )
 
 /**

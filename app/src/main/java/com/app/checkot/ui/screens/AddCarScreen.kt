@@ -5,6 +5,8 @@ import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -21,6 +23,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -42,6 +45,7 @@ fun AddCarScreen(
     var model by remember { mutableStateOf("") }
     var color by remember { mutableStateOf("") }
     var isDefault by remember { mutableStateOf(false) }
+    var selectedSize by remember { mutableStateOf("S") }
     var brandDropdownExpanded by remember { mutableStateOf(false) }
     var isOtherSelected by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf<String?>(null) }
@@ -70,19 +74,54 @@ fun AddCarScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Car Icon
-            Surface(
-                modifier = Modifier.size(80.dp),
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.primaryContainer
+            // Live Preview Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
             ) {
-                Box(contentAlignment = Alignment.Center) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(
                         Icons.Default.DirectionsCar,
                         contentDescription = null,
-                        modifier = Modifier.size(40.dp),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.primary
                     )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            text = if (brand.isNotBlank() || model.isNotBlank()) "${brand.trim()} ${model.trim()}" else "Car Name Preview",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (plateNumber.isNotBlank()) "Plate: ${plateNumber.trim()}" else "Plate Number Preview",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            if (color.isNotBlank()) {
+                                Text(
+                                    text = "Color: ${color.trim()}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                            Text(
+                                text = "Size: ${CarSize.fromKey(selectedSize).label} (${selectedSize})",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                 }
             }
             // Plate Number
@@ -258,6 +297,42 @@ fun AddCarScreen(
                     imeAction = ImeAction.Done
                 )
             )
+            // Vehicle Size Selector
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Vehicle Size",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    CarSize.values().forEach { sizeEnum ->
+                        FilterChip(
+                            selected = selectedSize == sizeEnum.sizeKey,
+                            onClick = { selectedSize = sizeEnum.sizeKey },
+                            label = { Text("${sizeEnum.sizeKey} - ${sizeEnum.label}") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = selectedSize == sizeEnum.sizeKey,
+                                selectedBorderColor = MaterialTheme.colorScheme.primary,
+                                selectedBorderWidth = 1.dp
+                            )
+                        )
+                    }
+                }
+            }
             // Default Car Switch
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -299,6 +374,7 @@ fun AddCarScreen(
                         brand = brand.trim(),
                         model = model.trim(),
                         color = color.trim(),
+                        size = selectedSize,
                         isDefault = isDefault
                     )
                     saveError = null

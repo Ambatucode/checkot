@@ -91,11 +91,15 @@ fun OwnerServicesTab(
     val scope = rememberCoroutineScope()
     val maxServices = 15
 
-    // A price is invalid if below 150, above 5000, or 0.0 for custom services (no default)
+    // A price is invalid if below 100, above 5000, or 0.0 for custom services (no default)
     val hasInvalidPrice = editedServices.any { config ->
-        (config.customPrice > 0.0 && config.customPrice < 150) ||
-        config.customPrice > 5000 ||
-        (config.isCustom && config.customPrice == 0.0)
+        if (config.pricing.isNotEmpty()) {
+            config.pricing.values.any { p -> p < 100.0 || p > 5000.0 }
+        } else {
+            (config.customPrice > 0.0 && config.customPrice < 100.0) ||
+            config.customPrice > 5000.0 ||
+            (config.isCustom && config.customPrice == 0.0)
+        }
     }
     // A duration is invalid if the field text is invalid, or the effective
     // value (saved value, else the built-in default) is outside 20..180
@@ -558,6 +562,29 @@ private fun ServiceRow(
     val context = LocalContext.current
     val defaultPrice = ServiceType.values().find { it.name == config.serviceName }?.price ?: 0.0
     val price = if (config.customPrice > 0) config.customPrice else defaultPrice
+    val pricesList = listOf("S", "M", "L", "XL", "XXL").map { size ->
+        val defaultVal = ServiceType.values().find { it.name == config.serviceName }?.price ?: 0.0
+        if (config.pricing.containsKey(size)) {
+            config.pricing[size] ?: defaultVal
+        } else {
+            val basePrice = if (config.customPrice > 0.0) config.customPrice else defaultVal
+            when (size) {
+                "S" -> basePrice
+                "M" -> basePrice + 50.0
+                "L" -> basePrice + 100.0
+                "XL" -> basePrice + 150.0
+                "XXL" -> basePrice + 200.0
+                else -> basePrice
+            }
+        }
+    }
+    val minPrice = pricesList.minOrNull() ?: price
+    val maxPrice = pricesList.maxOrNull() ?: price
+    val priceLabel = if (minPrice == maxPrice) {
+        BookingUtils.formatPrice(minPrice)
+    } else {
+        "${BookingUtils.formatPrice(minPrice)} - ${BookingUtils.formatPrice(maxPrice)}"
+    }
     val durationLabel = if (config.durationMinutes % 60 == 0) {
         "${config.durationMinutes / 60} hr"
     } else "${config.durationMinutes} mins"
@@ -578,16 +605,20 @@ private fun ServiceRow(
                 Text(config.displayName, style = MaterialTheme.typography.titleSmall, color = Color.White)
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "${BookingUtils.formatPrice(price)} • $durationLabel",
+                    text = "$priceLabel • $durationLabel",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.85f)
                 )
 
                 // Inline validation warnings
                 val isDescriptionBlank = config.description.isBlank()
-                val isPriceInvalid = (config.customPrice > 0.0 && config.customPrice < 150) ||
-                        config.customPrice > 5000 ||
-                        (config.isCustom && config.customPrice == 0.0)
+                val isPriceInvalid = if (config.pricing.isNotEmpty()) {
+                    config.pricing.values.any { p -> p < 100 || p > 5000 }
+                } else {
+                    (config.customPrice > 0.0 && config.customPrice < 100) ||
+                    config.customPrice > 5000 ||
+                    (config.isCustom && config.customPrice == 0.0)
+                }
                 val effectiveDuration = if (config.durationMinutes > 0) config.durationMinutes
                                          else defaultDurationMinutes(config)
                 val isDurationInvalid = effectiveDuration < MIN_SERVICE_DURATION_MIN || effectiveDuration > MAX_SERVICE_DURATION_MIN
@@ -599,7 +630,7 @@ private fun ServiceRow(
                             Text("⚠️ Description is required", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         }
                         if (isPriceInvalid) {
-                            Text("⚠️ Price must be ₱150 - ₱5,000", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            Text("⚠️ Price must be ₱100 - ₱5,000", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         }
                         if (isDurationInvalid) {
                             Text("⚠️ Duration must be 20 - 180 mins", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -636,8 +667,21 @@ private fun EditServiceDialog(
     onDismiss: () -> Unit
 ) {
     val defaultPrice = ServiceType.values().find { it.name == service.serviceName }?.price ?: 0.0
-    var priceText by remember(service) {
-        mutableStateOf(if (service.customPrice > 0) service.customPrice.toString() else "")
+    val basePrice = if (service.customPrice > 0) service.customPrice else defaultPrice
+    var priceSText by remember(service) {
+        mutableStateOf(service.pricing["S"]?.toString() ?: basePrice.toString())
+    }
+    var priceMText by remember(service) {
+        mutableStateOf(service.pricing["M"]?.toString() ?: (basePrice + 50.0).toString())
+    }
+    var priceLText by remember(service) {
+        mutableStateOf(service.pricing["L"]?.toString() ?: (basePrice + 100.0).toString())
+    }
+    var priceXLText by remember(service) {
+        mutableStateOf(service.pricing["XL"]?.toString() ?: (basePrice + 150.0).toString())
+    }
+    var priceXXLText by remember(service) {
+        mutableStateOf(service.pricing["XXL"]?.toString() ?: (basePrice + 200.0).toString())
     }
     var durationText by remember(service) {
         mutableStateOf(if (service.durationMinutes > 0) "${service.durationMinutes} mins" else "")
@@ -646,30 +690,86 @@ private fun EditServiceDialog(
     var unavailableDates by remember(service) { mutableStateOf(service.unavailableDates) }
     var showDatePicker by remember { mutableStateOf(false) }
     val parsedDuration = remember(durationText) { BookingUtils.parseDurationMinutes(durationText) }
-    val price = priceText.toDoubleOrNull()
-    val isPriceValid = price != null && price >= 150 && price <= 5000
+    
+    val sVal = priceSText.toDoubleOrNull()
+    val mVal = priceMText.toDoubleOrNull()
+    val lVal = priceLText.toDoubleOrNull()
+    val xlVal = priceXLText.toDoubleOrNull()
+    val xxlVal = priceXXLText.toDoubleOrNull()
+
+    val isSValid = sVal != null && sVal >= 100 && sVal <= 5000
+    val isMValid = mVal != null && mVal >= 100 && mVal <= 5000
+    val isLValid = lVal != null && lVal >= 100 && lVal <= 5000
+    val isXLValid = xlVal != null && xlVal >= 100 && xlVal <= 5000
+    val isXXLValid = xxlVal != null && xxlVal >= 100 && xxlVal <= 5000
+
+    val isPricingValid = isSValid && isMValid && isLValid && isXLValid && isXXLValid
     val isDurationValid = parsedDuration != null && parsedDuration >= MIN_SERVICE_DURATION_MIN && parsedDuration <= MAX_SERVICE_DURATION_MIN
     val isDescriptionValid = descriptionText.isNotBlank()
-    val valid = isPriceValid && isDurationValid && isDescriptionValid
+    val valid = isPricingValid && isDurationValid && isDescriptionValid
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Edit ${service.displayName}") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Column {
+                Text(
+                    text = "Pricing by Vehicle Size (₱100 - ₱5,000)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
-                        value = priceText,
-                        onValueChange = { priceText = it.filter { c -> c.isDigit() || c == '.' } },
-                        label = { Text("Price (₱)") },
+                        value = priceSText,
+                        onValueChange = { priceSText = it.filter { c -> c.isDigit() || c == '.' } },
+                        label = { Text("S") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.weight(1f)
                     )
-                    if (priceText.isNotEmpty() && !isPriceValid) {
-                        Text("Price must be between ₱150 and ₱5,000", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    }
+                    OutlinedTextField(
+                        value = priceMText,
+                        onValueChange = { priceMText = it.filter { c -> c.isDigit() || c == '.' } },
+                        label = { Text("M") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = priceLText,
+                        onValueChange = { priceLText = it.filter { c -> c.isDigit() || c == '.' } },
+                        label = { Text("L") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = priceXLText,
+                        onValueChange = { priceXLText = it.filter { c -> c.isDigit() || c == '.' } },
+                        label = { Text("XL") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                OutlinedTextField(
+                    value = priceXXLText,
+                    onValueChange = { priceXXLText = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = { Text("XXL (Van)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (!isPricingValid && (priceSText.isNotEmpty() || priceMText.isNotEmpty() || priceLText.isNotEmpty() || priceXLText.isNotEmpty() || priceXXLText.isNotEmpty())) {
+                    Text("All prices must be between ₱100 and ₱5,000", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
 
                 Column {
@@ -764,7 +864,14 @@ private fun EditServiceDialog(
                 onClick = {
                     onSave(
                         service.copy(
-                            customPrice = price ?: 0.0,
+                            customPrice = sVal ?: 0.0,
+                            pricing = mapOf(
+                                "S" to (sVal ?: 0.0),
+                                "M" to (mVal ?: 0.0),
+                                "L" to (lVal ?: 0.0),
+                                "XL" to (xlVal ?: 0.0),
+                                "XXL" to (xxlVal ?: 0.0)
+                            ),
                             durationMinutes = parsedDuration ?: service.durationMinutes,
                             description = descriptionText,
                             unavailableDates = unavailableDates

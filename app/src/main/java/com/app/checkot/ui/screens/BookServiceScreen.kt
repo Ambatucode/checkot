@@ -532,9 +532,9 @@ fun BookServiceScreen(
                 ) {
                     if (step >= 1 && selectedServiceConfigs.isNotEmpty()) {
                         val selectedAvails = availableServices.filter { selectedServiceConfigs.contains(it.config.serviceName) }
+                        val carSize = selectedCar?.size ?: "S"
                         val totalPrice = selectedAvails.sumOf {
-                            if (it.config.customPrice > 0) it.config.customPrice
-                            else it.serviceType?.price ?: 0.0
+                            getServicePrice(it.config, it.serviceType, carSize)
                         }
                         Row(
                             modifier = Modifier
@@ -577,15 +577,18 @@ fun BookServiceScreen(
                                         val serviceTypes = selectedAvails.map { it.serviceType ?: ServiceType.CUSTOM }
                                         val customNames = selectedAvails.filter { it.serviceType == null }
                                             .map { it.config.customName.ifBlank { it.config.displayName } }
+                                        val carSize = selectedCar?.size ?: "S"
                                         val totalPrice = selectedAvails.sumOf {
-                                            if (it.config.customPrice > 0) it.config.customPrice
-                                            else it.serviceType?.price ?: 0.0
+                                            getServicePrice(it.config, it.serviceType, carSize)
                                         }
                                         val booking = Booking(
                                             userId = authViewModel.getCurrentUser()?.uid ?: "",
                                             shopId = shopId,
                                             carId = selectedCar?.carId ?: "",
                                             carDetails = "${selectedCar?.brand} ${selectedCar?.model} - ${selectedCar?.plateNumber}",
+                                            carSize = carSize,
+                                            carPlateNumber = selectedCar?.plateNumber ?: "",
+                                            carBrandModel = "${selectedCar?.brand} ${selectedCar?.model}",
                                             services = serviceTypes,
                                             customServiceNames = customNames,
                                             bookingDate = selectedDate,
@@ -986,8 +989,8 @@ fun BookServiceScreen(
                             val isSelected = selectedServiceConfigs.contains(avail.config.serviceName)
                             // Foodpanda-style "sold out today": greyed out + disabled.
                             val isUnavailable = avail.config.unavailableDates.contains(selectedDay)
-                            val displayPrice = if (avail.config.customPrice > 0) avail.config.customPrice
-                                               else avail.serviceType?.price ?: 0.0
+                             val carSize = selectedCar?.size ?: "S"
+                             val displayPrice = getServicePrice(avail.config, avail.serviceType, carSize)
                             val displayName = if (avail.config.isCustom) avail.config.customName
                                               else avail.config.displayName
                             Box(modifier = Modifier.padding(horizontal = 16.dp)) {
@@ -1227,9 +1230,9 @@ fun BookServiceScreen(
                         val selectedNames = selectedAvails.joinToString(", ") {
                             if (it.config.isCustom) it.config.customName else it.config.displayName
                         }
+                        val carSize = selectedCar?.size ?: "S"
                         val totalPrice = selectedAvails.sumOf {
-                            if (it.config.customPrice > 0) it.config.customPrice
-                            else it.serviceType?.price ?: 0.0
+                            getServicePrice(it.config, it.serviceType, carSize)
                         }
                         Card(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -1397,10 +1400,27 @@ fun CarSelectionCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text(
-                    text = "${car.brand} ${car.model}",
-                    style = MaterialTheme.typography.titleMedium
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${car.brand} ${car.model}",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = car.size,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
                 Text(
                     text = car.plateNumber,
                     style = MaterialTheme.typography.bodyMedium,
@@ -1600,11 +1620,30 @@ private fun PhoneVerifyBookingDialog(
                     )
                 }
 
-                Spacer(Modifier.height(8.dp))
                 TextButton(onClick = onDismiss) {
                     Text("Cancel", color = Color(0xFF94A3B8))
                 }
             }
         }
+    }
+}
+
+fun getServicePrice(config: CustomServiceConfig, serviceType: ServiceType?, carSize: String): Double {
+    if (config.pricing.containsKey(carSize)) {
+        val price = config.pricing[carSize]
+        if (price != null && price > 0.0) {
+            return price
+        }
+    }
+    val basePrice = if (config.customPrice > 0.0) config.customPrice else {
+        serviceType?.price ?: 0.0
+    }
+    return when (carSize) {
+        "S" -> basePrice
+        "M" -> basePrice + 50.0
+        "L" -> basePrice + 100.0
+        "XL" -> basePrice + 150.0
+        "XXL" -> basePrice + 200.0
+        else -> basePrice
     }
 }
