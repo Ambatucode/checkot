@@ -220,16 +220,18 @@ fun AddCarScreen(
                                 text = { 
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Checkbox(
-                                            checked = isSelected,
-                                            onCheckedChange = null,
-                                            colors = CheckboxDefaults.colors(
-                                                checkedColor = MaterialTheme.colorScheme.primary
-                                            )
-                                        )
                                         Text(selection)
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
                                     }
                                 },
                                 onClick = {
