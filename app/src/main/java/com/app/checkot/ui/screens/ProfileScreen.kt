@@ -306,6 +306,7 @@ fun ProfileScreen(
                         profileViewModel.updateUserProfile(mapOf("fullName" to nameInput)) { success, error ->
                             isSavingName = false
                             if (success) {
+                                authViewModel.loadUserData()
                                 showEditNameDialog = false
                             } else {
                                 saveNameError = error ?: "Failed to save changes."

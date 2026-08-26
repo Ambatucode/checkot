@@ -40,7 +40,20 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     onResult(true, null)
                     return@launch
                 }
+                // Fetch user document to check role and ownedShopId
+                val userDoc = firestore.collection("users").document(user.uid).get().await()
+                val role = userDoc.getString("role")
+                val ownedShopId = userDoc.getString("ownedShopId")
+                
                 firestore.collection("users").document(user.uid).update(safeUpdates).await()
+                
+                val newName = safeUpdates["fullName"] as? String
+                if (role == "owner" && !ownedShopId.isNullOrEmpty() && newName != null) {
+                    firestore.collection("shop_services").document(ownedShopId)
+                        .update("ownerName", newName)
+                        .await()
+                }
+                
                 onResult(true, null)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to update profile: ${e.message}")
