@@ -98,6 +98,7 @@ const PROMPT = `You are a car-wash assistant. Look at the photo and judge ONLY h
   `buses, which use specialized wash bays. Ordinary pickups and SUVs stay IN ` +
   `scope. ` +
   `If the image is too blurry, dark, out of focus, heavily pixelated, extremely occluded (e.g. car is mostly covered or blocked by trees/objects), or has lighting/quality so poor that you cannot reliably evaluate whether the car is clean or dirty, set the verdict to "Photo unclear" and set "dirtyArea" to "None". Make the reason explain why it is unclear and politely prompt the user to retake the photo in better lighting or focus, e.g. "The photo is too blurry or dark to analyze. Please take a clearer picture in good lighting." ` +
+  `If the image focuses on parts of the car that are outside of your scope — such as the undercarriage/underbody, engine bay, suspension, or mechanical components under the hood or chassis — set the verdict to "Out of scope" and set "dirtyArea" to "None". Make the reason explain that you only assess the cleanliness of the exterior paint and the interior cabin, e.g. "This image shows the undercarriage of a vehicle, which is not part of the exterior paint or interior cabin that I assess for cleanliness." ` +
   `If the image is not an in-scope four-wheeled vehicle — including a ` +
   `motorcycle, tricycle, or tuktuk, a large truck or bus, a person, animal, ` +
   `object, screenshot, meme, or any inappropriate, explicit, or unrelated ` +
@@ -186,7 +187,7 @@ exports.checkCar = onCall(
           properties: {
             verdict: {
               type: "string",
-              enum: ["Clean", "Lightly dirty", "Needs a wash", "Not a car", "Photo unclear"],
+              enum: ["Clean", "Lightly dirty", "Needs a wash", "Not a car", "Photo unclear", "Out of scope"],
             },
             reason: { type: "string" },
             // Where the dirt is, so the app can recommend the matching service

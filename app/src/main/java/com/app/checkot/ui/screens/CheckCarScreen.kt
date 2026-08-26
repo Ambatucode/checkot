@@ -466,6 +466,7 @@ private fun VerdictCard(verdict: String, reason: String) {
             .then(
                 if (verdict == "Needs a wash") Modifier.border(1.dp, Color(0xFF7F1D1D), MaterialTheme.shapes.medium)
                 else if (verdict == "Photo unclear") Modifier.border(1.dp, Color(0xFFD4AF37), MaterialTheme.shapes.medium)
+                else if (verdict == "Out of scope") Modifier.border(1.dp, Color(0xFF64748B), MaterialTheme.shapes.medium)
                 else Modifier
             ),
         colors = CardDefaults.cardColors(containerColor = container)
@@ -508,6 +509,9 @@ private fun verdictStyle(verdict: String): Triple<Color, Color, ImageVector> = w
     )
     "Photo unclear" -> Triple(
         Color(0xFFFFFDE7), Color(0xFF424242), Icons.Default.WarningAmber
+    )
+    "Out of scope" -> Triple(
+        Color(0xFFF1F5F9), Color(0xFF475569), Icons.Default.Info
     )
     else -> Triple( // "Not a car" / unknown
         MaterialTheme.colorScheme.surfaceVariant,
