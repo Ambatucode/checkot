@@ -38,7 +38,7 @@ service cloud.firestore {
     function isNotChanging(forbiddenFields) {
       return request.resource.data.diff(resource.data)
         .affectedKeys()
-        .hasAll(forbiddenFields) == false;
+        .hasAny(forbiddenFields) == false;
     }
 
     // Validates that a value is a positive number
