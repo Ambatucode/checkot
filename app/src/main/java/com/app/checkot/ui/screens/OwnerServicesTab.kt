@@ -7,6 +7,7 @@ import com.app.checkot.service.*
 import com.app.checkot.ui.theme.CheckotCardSurface
 import com.app.checkot.ui.theme.CheckotTeal
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -689,6 +690,7 @@ private fun EditServiceDialog(
     var descriptionText by remember(service) { mutableStateOf(service.description) }
     var unavailableDates by remember(service) { mutableStateOf(service.unavailableDates) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var durationDropdownExpanded by remember { mutableStateOf(false) }
     val parsedDuration = remember(durationText) { BookingUtils.parseDurationMinutes(durationText) }
     
     val sVal = priceSText.toDoubleOrNull()
@@ -773,15 +775,51 @@ private fun EditServiceDialog(
                 }
 
                 Column {
-                    OutlinedTextField(
-                        value = durationText,
-                        onValueChange = { durationText = it },
-                        label = { Text("Duration") },
-                        placeholder = { Text("e.g. 30 mins, 1 hour, 1.5 hours") },
-                        singleLine = true,
-                        shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.fillMaxWidth()
+                    val durationOptions = listOf(
+                        "20 mins", "30 mins", "45 mins", "1 hour", "1.5 hours", "2 hours", 
+                        "2.5 hours", "3 hours", "3.5 hours", "4 hours", "4.5 hours", "5 hours", 
+                        "5.5 hours", "6 hours", "6.5 hours", "7 hours", "7.5 hours", "8 hours", 
+                        "8.5 hours", "9 hours", "9.5 hours", "10 hours"
                     )
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = durationText,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Duration") },
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = if (durationDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.clickable { durationDropdownExpanded = !durationDropdownExpanded }
+                                )
+                            },
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { durationDropdownExpanded = true }
+                        )
+                        DropdownMenu(
+                            expanded = durationDropdownExpanded,
+                            onDismissRequest = { durationDropdownExpanded = false },
+                            modifier = Modifier
+                                .width(280.dp)
+                                .heightIn(max = 240.dp)
+                        ) {
+                            durationOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option) },
+                                    onClick = {
+                                        durationText = option
+                                        durationDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
                     if (durationText.isNotEmpty() && !isDurationValid) {
                         Text("Duration must be between 20 mins and 10 hours", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
