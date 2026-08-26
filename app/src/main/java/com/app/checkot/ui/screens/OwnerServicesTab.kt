@@ -31,7 +31,7 @@ import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 
 const val MIN_SERVICE_DURATION_MIN = 20
-const val MAX_SERVICE_DURATION_MIN = 180
+const val MAX_SERVICE_DURATION_MIN = 600
 const val MAX_SERVICE_DESCRIPTION_LEN = 150
 // A shop must stay open at least this long — prevents absurdly short windows
 // that would confuse clients (sanity floor for the no-active-bookings case).
@@ -633,7 +633,7 @@ private fun ServiceRow(
                             Text("Price must be ₱100 - ₱30,000", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         }
                         if (isDurationInvalid) {
-                            Text("⚠️ Duration must be 20 - 180 mins", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            Text("Duration must be between 20 mins and 10 hours", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -783,7 +783,7 @@ private fun EditServiceDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                     if (durationText.isNotEmpty() && !isDurationValid) {
-                        Text("Duration must be between 20 and 180 mins", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        Text("Duration must be between 20 mins and 10 hours", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                 }
 
