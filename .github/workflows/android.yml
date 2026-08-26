@@ -1,4 +1,4 @@
-name: Android CI/CD Build
+name: Android CI/CD Build # Build Trigger: v4.2
 
 on:
   push:
