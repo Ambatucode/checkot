@@ -141,7 +141,7 @@ fun OwnerDashboard(
                                     color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                                 Text(
-                                    "Complete all requirements to notify admin (Tap to view setup checklist) ➔",
+                                    "Complete all requirements for admin review (Tap to view setup checklist)",
                                     style = MaterialTheme.typography.bodySmall,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF00E6C3),
@@ -325,7 +325,7 @@ fun OwnerDashboard(
                                     }
                                     Spacer(modifier = Modifier.height(16.dp))
                                     Text(
-                                        text = "💡 Once you have successfully completed all requirements, the administrator will be notified automatically to review and activate your shop.",
+                                        text = "Once you have successfully completed all requirements, the administrator can review and activate your shop.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.Medium
