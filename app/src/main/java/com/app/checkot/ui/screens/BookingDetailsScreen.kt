@@ -121,6 +121,13 @@ fun BookingDetailsScreen(
                 val ahead = if (index > 0) sorted.subList(0, index) else emptyList()
                 val bayCount = shopCustomization?.bayCount ?: 1
                 val estimated = BookingUtils.calculateEstimatedWaitMinutes(ahead, bayCount)
+                
+                println("DEBUG_QUEUE: shopCustomizationLoaded=${shopCustomization != null}, bayCount=$bayCount, index=$index, position=$position")
+                ahead.forEachIndexed { i, b ->
+                    println("DEBUG_QUEUE: ahead[$i] bookingId=${b.bookingId}, status=${b.status}, duration=${BookingUtils.bookingDurationMinutes(b)}, inProgressAt=${b.inProgressAt}")
+                }
+                println("DEBUG_QUEUE: calculated estimated=$estimated")
+                
                 queueInfo = QueueInfo(position, estimated, sorted.size)
             }
         onDispose { listener.remove() }
