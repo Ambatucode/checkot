@@ -90,6 +90,9 @@ fun BookingDetailsScreen(
     var showCancelDialog by remember { mutableStateOf(false) }
     var queueInfo by remember { mutableStateOf(QueueInfo()) }
 
+    var isShopLoaded by remember(booking) { mutableStateOf(false) }
+    var isQueueLoaded by remember { mutableStateOf(false) }
+
     // Load the shop name + map location from Firestore (same doc, one fetch)
     var shopName by remember(booking) { mutableStateOf("") }
     var shopLatitude by remember(booking) { mutableStateOf(0.0) }
@@ -109,7 +112,10 @@ fun BookingDetailsScreen(
             .whereEqualTo("bookingDate", booking.bookingDate)
             .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
             .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) return@addSnapshotListener
+                if (error != null || snapshot == null) {
+                    isQueueLoaded = true
+                    return@addSnapshotListener
+                }
                 val bookings = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
                 val sorted = bookings.sortedWith(
                     compareBy<Booking> { it.status != com.app.checkot.model.BookingStatus.IN_PROGRESS }
@@ -129,6 +135,7 @@ fun BookingDetailsScreen(
                 println("DEBUG_QUEUE: calculated estimated=$estimated")
                 
                 queueInfo = QueueInfo(position, estimated, sorted.size)
+                isQueueLoaded = true
             }
         onDispose { listener.remove() }
     }
@@ -160,10 +167,14 @@ fun BookingDetailsScreen(
                     shopServices = services
                     shopLogo = logo
                     shopCustomization = customization
+                    isShopLoaded = true
                 }
             } catch (e: Exception) {
                 println("Failed to load shop details: ${e.message}")
-                withContext(Dispatchers.Main) { shopName = shopId.takeLast(6).uppercase() }
+                withContext(Dispatchers.Main) {
+                    shopName = shopId.takeLast(6).uppercase()
+                    isShopLoaded = true
+                }
             }
         }
     }
@@ -418,9 +429,18 @@ fun BookingDetailsScreen(
             }
             // Queue Position Card — only for active bookings
             if (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS) {
-                if (queueInfo.position > 0) {
-                    item {
-                        QueuePositionCard(queueInfo = queueInfo, status = booking.status)
+                item {
+                    val showCard = isShopLoaded && isQueueLoaded && queueInfo.position > 0
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showCard,
+                        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+                        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
+                    ) {
+                        QueuePositionCard(
+                            queueInfo = queueInfo,
+                            status = booking.status,
+                            showWaitTime = queueInfo.estimatedWaitMinutes > 0
+                        )
                     }
                 }
             }
@@ -1305,7 +1325,7 @@ fun ServiceProgressStepper(status: BookingStatus) {
 }
 
 @Composable
-fun QueuePositionCard(queueInfo: QueueInfo, status: BookingStatus) {
+fun QueuePositionCard(queueInfo: QueueInfo, status: BookingStatus, showWaitTime: Boolean) {
     Card(
         modifier = Modifier.fillMaxWidth().border(1.dp, Color(0xFF00E6C3), MaterialTheme.shapes.medium),
         colors = CardDefaults.cardColors(
@@ -1356,35 +1376,41 @@ fun QueuePositionCard(queueInfo: QueueInfo, status: BookingStatus) {
             )
 
             // Estimated wait time
-            if (carsAhead > 0 && queueInfo.estimatedWaitMinutes > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Surface(
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showWaitTime && carsAhead > 0,
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                        shape = MaterialTheme.shapes.small
                     ) {
-                        Icon(
-                            Icons.Default.Schedule,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        val waitText = if (queueInfo.estimatedWaitMinutes >= 60) {
-                            val hours = queueInfo.estimatedWaitMinutes / 60
-                            val mins = queueInfo.estimatedWaitMinutes % 60
-                            if (mins > 0) "${hours}h ${mins}m" else "${hours}h"
-                        } else {
-                            "${queueInfo.estimatedWaitMinutes} min"
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Schedule,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            val waitText = if (queueInfo.estimatedWaitMinutes >= 60) {
+                                val hours = queueInfo.estimatedWaitMinutes / 60
+                                val mins = queueInfo.estimatedWaitMinutes % 60
+                                if (mins > 0) "${hours}h ${mins}m" else "${hours}h"
+                            } else {
+                                "${queueInfo.estimatedWaitMinutes} min"
+                            }
+                            Text(
+                                text = "Est. wait: ~$waitText",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         }
-                        Text(
-                            text = "Est. wait: ~$waitText",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
                     }
                 }
             }

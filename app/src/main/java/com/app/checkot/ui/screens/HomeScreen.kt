@@ -477,6 +477,7 @@ fun BookingCard(
     bookingViewModel: BookingViewModel = viewModel()
 ) {
     var queueInfo by remember { mutableStateOf(QueueInfo()) }
+    var isQueueLoaded by remember { mutableStateOf(false) }
 
     // Direct Firestore listener — more reliable than callbackFlow
     DisposableEffect(booking.bookingId, booking.shopId, booking.bookingDate, bayCount) {
@@ -485,7 +486,10 @@ fun BookingCard(
             .whereEqualTo("bookingDate", booking.bookingDate)
             .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
             .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) return@addSnapshotListener
+                if (error != null || snapshot == null) {
+                    isQueueLoaded = true
+                    return@addSnapshotListener
+                }
                 val bookings = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
                 val sorted = bookings.sortedWith(
                     compareBy<Booking> { it.status != com.app.checkot.model.BookingStatus.IN_PROGRESS }
@@ -497,6 +501,7 @@ fun BookingCard(
                 val ahead = if (index > 0) sorted.subList(0, index) else emptyList()
                 val estimated = com.app.checkot.utils.BookingUtils.calculateEstimatedWaitMinutes(ahead, bayCount)
                 queueInfo = QueueInfo(position, estimated, sorted.size)
+                isQueueLoaded = true
             }
         onDispose { listener.remove() }
     }
@@ -578,35 +583,46 @@ fun BookingCard(
                 )
             }
             // Queue info — always show for active bookings
-            if (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Surface(
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+            val showQueue = isQueueLoaded && queueInfo.position > 0
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showQueue && (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS),
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
+            ) {
+                Column {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                        shape = MaterialTheme.shapes.small
                     ) {
-                        Icon(
-                            Icons.Default.People,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (queueInfo.position > 0) {
-                                val carsAhead = queueInfo.position - 1
-                                if (carsAhead == 0) "Queue: #${queueInfo.position} — You're next!"
-                                else "Queue: #${queueInfo.position} — $carsAhead ahead"
-                            } else {
-                                "Loading queue position..."
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.People,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            val carsAhead = queueInfo.position - 1
+                            val waitSuffix = if (queueInfo.estimatedWaitMinutes > 0 && carsAhead > 0) {
+                                val hours = queueInfo.estimatedWaitMinutes / 60
+                                val mins = queueInfo.estimatedWaitMinutes % 60
+                                val waitText = if (hours > 0 && mins > 0) "${hours}h ${mins}m"
+                                               else if (hours > 0) "${hours}h"
+                                               else "${mins}m"
+                                " • Est. wait: ~$waitText"
+                            } else ""
+                            Text(
+                                text = if (carsAhead == 0) "Queue: #${queueInfo.position} — You're next!$waitSuffix"
+                                       else "Queue: #${queueInfo.position} — $carsAhead ahead$waitSuffix",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             }
