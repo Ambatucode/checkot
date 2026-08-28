@@ -3,6 +3,7 @@ package com.app.checkot.utils
 import com.app.checkot.model.Booking
 import com.app.checkot.model.DaySlotEntry
 import com.app.checkot.model.ServiceType
+import com.app.checkot.model.BookingStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -256,5 +257,64 @@ class BookingUtilsTest {
         assertEquals(540, BookingUtils.parseTimeSlotToMinutes("09:00 AM"))
         assertEquals(810, BookingUtils.parseTimeSlotToMinutes("01:30 PM"))
         assertEquals(0, BookingUtils.parseTimeSlotToMinutes("invalid"))
+    }
+
+    // ---- calculateEstimatedWaitMinutes ----
+
+    @Test
+    fun `calculateEstimatedWaitMinutes returns zero when ahead list is empty`() {
+        assertEquals(0, BookingUtils.calculateEstimatedWaitMinutes(emptyList(), bayCount = 1))
+        assertEquals(0, BookingUtils.calculateEstimatedWaitMinutes(emptyList(), bayCount = 3))
+    }
+
+    @Test
+    fun `calculateEstimatedWaitMinutes sums durations sequentially for single bay`() {
+        val b1 = Booking(durationMinutes = 30, status = BookingStatus.PENDING)
+        val b2 = Booking(durationMinutes = 45, status = BookingStatus.PENDING)
+        val ahead = listOf(b1, b2)
+        assertEquals(75, BookingUtils.calculateEstimatedWaitMinutes(ahead, bayCount = 1))
+    }
+
+    @Test
+    fun `calculateEstimatedWaitMinutes simulates parallel bays correctly`() {
+        // Two bays. b1 takes 30 mins, b2 takes 45 mins.
+        // Third car (the user's) should wait until the first bay becomes free (at 30 mins).
+        val b1 = Booking(durationMinutes = 30, status = BookingStatus.PENDING)
+        val b2 = Booking(durationMinutes = 45, status = BookingStatus.PENDING)
+        val ahead = listOf(b1, b2)
+        assertEquals(30, BookingUtils.calculateEstimatedWaitMinutes(ahead, bayCount = 2))
+
+        // Three bays. Two cars ahead. Next available bay is free immediately.
+        assertEquals(0, BookingUtils.calculateEstimatedWaitMinutes(ahead, bayCount = 3))
+    }
+
+    @Test
+    fun `calculateEstimatedWaitMinutes deducts elapsed time for in progress bookings`() {
+        val now = System.currentTimeMillis()
+        
+        // Booking has 30 mins duration and has been running for 10 minutes (elapsed = 10 mins).
+        // Remaining time should be 20 minutes.
+        val b1 = Booking(
+            durationMinutes = 30,
+            status = BookingStatus.IN_PROGRESS,
+            inProgressAt = now - 10 * 60000 // 10 minutes ago
+        )
+        val ahead = listOf(b1)
+        assertEquals(20, BookingUtils.calculateEstimatedWaitMinutes(ahead, bayCount = 1))
+    }
+
+    @Test
+    fun `calculateEstimatedWaitMinutes handles elapsed time exceeding duration gracefully`() {
+        val now = System.currentTimeMillis()
+        
+        // Booking has 30 mins duration and has been running for 40 minutes (elapsed = 40 mins).
+        // Remaining time should be 0 minutes.
+        val b1 = Booking(
+            durationMinutes = 30,
+            status = BookingStatus.IN_PROGRESS,
+            inProgressAt = now - 40 * 60000 // 40 minutes ago
+        )
+        val ahead = listOf(b1)
+        assertEquals(0, BookingUtils.calculateEstimatedWaitMinutes(ahead, bayCount = 1))
     }
 }

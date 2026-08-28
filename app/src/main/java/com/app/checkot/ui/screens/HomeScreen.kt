@@ -66,7 +66,8 @@ fun HomeScreen(
                         name = name,
                         address = address,
                         logoUrl = doc.getString("logoUrl") ?: "",
-                        services = customization?.services ?: emptyList()
+                        services = customization?.services ?: emptyList(),
+                        bayCount = customization?.bayCount ?: 1
                     )
                 }
                 withContext(Dispatchers.Main) {
@@ -352,7 +353,8 @@ fun HomeScreen(
                     BookingCard(
                         booking = booking,
                         onClick = { navController.navigate("booking_details/${booking.bookingId}") },
-                        shopName = shopNameMap[booking.shopId] ?: "Shop"
+                        shopName = shopNameMap[booking.shopId] ?: "Shop",
+                        bayCount = shopList.find { it.shopId == booking.shopId }?.bayCount ?: 1
                     )
                 }
             }
@@ -471,12 +473,13 @@ fun BookingCard(
     // Resolved shop name instead of a Map param: Map is an unstable type in
     // Compose and made every card recompose whenever the parent did.
     shopName: String = "Shop",
+    bayCount: Int = 1,
     bookingViewModel: BookingViewModel = viewModel()
 ) {
     var queueInfo by remember { mutableStateOf(QueueInfo()) }
 
     // Direct Firestore listener — more reliable than callbackFlow
-    DisposableEffect(booking.bookingId, booking.shopId, booking.bookingDate) {
+    DisposableEffect(booking.bookingId, booking.shopId, booking.bookingDate, bayCount) {
         val listener = Firebase.firestore.collection("bookings")
             .whereEqualTo("shopId", booking.shopId)
             .whereEqualTo("bookingDate", booking.bookingDate)
@@ -492,9 +495,7 @@ fun BookingCard(
                 val index = sorted.indexOfFirst { it.bookingId == booking.bookingId }
                 val position = if (index != -1) index + 1 else -1
                 val ahead = if (index > 0) sorted.subList(0, index) else emptyList()
-                val estimated = ahead.sumOf { b ->
-                    BookingUtils.bookingDurationMinutes(b)
-                }
+                val estimated = com.app.checkot.utils.BookingUtils.calculateEstimatedWaitMinutes(ahead, bayCount)
                 queueInfo = QueueInfo(position, estimated, sorted.size)
             }
         onDispose { listener.remove() }

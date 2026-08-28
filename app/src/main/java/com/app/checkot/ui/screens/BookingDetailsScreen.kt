@@ -90,8 +90,19 @@ fun BookingDetailsScreen(
     var showCancelDialog by remember { mutableStateOf(false) }
     var queueInfo by remember { mutableStateOf(QueueInfo()) }
 
+    // Load the shop name + map location from Firestore (same doc, one fetch)
+    var shopName by remember(booking) { mutableStateOf("") }
+    var shopLatitude by remember(booking) { mutableStateOf(0.0) }
+    var shopLongitude by remember(booking) { mutableStateOf(0.0) }
+    var shopServices by remember(booking) { mutableStateOf<List<CustomServiceConfig>>(emptyList()) }
+    var shopLogo by remember(booking) { mutableStateOf<ImageBitmap?>(null) }
+    // Full shop doc — used to flag bookings impacted by closures/hours changes.
+    var shopCustomization by remember(booking) { mutableStateOf<ShopCustomization?>(null) }
+    var showAddOnDialog by remember { mutableStateOf(false) }
+    var showReceipt by remember { mutableStateOf(false) }
+
     // Direct Firestore listener for queue info
-    DisposableEffect(booking?.bookingId, booking?.shopId, booking?.bookingDate) {
+    DisposableEffect(booking?.bookingId, booking?.shopId, booking?.bookingDate, shopCustomization?.bayCount) {
         if (booking == null) return@DisposableEffect onDispose {}
         val listener = Firebase.firestore.collection("bookings")
             .whereEqualTo("shopId", booking.shopId)
@@ -108,24 +119,12 @@ fun BookingDetailsScreen(
                 val index = sorted.indexOfFirst { it.bookingId == booking.bookingId }
                 val position = if (index != -1) index + 1 else -1
                 val ahead = if (index > 0) sorted.subList(0, index) else emptyList()
-                val estimated = ahead.sumOf { b ->
-                    BookingUtils.bookingDurationMinutes(b)
-                }
+                val bayCount = shopCustomization?.bayCount ?: 1
+                val estimated = BookingUtils.calculateEstimatedWaitMinutes(ahead, bayCount)
                 queueInfo = QueueInfo(position, estimated, sorted.size)
             }
         onDispose { listener.remove() }
     }
-
-    // Load the shop name + map location from Firestore (same doc, one fetch)
-    var shopName by remember(booking) { mutableStateOf("") }
-    var shopLatitude by remember(booking) { mutableStateOf(0.0) }
-    var shopLongitude by remember(booking) { mutableStateOf(0.0) }
-    var shopServices by remember(booking) { mutableStateOf<List<CustomServiceConfig>>(emptyList()) }
-    var shopLogo by remember(booking) { mutableStateOf<ImageBitmap?>(null) }
-    // Full shop doc — used to flag bookings impacted by closures/hours changes.
-    var shopCustomization by remember(booking) { mutableStateOf<ShopCustomization?>(null) }
-    var showAddOnDialog by remember { mutableStateOf(false) }
-    var showReceipt by remember { mutableStateOf(false) }
     LaunchedEffect(booking?.shopId) {
         val shopId = booking?.shopId ?: return@LaunchedEffect
         withContext(Dispatchers.IO) {

@@ -5,6 +5,7 @@ import com.app.checkot.model.DayHoursOverride
 import com.app.checkot.model.DaySlotEntry
 import com.app.checkot.model.ServiceType
 import com.app.checkot.model.ShopCustomization
+import com.app.checkot.model.BookingStatus
 
 /**
  * Shared booking-slot math. Previously duplicated (with slight drift) across
@@ -242,4 +243,28 @@ object BookingUtils {
     /** Reshapes a ledger's flat entry list into the same per-bay range map computeBusyRanges produces. */
     fun busyRangesFromLedger(entries: List<DaySlotEntry>): Map<Int, List<Pair<Int, Int>>> =
         entries.groupBy { it.bay }.mapValues { (_, v) -> v.map { it.start to it.end } }
+
+    /**
+     * Estimates the wait time for a user by simulating scheduling of all ahead bookings
+     * across the available bays, accounting for elapsed time of in-progress bookings.
+     */
+    fun calculateEstimatedWaitMinutes(ahead: List<Booking>, bayCount: Int): Int {
+        val safeBayCount = bayCount.coerceAtLeast(1)
+        if (ahead.isEmpty()) return 0
+        val bayEnds = IntArray(safeBayCount) { 0 }
+        val now = System.currentTimeMillis()
+        
+        ahead.forEach { b ->
+            val duration = bookingDurationMinutes(b)
+            val remaining = if (b.status == BookingStatus.IN_PROGRESS && b.inProgressAt != null) {
+                val elapsedMins = ((now - b.inProgressAt) / 60000).toInt()
+                (duration - elapsedMins).coerceAtLeast(0)
+            } else {
+                duration
+            }
+            val earliestBay = bayEnds.indices.minByOrNull { bayEnds[it] } ?: 0
+            bayEnds[earliestBay] += remaining
+        }
+        return bayEnds.minOrNull() ?: 0
+    }
 }

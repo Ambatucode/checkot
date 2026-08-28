@@ -34,7 +34,8 @@ data class CarWashShop(
     val longitude: Double = 0.0,
     val logoUrl: String = "",    // Firebase Storage download URL; "" = no logo
     val minPrice: Double = 0.0,  // cheapest service price; 0 = unknown (legacy)
-    val services: List<CustomServiceConfig> = emptyList() // offerings — drives the "From ₱X" badge
+    val services: List<CustomServiceConfig> = emptyList(), // offerings — drives the "From ₱X" badge
+    val bayCount: Int = 1
 )
 
 enum class CarSize(val label: String, val sizeKey: String) {
