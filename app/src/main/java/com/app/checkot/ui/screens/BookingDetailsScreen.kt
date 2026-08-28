@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
+import androidx.compose.animation.core.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1199,10 +1200,10 @@ fun ServiceProgressStepper(status: BookingStatus) {
     }
 
     val steps = listOf(
-        "Queue" to Icons.Default.HourglassEmpty,
-        "Accepted" to Icons.Default.Assignment,
+        "Queue" to Icons.Default.Schedule,
+        "Accepted" to Icons.Default.TaskAlt,
         "In Progress" to Icons.Default.LocalCarWash,
-        "Ready" to Icons.Default.VpnKey
+        "Ready" to Icons.Default.Key
     )
     val currentStepIndex = when (status) {
         BookingStatus.PENDING -> 0
@@ -1211,6 +1212,18 @@ fun ServiceProgressStepper(status: BookingStatus) {
         BookingStatus.COMPLETED -> 3
         BookingStatus.CANCELLED -> -1
     }
+
+    // Sweep shimmer wave animation along the active line segment
+    val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
+    val shimmerProgress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmerProgress"
+    )
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1230,40 +1243,71 @@ fun ServiceProgressStepper(status: BookingStatus) {
                 modifier = Modifier.padding(bottom = 16.dp)
             )
             // Line with circles
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(40.dp) // Increased for glow
+                    .height(48.dp)
             ) {
-                // Full background line
+                val w = maxWidth
+                val h = 6.dp
+                
+                val x0 = w / 8f
+                val x3 = w * 7f / 8f
+                
+                // 1. Draw background line (strictly bound between x0 and x3)
                 Box(
                     modifier = Modifier
+                        .padding(horizontal = w / 8)
                         .fillMaxWidth()
-                        .height(4.dp)
-                        .align(Alignment.CenterStart)
+                        .height(h)
+                        .align(Alignment.Center)
                         .background(
                             Color.White.copy(alpha = 0.1f),
                             MaterialTheme.shapes.small
                         )
                 )
-                // Completed portion of line
+                
+                // 2. Draw active/completed line if currentStepIndex > 0
                 if (currentStepIndex > 0) {
-                    Box(
+                    val activeFraction = currentStepIndex.toFloat() / (steps.size - 1).toFloat()
+                    val waveWidth = 80.dp
+                    
+                    androidx.compose.foundation.Canvas(
                         modifier = Modifier
-                            .fillMaxWidth(currentStepIndex.toFloat() / (steps.size - 1).toFloat())
-                            .height(4.dp)
+                            .padding(horizontal = w / 8)
+                            .fillMaxWidth(activeFraction)
+                            .height(h)
                             .align(Alignment.CenterStart)
-                            .background(
+                    ) {
+                        val canvasW = size.width
+                        val canvasH = size.height
+                        
+                        val waveWidthPx = waveWidth.toPx()
+                        val currentCenter = -waveWidthPx + (canvasW + 2 * waveWidthPx) * shimmerProgress
+                        
+                        val brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                            colors = listOf(
                                 Color(0xFF00E6C3),
-                                MaterialTheme.shapes.small
-                            )
-                    )
+                                Color(0xFFB3FFF5), // Sweeping bright highlight wave
+                                Color(0xFF00E6C3)
+                            ),
+                            start = androidx.compose.ui.geometry.Offset(currentCenter - waveWidthPx, 0f),
+                            end = androidx.compose.ui.geometry.Offset(currentCenter + waveWidthPx, 0f)
+                        )
+                        
+                        drawRoundRect(
+                            brush = brush,
+                            topLeft = androidx.compose.ui.geometry.Offset(0f, 0f),
+                            size = androidx.compose.ui.geometry.Size(canvasW, canvasH),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(canvasH / 2, canvasH / 2)
+                        )
+                    }
                 }
-                // Circles
+                
+                // 3. Circles Row
                 Row(
                     modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     steps.forEachIndexed { index, step ->
                         val (label, icon) = step
@@ -1273,27 +1317,34 @@ fun ServiceProgressStepper(status: BookingStatus) {
                         
                         val circleColor = if (isHighlighted) Color(0xFF00E6C3) else Color.White.copy(alpha = 0.2f)
                         val iconColor = if (isHighlighted) Color(0xFF0F2530) else Color.White.copy(alpha = 0.6f)
+                        val iconToRender = if (isCompleted) Icons.Default.Check else icon
                         
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
-                                .then(
-                                    if (isActive) Modifier.drawBehind {
-                                        drawCircle(
-                                            color = Color(0xFF00E6C3).copy(alpha = 0.4f),
-                                            radius = size.minDimension / 2 + 8.dp.toPx()
-                                        )
-                                    } else Modifier
-                                )
-                                .background(circleColor, shape = CircleShape),
+                                .weight(1f),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = label,
-                                tint = iconColor,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .then(
+                                        if (isActive) Modifier.drawBehind {
+                                            drawCircle(
+                                                color = Color(0xFF00E6C3).copy(alpha = 0.4f),
+                                                radius = size.minDimension / 2 + 8.dp.toPx()
+                                            )
+                                        } else Modifier
+                                    )
+                                    .background(circleColor, shape = CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = iconToRender,
+                                    contentDescription = label,
+                                    tint = iconColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -1303,7 +1354,7 @@ fun ServiceProgressStepper(status: BookingStatus) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 12.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 steps.forEachIndexed { index, step ->
                     val (label, _) = step
