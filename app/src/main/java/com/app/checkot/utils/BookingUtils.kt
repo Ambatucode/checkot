@@ -225,7 +225,11 @@ object BookingUtils {
 
     /** True if at least one bay has no range overlapping [start, end). */
     fun hasFreeBay(busyRanges: Map<Int, List<Pair<Int, Int>>>, start: Int, end: Int): Boolean {
-        return busyRanges.values.any { ranges -> ranges.none { (s, e) -> start < e && end > s } }
+        // An empty map means no reservations at all — every bay is free. (A
+        // `values.any {}` over zero bays is vacuously false, which used to grey
+        // out every slot on days with no ledger entries yet.)
+        return busyRanges.isEmpty() ||
+            busyRanges.values.any { ranges -> ranges.none { (s, e) -> start < e && end > s } }
     }
 
     /** The lowest-numbered bay (0-indexed) with no range overlapping [start, end), or null if none. */
@@ -240,9 +244,20 @@ object BookingUtils {
     /** Deterministic document ID for a shop's day_slots ledger entry. */
     fun ledgerDocId(shopId: String, date: Long): String = "${shopId}_$date"
 
-    /** Reshapes a ledger's flat entry list into the same per-bay range map computeBusyRanges produces. */
-    fun busyRangesFromLedger(entries: List<DaySlotEntry>): Map<Int, List<Pair<Int, Int>>> =
-        entries.groupBy { it.bay }.mapValues { (_, v) -> v.map { it.start to it.end } }
+    /**
+     * Reshapes a ledger's flat entry list into the same per-bay range map
+     * [computeBusyRanges] produces. Every bay 0..bayCount-1 is present (empty
+     * bays included), so a bay with no reservations is still visible to
+     * availability checks — mirroring the server's busyRangesFromLedger.
+     */
+    fun busyRangesFromLedger(entries: List<DaySlotEntry>, bayCount: Int): Map<Int, List<Pair<Int, Int>>> {
+        val ranges: Map<Int, MutableList<Pair<Int, Int>>> =
+            (0 until bayCount.coerceAtLeast(1)).associateWith { mutableListOf() }
+        for (entry in entries) {
+            ranges[entry.bay]?.add(entry.start to entry.end)
+        }
+        return ranges
+    }
 
     /**
      * Estimates the wait time for a user by simulating scheduling of all ahead bookings

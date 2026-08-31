@@ -50,7 +50,7 @@ object BookingLedgerService {
             val ledger = ledgerSnap.toObject(DaySlotLedger::class.java)
                 ?: DaySlotLedger(shopId = booking.shopId, date = booking.bookingDate)
 
-            val busyRanges = BookingUtils.busyRangesFromLedger(ledger.entries)
+            val busyRanges = BookingUtils.busyRangesFromLedger(ledger.entries, bayCount)
             val freeBay = BookingUtils.findFreeBayIndex(busyRanges, bayCount, startMin, endMin)
                 ?: throw NoFreeBayException()
 

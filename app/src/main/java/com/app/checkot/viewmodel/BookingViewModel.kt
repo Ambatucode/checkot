@@ -379,9 +379,10 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 val busyRanges = if (ledgerDoc.exists()) {
                     val ledger = ledgerDoc.toObject(DaySlotLedger::class.java)
                     val entries = ledger?.entries.orEmpty()
-                    BookingUtils.busyRangesFromLedger(entries)
+                    BookingUtils.busyRangesFromLedger(entries, bayCount)
                 } else {
-                    emptyMap()
+                    // No ledger yet = no reservations this day; every bay is free.
+                    BookingUtils.busyRangesFromLedger(emptyList(), bayCount)
                 }
                 Log.d(TAG, "📅 Loaded busy ranges from ledger: ${busyRanges.size} bays")
 

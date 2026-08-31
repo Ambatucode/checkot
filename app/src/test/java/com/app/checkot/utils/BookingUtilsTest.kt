@@ -209,12 +209,40 @@ class BookingUtilsTest {
             DaySlotEntry(bay = 0, start = 600, end = 630, bookingId = "b2"),
             DaySlotEntry(bay = 1, start = 540, end = 585, bookingId = "b3")
         )
-        val ranges = BookingUtils.busyRangesFromLedger(entries)
+        val ranges = BookingUtils.busyRangesFromLedger(entries, bayCount = 2)
 
         assertEquals(listOf(540 to 570, 600 to 630), ranges[0])
         assertEquals(listOf(540 to 585), ranges[1])
         assertFalse(BookingUtils.hasFreeBay(ranges, start = 540, end = 570))
         assertTrue(BookingUtils.hasFreeBay(ranges, start = 585, end = 600))
+    }
+
+    @Test
+    fun `hasFreeBay returns true when the ledger is empty`() {
+        // Regression: a day with no ledger entries yet must NOT grey out every
+        // slot. `values.any {}` over an empty map is vacuously false, which
+        // previously marked all slots unavailable for any unbooked day.
+        val emptyLedger = BookingUtils.busyRangesFromLedger(emptyList(), bayCount = 3)
+        assertTrue(BookingUtils.hasFreeBay(emptyLedger, start = 540, end = 570))
+        assertTrue(BookingUtils.hasFreeBay(emptyLedger, start = 930, end = 990))
+        // Also directly on an empty map (e.g. a missing ledger document).
+        assertTrue(BookingUtils.hasFreeBay(emptyMap(), start = 540, end = 570))
+    }
+
+    @Test
+    fun `busyRangesFromLedger keeps bays without reservations in the map`() {
+        // Only bay 0 has a reservation. The buggy shape — a map that only
+        // contains bays that HAVE entries — makes the free bay 1 invisible:
+        // `values.any {}` only inspects bay 0 (busy) and reports "no free bay".
+        val entries = listOf(DaySlotEntry(bay = 0, start = 540, end = 570, bookingId = "b1"))
+        val buggyShape = mapOf(0 to listOf(540 to 570))
+        assertFalse(BookingUtils.hasFreeBay(buggyShape, start = 540, end = 570))
+
+        // With bayCount the ledger keeps every bay (empty ones included), so
+        // bay 1 is visible and 540-570 is bookable there.
+        val ranges = BookingUtils.busyRangesFromLedger(entries, bayCount = 2)
+        assertTrue(BookingUtils.hasFreeBay(ranges, start = 540, end = 570))
+        assertTrue(BookingUtils.hasFreeBay(ranges, start = 570, end = 600))
     }
 
     // ---- utcMidnightToLocalMidnight ----
