@@ -29,18 +29,18 @@ class BookingUtilsTest {
         assertEquals(0 to 30, BookingUtils.parseTimeSlotToHourMinute("12:30 AM"))
     }
 
-    // ---- parseTimeSlotToMinutesSince9AM ----
+    // ---- parseTimeSlotToMinutesSinceMidnight ----
 
     @Test
-    fun `parseTimeSlotToMinutesSince9AM is zero at the start of the booking day`() {
-        assertEquals(0, BookingUtils.parseTimeSlotToMinutesSince9AM("09:00 AM"))
-        assertEquals(30, BookingUtils.parseTimeSlotToMinutesSince9AM("09:30 AM"))
+    fun `parseTimeSlotToMinutesSince9AM returns minutes since midnight`() {
+        assertEquals(540, BookingUtils.parseTimeSlotToMinutesSince9AM("09:00 AM"))
+        assertEquals(570, BookingUtils.parseTimeSlotToMinutesSince9AM("09:30 AM"))
     }
 
     @Test
-    fun `parseTimeSlotToMinutesSince9AM handles afternoon slots`() {
-        assertEquals(180, BookingUtils.parseTimeSlotToMinutesSince9AM("12:00 PM"))
-        assertEquals(420, BookingUtils.parseTimeSlotToMinutesSince9AM("04:00 PM"))
+    fun `parseTimeSlotToMinutesSince9AM handles afternoon slots correctly`() {
+        assertEquals(720, BookingUtils.parseTimeSlotToMinutesSince9AM("12:00 PM"))
+        assertEquals(960, BookingUtils.parseTimeSlotToMinutesSince9AM("04:00 PM"))
     }
 
     // ---- minutesToSlotLabel ----
@@ -118,21 +118,14 @@ class BookingUtilsTest {
 
     @Test
     fun `two overlapping bookings fully occupy two bays`() {
-        // Both 30-min BASIC_WASH slots starting at the same time overlap each
-        // other, so each needs its own bay.
         val bookings = listOf(bookingAt("09:00 AM"), bookingAt("09:00 AM"))
 
         val twoBays = BookingUtils.computeBusyRanges(bookings, bayCount = 2)
-        // Both bays are now occupied by the two existing bookings — a third
-        // booking at the same time slot has nowhere to go.
-        assertFalse(BookingUtils.hasFreeBay(twoBays, start = 0, end = 30))
-        // A booking at a different, non-conflicting time still fits.
-        assertTrue(BookingUtils.hasFreeBay(twoBays, start = 30, end = 60))
+        assertFalse(BookingUtils.hasFreeBay(twoBays, start = 540, end = 570))
+        assertTrue(BookingUtils.hasFreeBay(twoBays, start = 570, end = 600))
 
-        // With only one bay, there's even less room for a new booking at the
-        // same busy time.
         val oneBay = BookingUtils.computeBusyRanges(bookings, bayCount = 1)
-        assertFalse(BookingUtils.hasFreeBay(oneBay, start = 0, end = 30))
+        assertFalse(BookingUtils.hasFreeBay(oneBay, start = 540, end = 570))
     }
 
     @Test
@@ -140,18 +133,15 @@ class BookingUtilsTest {
         val bookings = listOf(bookingAt("09:00 AM"), bookingAt("10:00 AM"))
         val ranges = BookingUtils.computeBusyRanges(bookings, bayCount = 1)
 
-        // A new booking overlapping either existing one should find no free bay.
-        assertFalse(BookingUtils.hasFreeBay(ranges, start = 0, end = 30))
-        assertFalse(BookingUtils.hasFreeBay(ranges, start = 60, end = 90))
-        // A new booking in the untouched gap between them should still fit.
-        assertTrue(BookingUtils.hasFreeBay(ranges, start = 30, end = 60))
+        assertFalse(BookingUtils.hasFreeBay(ranges, start = 540, end = 570))
+        assertFalse(BookingUtils.hasFreeBay(ranges, start = 600, end = 630))
+        assertTrue(BookingUtils.hasFreeBay(ranges, start = 570, end = 600))
     }
 
     @Test
     fun `back-to-back bookings do not count as overlapping`() {
-        // Existing booking occupies [0, 30). A new one starting exactly at 30 should be free.
         val ranges = BookingUtils.computeBusyRanges(listOf(bookingAt("09:00 AM")), bayCount = 1)
-        assertTrue(BookingUtils.hasFreeBay(ranges, start = 30, end = 60))
+        assertTrue(BookingUtils.hasFreeBay(ranges, start = 570, end = 600))
     }
 
     @Test
@@ -177,19 +167,17 @@ class BookingUtilsTest {
         for (bayCount in 1..3) {
             val forward = BookingUtils.hasFreeBay(
                 BookingUtils.computeBusyRanges(forwardOrder, bayCount),
-                start = 30, end = 60 // probe: 09:30-10:00, overlaps only 'a'
+                start = 570, end = 600
             )
             val shuffled = BookingUtils.hasFreeBay(
                 BookingUtils.computeBusyRanges(shuffledOrder, bayCount),
-                start = 30, end = 60
+                start = 570, end = 600
             )
             assertEquals("bayCount=$bayCount should agree regardless of input order", forward, shuffled)
         }
 
-        // And pin down the actual (correct) answer for bayCount=1: 'a' occupies the
-        // only bay, so a new 09:30-10:00 booking must be rejected.
         val ranges = BookingUtils.computeBusyRanges(forwardOrder, bayCount = 1)
-        assertFalse(BookingUtils.hasFreeBay(ranges, start = 30, end = 60))
+        assertFalse(BookingUtils.hasFreeBay(ranges, start = 570, end = 600))
     }
 
     // ---- findFreeBayIndex ----
@@ -197,15 +185,14 @@ class BookingUtilsTest {
     @Test
     fun `findFreeBayIndex returns the lowest-numbered open bay`() {
         val ranges = BookingUtils.computeBusyRanges(listOf(bookingAt("09:00 AM")), bayCount = 2)
-        // Bay 0 is taken by the existing booking, bay 1 is free.
-        assertEquals(1, BookingUtils.findFreeBayIndex(ranges, bayCount = 2, start = 0, end = 30))
+        assertEquals(1, BookingUtils.findFreeBayIndex(ranges, bayCount = 2, start = 540, end = 570))
     }
 
     @Test
     fun `findFreeBayIndex returns null when every bay conflicts`() {
         val bookings = listOf(bookingAt("09:00 AM"), bookingAt("09:00 AM"))
         val ranges = BookingUtils.computeBusyRanges(bookings, bayCount = 2)
-        assertNull(BookingUtils.findFreeBayIndex(ranges, bayCount = 2, start = 0, end = 30))
+        assertNull(BookingUtils.findFreeBayIndex(ranges, bayCount = 2, start = 540, end = 570))
     }
 
     // ---- ledgerDocId / busyRangesFromLedger ----
@@ -218,16 +205,16 @@ class BookingUtilsTest {
     @Test
     fun `busyRangesFromLedger groups entries by bay`() {
         val entries = listOf(
-            DaySlotEntry(bay = 0, start = 0, end = 30, bookingId = "b1"),
-            DaySlotEntry(bay = 0, start = 60, end = 90, bookingId = "b2"),
-            DaySlotEntry(bay = 1, start = 0, end = 45, bookingId = "b3")
+            DaySlotEntry(bay = 0, start = 540, end = 570, bookingId = "b1"),
+            DaySlotEntry(bay = 0, start = 600, end = 630, bookingId = "b2"),
+            DaySlotEntry(bay = 1, start = 540, end = 585, bookingId = "b3")
         )
         val ranges = BookingUtils.busyRangesFromLedger(entries)
 
-        assertEquals(listOf(0 to 30, 60 to 90), ranges[0])
-        assertEquals(listOf(0 to 45), ranges[1])
-        assertFalse(BookingUtils.hasFreeBay(ranges, start = 0, end = 30)) // bay0 busy...
-        assertTrue(BookingUtils.hasFreeBay(ranges, start = 45, end = 60)) // ...but a gap exists in bay0
+        assertEquals(listOf(540 to 570, 600 to 630), ranges[0])
+        assertEquals(listOf(540 to 585), ranges[1])
+        assertFalse(BookingUtils.hasFreeBay(ranges, start = 540, end = 570))
+        assertTrue(BookingUtils.hasFreeBay(ranges, start = 585, end = 600))
     }
 
     // ---- utcMidnightToLocalMidnight ----
