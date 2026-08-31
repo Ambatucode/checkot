@@ -147,8 +147,9 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 putExtra("bookingId", bookingId)
             }
         }
+        val pendingRequestCode = bookingId?.hashCode() ?: System.currentTimeMillis().toInt()
         val pending = PendingIntent.getActivity(
-            this, 0, tapIntent,
+            this, pendingRequestCode, tapIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         builder.setContentIntent(pending)

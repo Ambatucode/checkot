@@ -6,7 +6,7 @@ import android.util.Log
 import com.app.checkot.BuildConfig
 import com.app.checkot.model.*
 import com.app.checkot.service.NotificationHelper
-import com.app.checkot.service.FCMSender
+import com.google.firebase.functions.ktx.functions
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.FirebaseException
@@ -325,13 +325,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         for (adminDoc in adminSnapshot.documents) {
                             val adminToken = adminDoc.getString("fcmToken")
                             if (!adminToken.isNullOrEmpty()) {
-                                FCMSender.sendToUser(
-                                    context = appContext,
-                                    userId = "",
+                                triggerPushNotification(
+                                    targetToken = adminToken,
                                     title = "New Shop Pending Approval",
                                     body = "$fullName registered \"$shopName\" — review it in Admin Dashboard",
-                                    bookingId = "",
-                                    fcmToken = adminToken
+                                    bookingId = ""
                                 )
                             }
                         }
@@ -665,7 +663,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 val snapshot = withTimeout(ROLE_FETCH_TIMEOUT_MS) {
                     firestore.collection("users").document(user.uid).get().await()
                 }
-                val userData = snapshot.toObject(CarWashUser::class.java)
+                var userData = snapshot.toObject(CarWashUser::class.java)
+                if (userData != null) {
+                    userData = userData.copy(role = userData.role.lowercase())
+                }
                 _currentUserData.value = userData
                 // Upload FCM token for ALL users (customers AND owners)
                 // so the Cloud Function can send push notifications to anyone
@@ -701,7 +702,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 // 1. Fetch the fresh user doc to get the latest role and ownedShopId
                 val snapshot = firestore.collection("users").document(user.uid).get().await()
-                val userData = snapshot.toObject(CarWashUser::class.java)
+                var userData = snapshot.toObject(CarWashUser::class.java)
+                if (userData != null) {
+                    userData = userData.copy(role = userData.role.lowercase())
+                }
 
                 val updates = mapOf(
                     "fullName" to fullName,
@@ -726,6 +730,27 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 onSuccess()
             } catch (e: Exception) {
                 onFailure(e.message ?: "Failed to update profile.")
+            }
+        }
+    }
+
+    private fun triggerPushNotification(targetToken: String, title: String, body: String, bookingId: String) {
+        if (targetToken.isEmpty()) return
+        val data = hashMapOf(
+            "targetToken" to targetToken,
+            "title" to title,
+            "body" to body,
+            "data" to if (bookingId.isNotEmpty()) hashMapOf("bookingId" to bookingId) else emptyMap<String, String>()
+        )
+        viewModelScope.launch {
+            try {
+                Firebase.functions("asia-southeast1")
+                    .getHttpsCallable("sendPushNotification")
+                    .call(data)
+                    .await()
+                Log.d(TAG, "✅ Push notification sent successfully to $targetToken")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Failed to send push notification: ${e.message}")
             }
         }
     }

@@ -1,23 +1,26 @@
 package com.app.checkot.utils
 
-import java.text.SimpleDateFormat
-import java.util.*
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
 object DateUtils {
-    // SimpleDateFormat is expensive to construct; reuse one instance per
-    // pattern instead of allocating on every list-item composition. All
-    // callers are composables, so main-thread-only use is guaranteed
-    // (SimpleDateFormat is not thread-safe).
-    private val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-    private val dateTimeFormat = SimpleDateFormat("MMM dd, yyyy hh:mm a", Locale.getDefault())
-    private val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
+    // DateTimeFormatter is immutable and thread-safe. We can safely reuse instances.
+    private val dateFormat = DateTimeFormatter.ofPattern("MMM dd, yyyy", Locale.getDefault())
+        .withZone(ZoneId.systemDefault())
+    private val dateTimeFormat = DateTimeFormatter.ofPattern("MMM dd, yyyy hh:mm a", Locale.getDefault())
+        .withZone(ZoneId.systemDefault())
+    private val timeFormat = DateTimeFormatter.ofPattern("hh:mm a", Locale.getDefault())
+        .withZone(ZoneId.systemDefault())
 
     fun formatDate(timestamp: Long): String {
-        return dateFormat.format(Date(timestamp))
+        return dateFormat.format(Instant.ofEpochMilli(timestamp))
     }
     fun formatDateTime(timestamp: Long): String {
-        return dateTimeFormat.format(Date(timestamp))
+        return dateTimeFormat.format(Instant.ofEpochMilli(timestamp))
     }
     fun formatTime(timestamp: Long): String {
-        return timeFormat.format(Date(timestamp))
+        return timeFormat.format(Instant.ofEpochMilli(timestamp))
     }
 }

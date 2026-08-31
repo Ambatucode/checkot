@@ -4,7 +4,7 @@ import android.app.Application
 import android.util.Log
 import com.app.checkot.model.*
 import com.app.checkot.service.NotificationHelper
-import com.app.checkot.service.FCMSender
+import com.google.firebase.functions.ktx.functions
 import com.app.checkot.service.BookingLedgerService
 import com.app.checkot.utils.BookingUtils
 import com.app.checkot.utils.DateUtils
@@ -232,12 +232,12 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                         }
                         // Notify customer
                         val userId = doc.getString("userId") ?: ""
-                        FCMSender.sendToUser(
-                            context = appContext,
-                            userId = userId,
+                        triggerPushNotification(
+                            targetToken = "",
                             title = "Booking Cancelled",
                             body = "Your booking was cancelled because it wasn't approved in time.",
-                            bookingId = bookingId
+                            bookingId = bookingId,
+                            targetUserId = userId
                         )
                         Log.d(TAG, "📬 Auto-cancelled stale booking $bookingId")
                     }
@@ -269,12 +269,12 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                                 .await()
                             BookingLedgerService.release(firestore, shopId, bookingDate, bookingId)
                             val userId = doc.getString("userId") ?: ""
-                            FCMSender.sendToUser(
-                                context = appContext,
-                                userId = userId,
+                            triggerPushNotification(
+                                targetToken = "",
                                 title = "Booking Cancelled",
                                 body = "Your confirmed booking was cancelled because the service wasn't started in time.",
-                                bookingId = bookingId
+                                bookingId = bookingId,
+                                targetUserId = userId
                             )
                             Log.d(TAG, "📬 Auto-cancelled stale confirmed booking $bookingId")
                         }
@@ -303,12 +303,12 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 BookingLedgerService.release(firestore, booking.shopId, booking.bookingDate, bookingId)
 
                 val services = booking.services.joinToString(", ") { it.displayName }
-                FCMSender.sendToUser(
-                    context = appContext,
-                    userId = booking.userId,
+                triggerPushNotification(
+                    targetToken = "",
                     title = "Booking Cancelled — No Show",
                     body = "Your booking for $services was marked as no-show. Please book again when you're ready.",
-                    bookingId = bookingId
+                    bookingId = bookingId,
+                    targetUserId = booking.userId
                 )
                 Log.d(TAG, "✅ Marked booking $bookingId as no-show")
                 loadBookings()
@@ -423,12 +423,12 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                     )
                     else -> Pair("Booking Update", "Status: $status")
                 }
-                FCMSender.sendToUser(
-                    context = appContext,
-                    userId = booking.userId,
+                triggerPushNotification(
+                    targetToken = "",
                     title = title,
                     body = body,
-                    bookingId = bookingId
+                    bookingId = bookingId,
+                    targetUserId = booking.userId
                 )
 
                 loadBookings()
@@ -485,6 +485,26 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                     return@launch
                 }
                 val previousCustomization = _shopCustomization.value
+
+                // Lock address/location if active bookings exist
+                val addressChanged = customization.shopAddress != previousCustomization.shopAddress
+                val locationChanged = customization.latitude != previousCustomization.latitude ||
+                        customization.longitude != previousCustomization.longitude
+
+                if (addressChanged || locationChanged) {
+                    val activeBookings = firestore.collection("bookings")
+                        .whereEqualTo("shopId", shopId)
+                        .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
+                        .get().await()
+
+                    if (!activeBookings.isEmpty) {
+                        _saveResult.value = "Error: Cannot change shop location or address while you have active bookings."
+                        return@launch
+                    }
+                }
+
+                val nameChanged = customization.shopName != previousCustomization.shopName
+
                 // Get the owner's current FCM token and attach it to the customization
                 val token = com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
                 val customizationWithToken = customization.copy(ownerFcmToken = token)
@@ -503,6 +523,9 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 // Notify clients whose upcoming bookings became affected by this
                 // schedule change (hours / closed dates / service availability).
                 notifyScheduleChanges(shopId, previousCustomization, customization)
+                if (nameChanged) {
+                    notifyNameChange(shopId, previousCustomization.shopName, customization.shopName)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Failed to save customization: ${e.message}")
                 _saveResult.value = "Error: ${e.message}"
@@ -533,13 +556,11 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                     val userDoc = firestore.collection("users").document(booking.userId).get().await()
                     val token = userDoc.getString("fcmToken")
                     if (!token.isNullOrEmpty()) {
-                        FCMSender.sendToUser(
-                            context = appContext,
-                            userId = booking.userId,
+                        triggerPushNotification(
+                            targetToken = token,
                             title = "Schedule update from ${new.shopName.ifBlank { "the shop" }}",
                             body = "Your booking on ${DateUtils.formatDate(booking.bookingDate)} may be affected by a schedule change. Please review it in the app.",
-                            bookingId = booking.bookingId,
-                            fcmToken = token
+                            bookingId = booking.bookingId
                         )
                     }
                 }
@@ -548,6 +569,39 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "⚠️ Failed to notify affected clients: ${e.message}")
+            }
+        }
+    }
+
+    private fun notifyNameChange(shopId: String, oldName: String, newName: String) {
+        viewModelScope.launch {
+            try {
+                val todayStart = BookingUtils.startOfDay(System.currentTimeMillis())
+                val snapshot = firestore.collection("bookings")
+                    .whereEqualTo("shopId", shopId)
+                    .get().await()
+                val affected = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
+                    .filter { b ->
+                        (b.status == BookingStatus.PENDING || b.status == BookingStatus.CONFIRMED || b.status == BookingStatus.IN_PROGRESS) &&
+                                b.bookingDate >= todayStart
+                    }
+                for (booking in affected) {
+                    val userDoc = firestore.collection("users").document(booking.userId).get().await()
+                    val token = userDoc.getString("fcmToken")
+                    if (!token.isNullOrEmpty()) {
+                        triggerPushNotification(
+                            targetToken = token,
+                            title = "Shop Renamed",
+                            body = "\"$oldName\" has changed its name to \"$newName\". Your booking details are updated.",
+                            bookingId = booking.bookingId
+                        )
+                    }
+                }
+                if (affected.isNotEmpty()) {
+                    Log.d(TAG, "📬 Notified ${affected.size} client(s) about shop renaming")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ Failed to notify clients about name change: ${e.message}")
             }
         }
     }
@@ -653,6 +707,36 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Failed to delete account: ${e.message}")
                 onError(e.localizedMessage ?: "Unknown error occurred")
+            }
+        }
+    }
+
+    private fun triggerPushNotification(targetToken: String, title: String, body: String, bookingId: String, targetUserId: String = "") {
+        val data = hashMapOf(
+            "targetToken" to targetToken,
+            "title" to title,
+            "body" to body,
+            "data" to hashMapOf("bookingId" to bookingId)
+        )
+        viewModelScope.launch {
+            try {
+                val token = if (targetToken.isNotEmpty()) targetToken else {
+                    if (targetUserId.isEmpty()) return@launch
+                    val userDoc = firestore.collection("users").document(targetUserId).get().await()
+                    userDoc.getString("fcmToken") ?: ""
+                }
+                if (token.isEmpty()) {
+                    Log.w(TAG, "⚠️ Cannot send push notification: FCM token is empty")
+                    return@launch
+                }
+                data["targetToken"] = token
+                Firebase.functions("asia-southeast1")
+                    .getHttpsCallable("sendPushNotification")
+                    .call(data)
+                    .await()
+                Log.d(TAG, "✅ Push notification sent successfully")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Failed to send push notification: ${e.message}")
             }
         }
     }

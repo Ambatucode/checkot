@@ -3,7 +3,7 @@ package com.app.checkot.viewmodel
 import android.app.Application
 import android.util.Log
 import com.app.checkot.model.*
-import com.app.checkot.service.FCMSender
+import com.google.firebase.functions.ktx.functions
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.EmailAuthProvider
@@ -198,25 +198,38 @@ class SuperAdminViewModel(application: Application) : AndroidViewModel(applicati
             val token = doc.getString("ownerFcmToken")
             val shopName = doc.getString("shopName") ?: "Your shop"
             if (!token.isNullOrEmpty()) {
-                val (title, body) = if (action == "approved") {
-                    Pair("Shop Approved! 🎉", "$shopName is now live. Customers can see you!")
-                } else {
-                    Pair("Shop Application Reviewed", "$shopName was not approved. Contact support for details.")
-                }
-                FCMSender.sendToUser(
-                    context = getApplication(),
-                    userId = "",
-                    title = title,
-                    body = body,
-                    bookingId = "",
-                    fcmToken = token
+                triggerPushNotification(
+                    targetToken = token,
+                    title = "Shop Registration $action",
+                    body = "Your shop \"$shopName\" has been $action by the administrator.",
+                    bookingId = ""
                 )
-                Log.d(TAG, "📬 SuperAdmin: Notified owner of shop $shopId about $action")
             } else {
                 Log.w(TAG, "⚠️ SuperAdmin: No FCM token for shop $shopId owner")
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ SuperAdmin: Failed to notify owner: ${e.message}")
+        }
+    }
+
+    private fun triggerPushNotification(targetToken: String, title: String, body: String, bookingId: String) {
+        if (targetToken.isEmpty()) return
+        val data = hashMapOf(
+            "targetToken" to targetToken,
+            "title" to title,
+            "body" to body,
+            "data" to if (bookingId.isNotEmpty()) hashMapOf("bookingId" to bookingId) else emptyMap<String, String>()
+        )
+        viewModelScope.launch {
+            try {
+                Firebase.functions("asia-southeast1")
+                    .getHttpsCallable("sendPushNotification")
+                    .call(data)
+                    .await()
+                Log.d(TAG, "✅ SuperAdmin: Push notification sent successfully to $targetToken")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ SuperAdmin: Failed to send push notification: ${e.message}")
+            }
         }
     }
 }

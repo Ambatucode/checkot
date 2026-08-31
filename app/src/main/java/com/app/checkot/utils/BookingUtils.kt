@@ -50,10 +50,10 @@ object BookingUtils {
         return calLocal.timeInMillis
     }
 
-    /** Minutes since 09:00 (the start of the booking day) for a "hh:mm AM/PM" slot label. */
+    /** Minutes since midnight for a "hh:mm AM/PM" slot label (0-1440 range, handles early opening hours). */
     fun parseTimeSlotToMinutesSince9AM(slot: String): Int {
         val (h, m) = parseTimeSlotToHourMinute(slot)
-        return (h - 9) * 60 + m
+        return h * 60 + m
     }
 
     /** Formats minutes-since-midnight (e.g. 540) into a "hh:mm AM/PM" slot label ("09:00 AM"). */

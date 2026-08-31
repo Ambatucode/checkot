@@ -105,7 +105,7 @@ service cloud.firestore {
       allow read: if isSignedIn()
         && (resource.data.userId == request.auth.uid
          || ownsShop(resource.data.shopId)
-         || (resource.data.shopId != null && resource.data.bookingDate != null));
+         || isAdmin());
 
       // --- CREATE ---
       // Customer must book as themselves, start as PENDING
@@ -235,11 +235,7 @@ service cloud.firestore {
     // ============================================================
     match /day_slots/{docId} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn()
-        && request.resource.data.shopId is string
-        && request.resource.data.shopId != ''
-        && request.resource.data.entries is list;
-      allow delete: if false;
+      allow write: if false; // Secure: creation/modification happens via secure Cloud Function transaction only
     }
 
     // ============================================================

@@ -4,7 +4,7 @@ import android.app.Application
 import android.util.Log
 import com.app.checkot.model.*
 import com.app.checkot.service.NotificationHelper
-import com.app.checkot.service.FCMSender
+import com.google.firebase.functions.ktx.functions
 import com.app.checkot.service.BookingLedgerService
 import com.app.checkot.utils.BookingUtils
 import androidx.lifecycle.AndroidViewModel
@@ -124,15 +124,16 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     }
                 }
 
-                // Check if user already has an active booking
+                // Check if this user already has an active booking for this specific car
                 val activeSnapshot = firestore.collection("bookings")
                     .whereEqualTo("userId", user.uid)
+                    .whereEqualTo("carId", booking.carId)
                     .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
                     .get().await()
                 if (activeSnapshot.documents.isNotEmpty()) {
                     _isLoading.value = false
-                    _error.value = "You already have an active booking. Please cancel or wait for it to complete before booking again."
-                    Log.e(TAG, "❌ Cannot create booking — user has an active booking already")
+                    _error.value = "This car already has an active booking in the queue. You cannot book the same car twice."
+                    Log.e(TAG, "❌ Cannot create booking — car has an active booking already")
                     return@launch
                 }
 
@@ -176,82 +177,50 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     return@launch
                 }
 
-                // Server-side slot availability check + creation, atomically —
-                // avoids the race where two concurrent bookings both pass a
-                // separate check before either writes (see BookingLedgerService).
                 val normalizedDate = normalizeToStartOfDay(booking.bookingDate)
-                val bookingDoc = firestore.collection("bookings").document()
-                val newBooking = booking.copy(
-                    bookingId = bookingDoc.id,
-                    userId = user.uid,
-                    bookingDate = normalizedDate,
-                    createdAt = System.currentTimeMillis(),
-                    status = BookingStatus.PENDING
+                val callData = hashMapOf(
+                    "shopId" to booking.shopId,
+                    "bookingDate" to normalizedDate,
+                    "timeSlot" to booking.timeSlot,
+                    "services" to booking.services.map { it.name },
+                    "customServiceNames" to booking.customServiceNames,
+                    "carId" to booking.carId,
+                    "carDetails" to booking.carDetails,
+                    "carSize" to booking.carSize,
+                    "carPlateNumber" to booking.carPlateNumber,
+                    "carBrandModel" to booking.carBrandModel,
+                    "notes" to booking.notes
                 )
-                val startMin = BookingUtils.parseTimeSlotToMinutesSince9AM(booking.timeSlot)
-                val endMin = startMin + BookingUtils.bookingDurationMinutes(newBooking)
 
-                try {
-                    BookingLedgerService.reserveAndCreateBooking(firestore, bookingDoc, newBooking, startMin, endMin)
-                } catch (e: BookingLedgerService.NoFreeBayException) {
-                    _isLoading.value = false
-                    _error.value = "This time slot is no longer available. All bays are occupied. Please select another time."
-                    Log.e(TAG, "❌ Cannot create booking — no free bay for ${booking.timeSlot}")
-                    return@launch
-                } catch (e: Exception) {
-                    // Only call it a network problem when it actually is one;
-                    // other failures get a generic retry message instead of a
-                    // misleading "check your connection".
-                    val isNetworkError = e is java.io.IOException ||
-                        (e is com.google.firebase.firestore.FirebaseFirestoreException &&
-                            e.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.UNAVAILABLE)
-                    _isLoading.value = false
-                    _error.value = if (isNetworkError) {
-                        "Network error. Please check your connection and try again."
-                    } else {
-                        "Could not create booking. Please try again."
-                    }
-                    Log.e(TAG, "❌ Booking reservation failed: ${e.message}")
-                    return@launch
-                }
-                Log.d(TAG, "✅ Booking created: ${newBooking.bookingId}")
+                val result = Firebase.functions("asia-southeast1")
+                    .getHttpsCallable("createBooking")
+                    .call(callData)
+                    .await()
+
+                val resultMap = result.data as? Map<*, *>
+                val bookingId = resultMap?.get("bookingId") as? String ?: ""
+
+                Log.d(TAG, "✅ Booking created: $bookingId")
 
                 // Track the new booking's status
-                previousBookingStatuses[bookingDoc.id] = BookingStatus.PENDING
+                previousBookingStatuses[bookingId] = BookingStatus.PENDING
 
                 // Show confirmation notification
-                val serviceSummary = newBooking.services.joinToString(", ") { it.displayName }
+                val serviceSummary = booking.resolvedServiceNames().joinToString(", ")
                 NotificationHelper.showBookingCreatedNotification(appContext, serviceSummary)
 
-                // Reset loading early so the UI updates immediately
-                _isLoading.value = false
-
-                // Notify the owner in the background (after UI updates)
-                viewModelScope.launch {
-                    try {
-                        val shopDoc = firestore.collection("shop_services")
-                            .document(newBooking.shopId)
-                            .get().await()
-                        val ownerToken = shopDoc.getString("ownerFcmToken")
-                        if (!ownerToken.isNullOrEmpty()) {
-                            Log.d(TAG, "📬 Notifying owner for shop ${newBooking.shopId}...")
-                            FCMSender.sendToUser(
-                                context = appContext,
-                                userId = "",
-                                title = "New Booking Received!",
-                                body = "New booking: $serviceSummary — ${newBooking.carDetails}",
-                                bookingId = newBooking.bookingId,
-                                fcmToken = ownerToken
-                            )
-                        } else {
-                            Log.w(TAG, "⚠️ No owner FCM token in shop_services/${newBooking.shopId}")
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "❌ Owner notification failed: ${e.message}")
-                    }
-                }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to create booking: ${e.message}")
+                val isFullyBooked = e.message?.contains("fully-booked", ignoreCase = true) == true ||
+                        e.message?.contains("occupied", ignoreCase = true) == true ||
+                        (e is com.google.firebase.functions.FirebaseFunctionsException &&
+                                e.code == com.google.firebase.functions.FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED)
+
+                _error.value = when {
+                    isFullyBooked -> "This time slot is no longer available. All bays are occupied. Please select another time."
+                    e is com.google.firebase.functions.FirebaseFunctionsException -> e.message ?: "Could not create booking. Please try again."
+                    else -> "Could not create booking. Please try again."
+                }
+                Log.e(TAG, "❌ Booking creation failed: ${e.message}")
             } finally {
                 _isLoading.value = false
             }
@@ -332,13 +301,11 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                         val ownerToken = shopDoc.getString("ownerFcmToken")
                         if (!ownerToken.isNullOrEmpty()) {
                             Log.d(TAG, "📬 Sending cancellation notification to owner (token: ${ownerToken.take(8)}...)")
-                            FCMSender.sendToUser(
-                                context = appContext,
-                                userId = "",
+                            triggerPushNotification(
+                                targetToken = ownerToken,
                                 title = "Booking Cancelled",
                                 body = "Booking for $serviceSummary has been cancelled.",
-                                bookingId = bookingId,
-                                fcmToken = ownerToken
+                                bookingId = bookingId
                             )
                         }
                     } catch (e: Exception) {
@@ -387,10 +354,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
         val initialSlots = rawSlots.map { slot ->
             if (isToday) {
                 val sm = slotToMinutes(slot.slot)
-                val slotHour = (sm / 60) + 9
-                val slotMin = sm % 60
-                val slotTotalMin = slotHour * 60 + slotMin
-                if (slotTotalMin - curTotalMin < MIN_ADVANCE) slot.copy(available = false) else slot
+                if (sm - curTotalMin < MIN_ADVANCE) slot.copy(available = false) else slot
             } else slot
         }
         _availableTimeSlots.value = initialSlots
@@ -408,18 +372,18 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 // Use raw slots (past-time filter already applied in initialSlots)
                 val allSlots = rawSlots.toMutableList()
 
-                // Get existing active bookings
-                val snapshot = firestore.collection("bookings")
-                    .whereEqualTo("bookingDate", date)
-                    .whereEqualTo("shopId", shopId)
-                    .get().await()
+                // Fetch day_slots ledger document
+                val ledgerDocId = BookingUtils.ledgerDocId(shopId, date)
+                val ledgerDoc = firestore.collection("day_slots").document(ledgerDocId).get().await()
 
-                val existing = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
-                    .filter { it.status != BookingStatus.CANCELLED && it.status != BookingStatus.COMPLETED }
-                Log.d(TAG, "📅 Existing bookings: ${existing.size}")
-
-                // Build busy ranges per bay
-                val busyRanges = BookingUtils.computeBusyRanges(existing, bayCount)
+                val busyRanges = if (ledgerDoc.exists()) {
+                    val ledger = ledgerDoc.toObject(DaySlotLedger::class.java)
+                    val entries = ledger?.entries.orEmpty()
+                    BookingUtils.busyRangesFromLedger(entries)
+                } else {
+                    emptyMap()
+                }
+                Log.d(TAG, "📅 Loaded busy ranges from ledger: ${busyRanges.size} bays")
 
                 // Check each slot (curH/curM/isToday/slotToMinutes from outer scope)
                 val updated = allSlots.map { slot ->
@@ -427,10 +391,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     val sm = slotToMinutes(slot.slot)
 
                     if (isToday) {
-                        val slotHour = (sm / 60) + 9
-                        val slotMin = sm % 60
-                        val slotTotalMin = slotHour * 60 + slotMin
-                        if (slotTotalMin - curTotalMin < 30) avail = false
+                        if (sm - curTotalMin < 30) avail = false
                     }
 
                     if (avail) {
@@ -453,6 +414,27 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
 
     /** Normalize a timestamp to the start of the day (midnight) so same-day bookings are grouped together */
     private fun normalizeToStartOfDay(timestamp: Long): Long = BookingUtils.startOfDay(timestamp)
+
+    private fun triggerPushNotification(targetToken: String, title: String, body: String, bookingId: String) {
+        if (targetToken.isEmpty()) return
+        val data = hashMapOf(
+            "targetToken" to targetToken,
+            "title" to title,
+            "body" to body,
+            "data" to hashMapOf("bookingId" to bookingId)
+        )
+        viewModelScope.launch {
+            try {
+                Firebase.functions("asia-southeast1")
+                    .getHttpsCallable("sendPushNotification")
+                    .call(data)
+                    .await()
+                Log.d(TAG, "✅ Push notification sent successfully to $targetToken")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Failed to send push notification: ${e.message}")
+            }
+        }
+    }
 
     override fun onCleared() {
         super.onCleared()

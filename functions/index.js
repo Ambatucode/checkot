@@ -329,3 +329,341 @@ exports.getCarCheckUsage = onCall(
   },
 );
 
+exports.sendPushNotification = onCall(
+  {
+    region: "asia-southeast1",
+    memory: "256MiB",
+    timeoutSeconds: 60,
+    maxInstances: 10,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Please sign in to send notifications.",
+      );
+    }
+
+    const { targetToken, title, body, data } = request.data || {};
+
+    if (!targetToken) {
+      throw new HttpsError(
+        "invalid-argument",
+        "The targetToken parameter is required.",
+      );
+    }
+    if (!title || !body) {
+      throw new HttpsError(
+        "invalid-argument",
+        "The title and body parameters are required.",
+      );
+    }
+
+    // Build the FCM payload
+    const message = {
+      token: targetToken,
+      notification: {
+        title: title,
+        body: body,
+      },
+      data: data ? Object.keys(data).reduce((acc, key) => {
+        // FCM data payload values must be strings
+        acc[key] = String(data[key]);
+        return acc;
+      }, {}) : {},
+      android: {
+        priority: "high",
+        notification: {
+          channelId: "checkot_bookings",
+          sound: "default",
+        },
+      },
+    };
+
+    try {
+      const response = await admin.messaging().send(message);
+      console.log("Successfully sent message:", response);
+      return { success: true, messageId: response };
+    } catch (error) {
+      console.error("Error sending push notification:", error);
+      throw new HttpsError(
+        "internal",
+        `Failed to send push notification: ${error.message}`,
+      );
+    }
+  }
+);
+
+const DEFAULT_SERVICE_PRICES = {
+  EXTERIOR_WASH: 150.0,
+  UNDERWASH: 200.0,
+  WAX: 350.0,
+  INTERIOR_VACUUM: 200.0,
+  TIRE_SHINE: 150.0,
+  ENGINE_WASH: 500.0,
+  CUSTOM: 0.0
+};
+
+const DEFAULT_SERVICE_DURATIONS = {
+  EXTERIOR_WASH: 30,
+  UNDERWASH: 30,
+  WAX: 45,
+  INTERIOR_VACUUM: 30,
+  TIRE_SHINE: 30,
+  ENGINE_WASH: 60,
+  CUSTOM: 0
+};
+
+function parseTimeSlotToMinutes(slot) {
+  const parts = slot.split(" ");
+  const t = parts[0].split(":");
+  let h = parseInt(t[0], 10);
+  const m = parseInt(t[1], 10);
+  if (parts[1] === "PM" && h !== 12) h += 12;
+  if (parts[1] === "AM" && h === 12) h = 0;
+  return h * 60 + m;
+}
+
+function busyRangesFromLedger(entries, bayCount) {
+  const busyRanges = {};
+  for (let i = 0; i < bayCount; i++) {
+    busyRanges[i] = [];
+  }
+  if (entries && Array.isArray(entries)) {
+    for (const entry of entries) {
+      if (entry.bay !== undefined && busyRanges[entry.bay]) {
+        busyRanges[entry.bay].push({ start: entry.start, end: entry.end });
+      }
+    }
+  }
+  return busyRanges;
+}
+
+function findFreeBayIndex(busyRanges, bayCount, start, end) {
+  for (let bay = 0; bay < bayCount; bay++) {
+    const ranges = busyRanges[bay] || [];
+    const hasOverlap = ranges.some(range => start < range.end && end > range.start);
+    if (!hasOverlap) {
+      return bay;
+    }
+  }
+  return null;
+}
+
+exports.createBooking = onCall(
+  {
+    region: "asia-southeast1",
+    memory: "256MiB",
+    timeoutSeconds: 60,
+    maxInstances: 10,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Please sign in to book a service.",
+      );
+    }
+    const userId = request.auth.uid;
+
+    const {
+      shopId,
+      bookingDate,
+      timeSlot,
+      services,
+      customServiceNames,
+      carId,
+      carDetails,
+      carSize,
+      carPlateNumber,
+      carBrandModel,
+      notes = "",
+    } = request.data || {};
+
+    if (!shopId || !bookingDate || !timeSlot || !services || !carSize) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Missing required booking parameters.",
+      );
+    }
+
+    const firestore = admin.firestore();
+    const shopRef = firestore.collection("shop_services").doc(shopId);
+    const ledgerRef = firestore.collection("day_slots").doc(`${shopId}_${bookingDate}`);
+    const bookingRef = firestore.collection("bookings").doc();
+
+    // Check if this vehicle has an active booking
+    const activeSnapshot = await firestore.collection("bookings")
+      .where("carId", "==", carId)
+      .where("status", "in", ["PENDING", "CONFIRMED", "IN_PROGRESS"])
+      .get();
+    
+    if (!activeSnapshot.empty) {
+      throw new HttpsError(
+        "failed-precondition",
+        "This car already has an active booking in the queue. You cannot book the same car twice.",
+      );
+    }
+
+    let totalPrice = 0;
+    let duration = 0;
+    let ownerFcmToken = "";
+    let shopName = "the shop";
+
+    try {
+      await firestore.runTransaction(async (transaction) => {
+        const shopSnap = await transaction.get(shopRef);
+        if (!shopSnap.exists) {
+          throw new Error("Shop configuration not found.");
+        }
+        const shopData = shopSnap.data();
+        shopName = shopData.shopName || shopData.name || "the shop";
+        ownerFcmToken = shopData.ownerFcmToken || "";
+        const bayCount = Math.max(1, parseInt(shopData.bayCount || 1, 10));
+
+        if (shopData.status !== "active") {
+          throw new Error("This shop is not currently accepting bookings.");
+        }
+
+        const shopServices = shopData.services || [];
+        const startMin = parseTimeSlotToMinutes(timeSlot);
+
+        let customCounter = 0;
+        for (const serviceName of services) {
+          let config = null;
+          if (serviceName === "CUSTOM") {
+            const customName = customServiceNames[customCounter] || "";
+            customCounter++;
+            config = shopServices.find(s => s.isCustom && s.customName === customName);
+          } else {
+            config = shopServices.find(s => s.serviceName === serviceName);
+          }
+
+          let servicePrice = 0;
+          if (config && config.pricing && config.pricing[carSize] !== undefined && config.pricing[carSize] > 0) {
+            servicePrice = config.pricing[carSize];
+          } else {
+            const basePrice = (config && config.customPrice > 0) ? config.customPrice : (DEFAULT_SERVICE_PRICES[serviceName] || 0);
+            let sizeAdjustment = 0;
+            switch (carSize) {
+              case "M": sizeAdjustment = 50.0; break;
+              case "L": sizeAdjustment = 100.0; break;
+              case "XL": sizeAdjustment = 150.0; break;
+              case "XXL": sizeAdjustment = 200.0; break;
+            }
+            servicePrice = basePrice + sizeAdjustment;
+          }
+          totalPrice += servicePrice;
+
+          let serviceDuration = 30;
+          if (config && parseInt(config.durationMinutes, 10) > 0) {
+            serviceDuration = parseInt(config.durationMinutes, 10);
+          } else {
+            serviceDuration = DEFAULT_SERVICE_DURATIONS[serviceName] !== undefined ? DEFAULT_SERVICE_DURATIONS[serviceName] : 30;
+          }
+          duration += serviceDuration;
+        }
+
+        const endMin = startMin + duration;
+
+        const ledgerSnap = await transaction.get(ledgerRef);
+        let ledger = ledgerSnap.exists ? ledgerSnap.data() : { shopId, date: bookingDate, entries: [] };
+        if (!ledger.entries) ledger.entries = [];
+
+        const busyRanges = busyRangesFromLedger(ledger.entries, bayCount);
+        const freeBay = findFreeBayIndex(busyRanges, bayCount, startMin, endMin);
+        if (freeBay === null) {
+          throw new Error("fully-booked");
+        }
+
+        const bookingData = {
+          bookingId: bookingRef.id,
+          userId: userId,
+          shopId: shopId,
+          carId: carId,
+          carDetails: carDetails,
+          carSize: carSize,
+          carPlateNumber: carPlateNumber,
+          carBrandModel: carBrandModel,
+          services: services,
+          customServiceNames: customServiceNames || [],
+          bookingDate: bookingDate,
+          timeSlot: timeSlot,
+          status: "PENDING",
+          price: totalPrice,
+          durationMinutes: duration,
+          notes: notes,
+          createdAt: Date.now(),
+          paymentMethod: "Cash",
+          paymentStatus: "unpaid",
+        };
+        transaction.set(bookingRef, bookingData);
+
+        ledger.entries.push({
+          bay: freeBay,
+          start: startMin,
+          end: endMin,
+          bookingId: bookingRef.id,
+        });
+        transaction.set(ledgerRef, ledger);
+      });
+
+      if (ownerFcmToken) {
+        try {
+          const serviceSummary = services.map(s => {
+            if (s === "CUSTOM") return "Custom Service";
+            switch(s) {
+              case "EXTERIOR_WASH": return "Exterior Wash";
+              case "UNDERWASH": return "Underwash";
+              case "WAX": return "Wax";
+              case "INTERIOR_VACUUM": return "Interior Vacuum";
+              case "TIRE_SHINE": return "Tire Shine";
+              case "ENGINE_WASH": return "Engine Wash";
+              default: return s;
+            }
+          }).join(", ");
+
+          const message = {
+            token: ownerFcmToken,
+            notification: {
+              title: "New Booking Received!",
+              body: `New booking: ${serviceSummary} — ${carDetails}`,
+            },
+            data: {
+              bookingId: bookingRef.id,
+            },
+            android: {
+              priority: "high",
+              notification: {
+                channelId: "checkot_bookings",
+                sound: "default",
+              },
+            },
+          };
+          await admin.messaging().send(message);
+          console.log("Successfully sent push notification to shop owner:", ownerFcmToken);
+        } catch (pushError) {
+          console.error("Failed to send push notification to owner:", pushError);
+        }
+      }
+
+      return { success: true, bookingId: bookingRef.id, price: totalPrice };
+
+    } catch (error) {
+      console.error("Transaction failed:", error);
+      if (error.message === "fully-booked") {
+        throw new HttpsError(
+          "resource-exhausted",
+          "This time slot is no longer available. All bays are occupied.",
+        );
+      }
+      throw new HttpsError(
+        "internal",
+        `Booking failed: ${error.message}`,
+      );
+    }
+  }
+);
+
+
+
