@@ -177,7 +177,7 @@ fun MyBookingsScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 100.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 120.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(displayBookings, key = { it.bookingId }) { booking ->
@@ -194,10 +194,7 @@ fun MyBookingsScreen(
         
         com.app.checkot.ui.components.FloatingBottomNavBar(
             navController = navController,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(horizontal = 28.dp, vertical = 12.dp)
+            modifier = Modifier.align(Alignment.BottomCenter)
         )
         }
     }

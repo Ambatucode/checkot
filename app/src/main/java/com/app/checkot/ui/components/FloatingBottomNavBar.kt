@@ -30,6 +30,13 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
+
 @Composable
 fun FloatingBottomNavBar(
     navController: NavController,
@@ -37,13 +44,22 @@ fun FloatingBottomNavBar(
 ) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
-    Surface(
-        shape = RoundedCornerShape(32.dp),
-        color = Color(0xFF13222B),
-        shadowElevation = 8.dp,
-        border = BorderStroke(1.dp, Color(0xFF1E2D38)),
-        modifier = modifier.height(60.dp)
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(bottom = 16.dp, start = 16.dp, end = 16.dp),
+        contentAlignment = Alignment.Center
     ) {
+        Surface(
+            shape = RoundedCornerShape(32.dp),
+            color = Color(0xFF13222B),
+            shadowElevation = 8.dp,
+            border = BorderStroke(1.dp, Color(0xFF1E2D38)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp)
+        ) {
         Row(
             modifier = Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -91,6 +107,7 @@ fun FloatingBottomNavBar(
                     }
                 }
             )
+            }
         }
     }
 }
