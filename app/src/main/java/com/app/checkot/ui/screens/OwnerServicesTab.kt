@@ -270,7 +270,10 @@ fun OwnerServicesTab(
             .fillMaxSize()
             .padding(paddingValues)
     ) {
-        LazyColumn(modifier = Modifier.weight(1f).imePadding()) {
+        LazyColumn(
+            modifier = Modifier.weight(1f).imePadding(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 110.dp)
+        ) {
         item {
         // Manage Services — page title + count + add button.
         Row(
@@ -430,7 +433,9 @@ fun OwnerServicesTab(
                 }
             }
             }
-        } else {
+        }
+
+        if (editedServices.isNotEmpty()) {
             items(
                 items = editedServices,
                 key = { it.serviceName }
@@ -462,73 +467,68 @@ fun OwnerServicesTab(
                 )
             }
         }
-        }
 
-        // Sticky action bar — Reset / Save always visible above the bottom nav.
-        Surface(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 76.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick = {
-                        editedServices = normalizeConfigs(customization.services)
-                        openMinutes = customization.openMinutes
-                        closeMinutes = customization.closeMinutes
-                        closedDates = customization.closedDates
-                        dayOverrides = customization.dayOverrides
-                        editedStaff = customization.staffNames
-                        invalidDurationKeys = emptySet()
-                    },
-                    modifier = Modifier.weight(1f).height(46.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    )
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = "Reset",
-                        style = MaterialTheme.typography.labelLarge,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
-                }
-                Button(
-                    onClick = {
-                        // Confirm only when the hours actually changed; other edits
-                        // (services, bays) save straight through.
-                        if (hoursChanged) showHoursConfirm = true else performSave()
-                    },
-                    modifier = Modifier.weight(1f).height(46.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    enabled = canSave && !isSavingServices,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF00E6C3),
-                        contentColor = Color(0xFF0B1921),
-                        disabledContainerColor = Color(0xFF1E293B),
-                        disabledContentColor = Color(0xFF64748B)
-                    )
-                ) {
-                    if (isSavingServices) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = Color(0xFF0B1921),
-                            strokeWidth = 2.dp
+                    OutlinedButton(
+                        onClick = {
+                            editedServices = normalizeConfigs(customization.services)
+                            openMinutes = customization.openMinutes
+                            closeMinutes = customization.closeMinutes
+                            closedDates = customization.closedDates
+                            dayOverrides = customization.dayOverrides
+                            editedStaff = customization.staffNames
+                            invalidDurationKeys = emptySet()
+                        },
+                        modifier = Modifier.weight(1f).height(46.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         )
-                    } else {
+                    ) {
                         Text(
-                            text = "Save",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                            text = "Reset",
+                            style = MaterialTheme.typography.labelLarge,
                             maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
+                    }
+                    Button(
+                        onClick = {
+                            // Confirm only when the hours actually changed; other edits
+                            // (services, bays) save straight through.
+                            if (hoursChanged) showHoursConfirm = true else performSave()
+                        },
+                        modifier = Modifier.weight(1f).height(46.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        enabled = canSave && !isSavingServices,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF00E6C3),
+                            contentColor = Color(0xFF0B1921),
+                            disabledContainerColor = Color(0xFF1E293B),
+                            disabledContentColor = Color(0xFF64748B)
+                        )
+                    ) {
+                        if (isSavingServices) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color(0xFF0B1921),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(
+                                text = "Save",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }

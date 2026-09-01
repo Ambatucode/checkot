@@ -325,7 +325,10 @@ fun OwnerSettingsTab(
             .fillMaxSize()
             .padding(paddingValues)
     ) {
-        LazyColumn(modifier = Modifier.weight(1f).imePadding()) {
+        LazyColumn(
+            modifier = Modifier.weight(1f).imePadding(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 110.dp)
+        ) {
         item {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
             // Card: Shop Availability Toggle
@@ -548,26 +551,15 @@ fun OwnerSettingsTab(
                 ) {
                     Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Close Business & Delete Account", fontWeight = FontWeight.Bold)
                 }
             }
         }
         }
         item {
-            AppVersionFooter()
-        }
-        }
-
-        // Sticky action bar — Reset / Save always visible above the bottom nav.
-        Surface(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 76.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp
-        ) {
+            Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedButton(
@@ -629,6 +621,10 @@ fun OwnerSettingsTab(
                     }
                 }
             }
+        }
+        item {
+            AppVersionFooter()
+        }
         }
     }
     // Modal editor for a service (price/duration/description/unavailable dates).
