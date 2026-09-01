@@ -524,7 +524,7 @@ fun OwnerSettingsTab(
 
         // Sticky action bar — Reset / Save always visible above the bottom nav.
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 2.dp
         ) {

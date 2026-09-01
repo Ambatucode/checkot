@@ -177,6 +177,7 @@ fun CheckCarScreen(navController: NavController) {
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(20.dp)
+                .navigationBarsPadding()
                 .padding(bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {

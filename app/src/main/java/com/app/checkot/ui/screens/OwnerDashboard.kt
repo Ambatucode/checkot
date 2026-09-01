@@ -76,7 +76,9 @@ fun OwnerDashboard(
         },
         bottomBar = {
             if (shopStatus != "rejected") {
-                NavigationBar {
+                NavigationBar(
+                    modifier = Modifier.navigationBarsPadding()
+                ) {
                     NavigationBarItem(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
