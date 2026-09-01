@@ -328,6 +328,42 @@ fun OwnerSettingsTab(
         LazyColumn(modifier = Modifier.weight(1f).imePadding()) {
         item {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+            // Card: Shop Availability Toggle
+            SettingsCard(title = "Shop Availability", icon = Icons.Default.PowerSettingsNew) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (!customization.isClosed) "Shop is OPEN" else "Shop is TEMPORARILY CLOSED",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (!customization.isClosed) Color(0xFF00E6C3) else Color(0xFFFF5252)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (!customization.isClosed) "Accepting new client bookings" else "New bookings paused for clients",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    Switch(
+                        checked = !customization.isClosed,
+                        onCheckedChange = { isOpen ->
+                            ownerViewModel.saveShopCustomization(customization.copy(isClosed = !isOpen))
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color(0xFF00E6C3),
+                            checkedTrackColor = Color(0xFF004D40),
+                            uncheckedThumbColor = Color(0xFFFF5252),
+                            uncheckedTrackColor = Color(0xFF4A121A)
+                        )
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
             // Card 0: Shop Profile
             SettingsCard(title = "Shop Profile", icon = Icons.Default.Store) {
                 OutlinedTextField(
