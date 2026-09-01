@@ -466,7 +466,7 @@ fun OwnerServicesTab(
 
         // Sticky action bar — Reset / Save always visible above the bottom nav.
         Surface(
-            modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 76.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 2.dp
         ) {

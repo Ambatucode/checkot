@@ -83,47 +83,13 @@ fun AdminDashboard(
                     }
                 }
             )
-        },
-        bottomBar = {
-            NavigationBar(
-                modifier = Modifier.navigationBarsPadding()
-            ) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = {
-                        BadgedBox(badge = {
-                            if (pendingShops.isNotEmpty()) {
-                                Badge { Text(pendingShops.size.toString()) }
-                            }
-                        }) {
-                            Icon(Icons.Default.HourglassEmpty, contentDescription = "Pending")
-                        }
-                    },
-                    label = { Text("Pending") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.CheckCircle, contentDescription = "Active") },
-                    label = { Text("Active") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.Cancel, contentDescription = "Rejected") },
-                    label = { Text("Rejected") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
-                    icon = { Icon(Icons.Default.Comment, contentDescription = "Reviews") },
-                    label = { Text("Reviews") }
-                )
-            }
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = paddingValues.calculateTopPadding())
+        ) {
             when {
                 isLoading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -153,6 +119,13 @@ fun AdminDashboard(
                 selectedTab == 2 -> RejectedShopsTab(rejectedShops, adminViewModel)
                 selectedTab == 3 -> ReviewsTab(reviews, activeShops, adminViewModel)
             }
+
+            com.app.checkot.ui.components.FloatingAdminNavBar(
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it },
+                pendingCount = pendingShops.size,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
         }
     }
 
@@ -201,7 +174,7 @@ private fun PendingShopsTab(
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 110.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
@@ -588,7 +561,7 @@ private fun ActiveShopsTab(
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 110.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item {
@@ -631,7 +604,7 @@ private fun RejectedShopsTab(
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 110.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item {
@@ -933,7 +906,7 @@ private fun ReviewsTab(
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 110.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {

@@ -57,7 +57,25 @@ fun OwnerDashboard(
                         Text("Owner Dashboard", style = MaterialTheme.typography.titleMedium)
                         val shopCust = ownerViewModel.shopCustomization.collectAsState().value
                         if (shopCust.shopName.isNotEmpty()) {
-                            Text(shopCust.shopName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(shopCust.shopName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                if (shopStatus == "active") {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (!shopCust.isClosed) Color(0xFF0F2D2A) else Color(0xFF331619),
+                                        border = BorderStroke(1.dp, if (!shopCust.isClosed) Color(0xFF00E6C3) else Color(0xFFFF5252))
+                                    ) {
+                                        Text(
+                                            text = if (!shopCust.isClosed) "OPEN" else "CLOSED",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (!shopCust.isClosed) Color(0xFF00E6C3) else Color(0xFFFF5252),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 },
@@ -74,47 +92,13 @@ fun OwnerDashboard(
                     }
                 }
             )
-        },
-        bottomBar = {
-            if (shopStatus != "rejected") {
-                NavigationBar(
-                    modifier = Modifier.navigationBarsPadding()
-                ) {
-                    NavigationBarItem(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        icon = { Icon(Icons.Default.Bookmark, contentDescription = "Book") },
-                        label = { Text("Book", fontSize = 10.sp, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        icon = { Icon(Icons.Default.People, contentDescription = "Clients") },
-                        label = { Text("Clients", fontSize = 10.sp, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 },
-                        icon = { Icon(Icons.Default.AttachMoney, contentDescription = "Stats") },
-                        label = { Text("Stats", fontSize = 10.sp, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 3,
-                        onClick = { selectedTab = 3 },
-                        icon = { Icon(Icons.Default.Build, contentDescription = "Menu") },
-                        label = { Text("Menu", fontSize = 10.sp, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 4,
-                        onClick = { selectedTab = 4 },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = "Setup") },
-                        label = { Text("Setup", fontSize = 10.sp, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
-                    )
-                }
-            }
         }
     ) { paddingValues ->
-        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = paddingValues.calculateTopPadding())
+        ) {
 
             when (shopCust.status) {
                 "pending" -> {
@@ -343,55 +327,6 @@ fun OwnerDashboard(
                         )
                     }
 
-                    if (shopStatus == "active") {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 6.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (!shopCust.isClosed) Color(0xFF0F2D2A) else Color(0xFF331619),
-                            border = BorderStroke(1.dp, if (!shopCust.isClosed) Color(0xFF00E6C3) else Color(0xFFFF5252))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = if (!shopCust.isClosed) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                                    contentDescription = null,
-                                    tint = if (!shopCust.isClosed) Color(0xFF00E6C3) else Color(0xFFFF5252),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = if (!shopCust.isClosed) "Shop Status: OPEN" else "Shop Status: TEMPORARILY CLOSED",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (!shopCust.isClosed) Color(0xFF00E6C3) else Color(0xFFFF5252)
-                                    )
-                                    Text(
-                                        text = if (!shopCust.isClosed) "Accepting new bookings" else "New bookings paused for clients",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                    )
-                                }
-                                Switch(
-                                    checked = !shopCust.isClosed,
-                                    onCheckedChange = { isOpen ->
-                                        ownerViewModel.saveShopCustomization(shopCust.copy(isClosed = !isOpen))
-                                    },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color(0xFF00E6C3),
-                                        checkedTrackColor = Color(0xFF004D40),
-                                        uncheckedThumbColor = Color(0xFFFF5252),
-                                        uncheckedTrackColor = Color(0xFF4A121A)
-                                    )
-                                )
-                            }
-                        }
-                    }
-
                     // Show tabs normally
                     when (selectedTab) {
                         0 -> OwnerBookingsTab(navController, ownerViewModel, PaddingValues(0.dp))
@@ -483,6 +418,14 @@ fun OwnerDashboard(
                         4 -> OwnerSettingsTab(ownerViewModel, PaddingValues(0.dp), navController)
                     }
                 }
+            }
+
+            if (shopStatus != "rejected") {
+                com.app.checkot.ui.components.FloatingOwnerNavBar(
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it },
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
             }
         }
     }
