@@ -60,8 +60,8 @@ fun CompleteProfileScreen(
             .background(Color(0xFF0B1921))
             .verticalScroll(scrollState)
             .padding(24.dp)
-            .navigationBarsPadding()
-            .statusBarsPadding(),
+            .systemBarsPadding()
+            .imePadding(),
         contentAlignment = Alignment.Center
     ) {
         Column(

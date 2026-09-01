@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -140,7 +141,7 @@ fun AuthLandingScreen(
 
     LaunchedEffect(Unit) { authViewModel.clearError() }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0B1921))) {
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0B1921)).systemBarsPadding()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()

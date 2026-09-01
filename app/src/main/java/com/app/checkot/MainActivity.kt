@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.WifiOff
@@ -98,6 +100,7 @@ class MainActivity : FragmentActivity() {
         connectivityObserver = ConnectivityObserver(this)
         connectivityObserver.start()
 
+        enableEdgeToEdge()
         setContent {
             CheckotTheme {
                 // Kept OUTSIDE the offline guard so the NavHost (and every
@@ -269,6 +272,7 @@ private fun RoleLoadingScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .systemBarsPadding()
             .padding(32.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -305,6 +309,7 @@ private fun NoInternetScreen(onRetry: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .systemBarsPadding()
                 .padding(32.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -369,6 +374,7 @@ private fun RoleLoadErrorScreen(message: String, onRetry: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .systemBarsPadding()
             .padding(32.dp),
         contentAlignment = Alignment.Center
     ) {

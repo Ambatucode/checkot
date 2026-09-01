@@ -644,7 +644,8 @@ fun BookServiceScreen(
         ) {
             LazyColumn(
                 modifier = Modifier
-                    .weight(1f),
+                    .weight(1f)
+                    .imePadding(),
                 contentPadding = PaddingValues(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {

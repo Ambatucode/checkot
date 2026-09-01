@@ -270,7 +270,7 @@ fun OwnerServicesTab(
             .fillMaxSize()
             .padding(paddingValues)
     ) {
-        LazyColumn(modifier = Modifier.weight(1f)) {
+        LazyColumn(modifier = Modifier.weight(1f).imePadding()) {
         item {
         // Manage Services — page title + count + add button.
         Row(

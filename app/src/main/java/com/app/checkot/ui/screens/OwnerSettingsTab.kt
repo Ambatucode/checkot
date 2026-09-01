@@ -325,7 +325,7 @@ fun OwnerSettingsTab(
             .fillMaxSize()
             .padding(paddingValues)
     ) {
-        LazyColumn(modifier = Modifier.weight(1f)) {
+        LazyColumn(modifier = Modifier.weight(1f).imePadding()) {
         item {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
             // Card 0: Shop Profile
