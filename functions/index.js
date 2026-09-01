@@ -522,7 +522,10 @@ exports.createBooking = onCall(
         const bayCount = Math.max(1, parseInt(shopData.bayCount || 1, 10));
 
         if (shopData.status !== "active") {
-          throw new Error("This shop is not currently accepting bookings.");
+          throw new HttpsError("failed-precondition", "This shop is not currently accepting bookings.");
+        }
+        if (shopData.isClosed) {
+          throw new HttpsError("failed-precondition", "This shop is temporarily closed and not accepting bookings.");
         }
 
         const shopServices = shopData.services || [];
@@ -651,6 +654,9 @@ exports.createBooking = onCall(
 
     } catch (error) {
       console.error("Transaction failed:", error);
+      if (error instanceof HttpsError) {
+        throw error;
+      }
       if (error.message === "fully-booked") {
         throw new HttpsError(
           "resource-exhausted",

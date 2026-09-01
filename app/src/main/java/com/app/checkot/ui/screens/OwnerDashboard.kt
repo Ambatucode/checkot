@@ -4,6 +4,7 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -340,6 +341,55 @@ fun OwnerDashboard(
                                 }
                             }
                         )
+                    }
+
+                    if (shopStatus == "active") {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (!shopCust.isClosed) Color(0xFF0F2D2A) else Color(0xFF331619),
+                            border = BorderStroke(1.dp, if (!shopCust.isClosed) Color(0xFF00E6C3) else Color(0xFFFF5252))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (!shopCust.isClosed) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                                    contentDescription = null,
+                                    tint = if (!shopCust.isClosed) Color(0xFF00E6C3) else Color(0xFFFF5252),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (!shopCust.isClosed) "Shop Status: OPEN" else "Shop Status: TEMPORARILY CLOSED",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (!shopCust.isClosed) Color(0xFF00E6C3) else Color(0xFFFF5252)
+                                    )
+                                    Text(
+                                        text = if (!shopCust.isClosed) "Accepting new bookings" else "New bookings paused for clients",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                }
+                                Switch(
+                                    checked = !shopCust.isClosed,
+                                    onCheckedChange = { isOpen ->
+                                        ownerViewModel.saveShopCustomization(shopCust.copy(isClosed = !isOpen))
+                                    },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFF00E6C3),
+                                        checkedTrackColor = Color(0xFF004D40),
+                                        uncheckedThumbColor = Color(0xFFFF5252),
+                                        uncheckedTrackColor = Color(0xFF4A121A)
+                                    )
+                                )
+                            }
+                        }
                     }
 
                     // Show tabs normally

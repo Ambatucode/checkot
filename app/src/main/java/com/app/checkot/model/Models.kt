@@ -35,7 +35,8 @@ data class CarWashShop(
     val logoUrl: String = "",    // Firebase Storage download URL; "" = no logo
     val minPrice: Double = 0.0,  // cheapest service price; 0 = unknown (legacy)
     val services: List<CustomServiceConfig> = emptyList(), // offerings — drives the "From ₱X" badge
-    val bayCount: Int = 1
+    val bayCount: Int = 1,
+    val isClosed: Boolean = false
 )
 
 enum class CarSize(val label: String, val sizeKey: String) {
@@ -177,7 +178,10 @@ data class ShopCustomization(
     // Staff the owner can assign to a service when starting it. Display-only —
     // does not affect bay count or booking capacity.
     val staffNames: List<String> = emptyList(),
-    val isDeleted: Boolean = false
+    val isDeleted: Boolean = false,
+    @get:PropertyName("isClosed")
+    @set:PropertyName("isClosed")
+    var isClosed: Boolean = false
 )
 
 @Immutable

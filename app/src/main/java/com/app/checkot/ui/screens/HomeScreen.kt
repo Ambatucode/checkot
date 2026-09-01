@@ -67,7 +67,8 @@ fun HomeScreen(
                         address = address,
                         logoUrl = doc.getString("logoUrl") ?: "",
                         services = customization?.services ?: emptyList(),
-                        bayCount = customization?.bayCount ?: 1
+                        bayCount = customization?.bayCount ?: 1,
+                        isClosed = customization?.isClosed ?: false
                     )
                 }
                 withContext(Dispatchers.Main) {
@@ -440,13 +441,13 @@ fun ShopCard(
             Column(horizontalAlignment = Alignment.End) {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = com.app.checkot.ui.theme.CheckotBadgeSurface
+                    color = if (shop.isClosed) Color(0xFF331619) else com.app.checkot.ui.theme.CheckotBadgeSurface
                 ) {
                     Text(
-                        text = if (minPrice != null) "From ${BookingUtils.formatPrice(minPrice)}" else "View Rates",
+                        text = if (shop.isClosed) "Closed" else if (minPrice != null) "From ${BookingUtils.formatPrice(minPrice)}" else "View Rates",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = com.app.checkot.ui.theme.CheckotBadgeTeal,
+                        color = if (shop.isClosed) Color(0xFFFF5252) else com.app.checkot.ui.theme.CheckotBadgeTeal,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }

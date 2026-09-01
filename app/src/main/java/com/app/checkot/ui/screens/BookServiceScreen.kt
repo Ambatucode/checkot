@@ -95,6 +95,7 @@ fun BookServiceScreen(
     var shopClosedDates by remember { mutableStateOf(emptyList<Long>()) }
     // One-off hours overrides (date → open/close). Applied only on that date.
     var shopDayOverrides by remember { mutableStateOf(emptyList<DayHoursOverride>()) }
+    var isShopClosed by remember { mutableStateOf(false) }
 
     // Progressive phone verification guard: if the client hasn't verified a
     // phone number yet, show an inline dialog before completing the booking.
@@ -118,6 +119,7 @@ fun BookServiceScreen(
                 val customization = snapshot?.toObject(ShopCustomization::class.java)
                 val services = mutableListOf<AvailableService>()
                 if (customization != null) {
+                    isShopClosed = customization.isClosed
                     shopOpenMinutes = customization.openMinutes
                     shopCloseMinutes = customization.closeMinutes
                     shopLatitude = customization.latitude
@@ -622,12 +624,12 @@ fun BookServiceScreen(
                                 .weight(if (step > 1) 1f else 2f)
                                 .then(buttonHeight),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                            enabled = if (step < 4) when (step) {
+                            enabled = !isShopClosed && (if (step < 4) when (step) {
                                 1 -> selectedServiceConfigs.isNotEmpty()
                                 2 -> selectedCar != null
                                 3 -> selectedTimeSlot.isNotEmpty()
                                 else -> true
-                            } else isBookingValid,
+                            } else isBookingValid),
                             isLoading = isCreating
                         )
                     }
@@ -823,6 +825,39 @@ fun BookServiceScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
                     )
+                }
+
+                if (isShopClosed) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFF331619)
+                            ),
+                            border = BorderStroke(1.dp, Color(0xFFFF5252))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.WarningAmber,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF5252),
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = "⚠️ This shop is temporarily closed by the owner and is not accepting new bookings at this time.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFFF8080)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // Step 1: Select Service
@@ -1171,7 +1206,7 @@ fun BookServiceScreen(
                                             else null,
                                             modifier = Modifier
                                                 .weight(1f)
-                                                .clickable(enabled = isAvailable) {
+                                                .clickable(enabled = isAvailable && !isShopClosed) {
                                                     selectedTimeSlot = slot.slot
                                                 }
                                         ) {
