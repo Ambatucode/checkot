@@ -99,333 +99,327 @@ fun OwnerDashboard(
                 .fillMaxSize()
                 .padding(top = paddingValues.calculateTopPadding())
         ) {
+            if (shopStatus == "rejected") {
+                // Full-screen rejection message instead of tabs
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(32.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(100.dp),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(50.dp),
+                            color = MaterialTheme.colorScheme.errorContainer
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.Cancel,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(56.dp),
+                                    tint = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            "Shop Application Not Approved",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            "Unfortunately, your shop \"${shopCust.shopName}\" was not approved at this time.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.ContactMail,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        "Need help?",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    "If you have questions about this decision, please contact support or re-register with updated information.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    if (shopCust.status == "pending") {
+                        // Pending banner anchored cleanly at top
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showChecklistDialog = true },
+                            color = MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.HourglassEmpty,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        "Shop Pending Approval",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                    Text(
+                                        "Complete all requirements for admin review (Tap to view setup checklist)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF00E6C3),
+                                        maxLines = 2,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
 
-            when (shopCust.status) {
-                "pending" -> {
-                    // Pending banner
-                    Surface(
+                        // Checklist popup dialog
+                        if (showChecklistDialog) {
+                            val phoneMissing = userData?.phoneVerified != true || userData?.phoneNumber.isNullOrEmpty()
+                            val locationMissing = shopCust.latitude == 0.0 && shopCust.longitude == 0.0
+                            val profileMissing = shopCust.shopAddress.isBlank()
+
+                            AlertDialog(
+                                onDismissRequest = { showChecklistDialog = false },
+                                title = { Text("Shop Setup Checklist") },
+                                text = {
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        Text(
+                                            text = "Complete these 3 requirements so that the administrator can approve your shop and make it visible to clients.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                        )
+                                        Spacer(modifier = Modifier.height(16.dp))
+
+                                        // Requirement 1: Phone number
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = if (!phoneMissing) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                                                contentDescription = null,
+                                                tint = if (!phoneMissing) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Verify Phone Number",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                modifier = Modifier.weight(1f),
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                            if (phoneMissing) {
+                                                TextButton(
+                                                    onClick = {
+                                                        showChecklistDialog = false
+                                                        navController.navigate("phone_verification/signup")
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "Verify Now",
+                                                        color = Color(0xFF00E6C3),
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        softWrap = false,
+                                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                            } else {
+                                                Text(
+                                                    text = "Verified",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = Color(0xFF00E6C3),
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 8.dp),
+                                                    maxLines = 1,
+                                                    softWrap = false,
+                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        // Requirement 2: Map location
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = if (!locationMissing) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                                                contentDescription = null,
+                                                tint = if (!locationMissing) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Set Shop Location on Map",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                modifier = Modifier.weight(1f),
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                            if (locationMissing) {
+                                                TextButton(
+                                                    onClick = {
+                                                        showChecklistDialog = false
+                                                        navController.navigate("set_shop_location")
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "Set Now",
+                                                        color = Color(0xFF00E6C3),
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        softWrap = false,
+                                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                            } else {
+                                                Text(
+                                                    text = "Set",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = Color(0xFF00E6C3),
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 8.dp),
+                                                    maxLines = 1,
+                                                    softWrap = false,
+                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        // Requirement 3: Shop profile
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = if (!profileMissing) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                                                contentDescription = null,
+                                                tint = if (!profileMissing) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Configure Name & Address",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                modifier = Modifier.weight(1f),
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                            if (profileMissing) {
+                                                TextButton(
+                                                    onClick = {
+                                                        showChecklistDialog = false
+                                                        selectedTab = 4
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "Configure",
+                                                        color = Color(0xFF00E6C3),
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        softWrap = false,
+                                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                            } else {
+                                                Text(
+                                                    text = "Configured",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = Color(0xFF00E6C3),
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Text(
+                                            text = "Once you have successfully completed all requirements, the administrator can review and activate your shop.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(onClick = { showChecklistDialog = false }) {
+                                        Text("Close", color = Color(0xFF00E6C3))
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    // Content Box taking remaining height, housing selected tab + floating nav bar
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { showChecklistDialog = true },
-                        color = MaterialTheme.colorScheme.secondaryContainer
+                            .weight(1f)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.HourglassEmpty,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "Shop Pending Approval",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                                Text(
-                                    "Complete all requirements for admin review (Tap to view setup checklist)",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF00E6C3),
-                                    maxLines = 2,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                            }
+                        when (selectedTab) {
+                            0 -> OwnerBookingsTab(navController, ownerViewModel, PaddingValues(0.dp))
+                            1 -> OwnerCustomersTab(ownerViewModel, PaddingValues(0.dp))
+                            2 -> OwnerRevenueTab(ownerViewModel, PaddingValues(0.dp))
+                            3 -> OwnerServicesTab(ownerViewModel, PaddingValues(0.dp), navController)
+                            4 -> OwnerSettingsTab(ownerViewModel, PaddingValues(0.dp), navController)
                         }
-                    }
 
-                    // Checklist popup dialog
-                    if (showChecklistDialog) {
-                        val phoneMissing = userData?.phoneVerified != true || userData?.phoneNumber.isNullOrEmpty()
-                        val locationMissing = shopCust.latitude == 0.0 && shopCust.longitude == 0.0
-                        val profileMissing = shopCust.shopAddress.isBlank()
-
-                        AlertDialog(
-                            onDismissRequest = { showChecklistDialog = false },
-                            title = { Text("Shop Setup Checklist") },
-                            text = {
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    Text(
-                                        text = "Complete these 3 requirements so that the administrator can approve your shop and make it visible to clients.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                    )
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    // Requirement 1: Phone number
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = if (!phoneMissing) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                                            contentDescription = null,
-                                            tint = if (!phoneMissing) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Verify Phone Number",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            modifier = Modifier.weight(1f),
-                                            maxLines = 1,
-                                            softWrap = false,
-                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                        )
-                                        if (phoneMissing) {
-                                            TextButton(
-                                                onClick = {
-                                                    showChecklistDialog = false
-                                                    navController.navigate("phone_verification/signup")
-                                                },
-                                                contentPadding = PaddingValues(horizontal = 8.dp)
-                                            ) {
-                                                Text(
-                                                    text = "Verify Now",
-                                                    color = Color(0xFF00E6C3),
-                                                    fontWeight = FontWeight.Bold,
-                                                    maxLines = 1,
-                                                    softWrap = false,
-                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                                )
-                                            }
-                                        } else {
-                                            Text(
-                                                text = "Verified",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = Color(0xFF00E6C3),
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 8.dp),
-                                                maxLines = 1,
-                                                softWrap = false,
-                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    // Requirement 2: Map location
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = if (!locationMissing) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                                            contentDescription = null,
-                                            tint = if (!locationMissing) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Set Shop Location on Map",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            modifier = Modifier.weight(1f),
-                                            maxLines = 1,
-                                            softWrap = false,
-                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                        )
-                                        if (locationMissing) {
-                                            TextButton(
-                                                onClick = {
-                                                    showChecklistDialog = false
-                                                    navController.navigate("set_shop_location")
-                                                },
-                                                contentPadding = PaddingValues(horizontal = 8.dp)
-                                            ) {
-                                                Text(
-                                                    text = "Set Now",
-                                                    color = Color(0xFF00E6C3),
-                                                    fontWeight = FontWeight.Bold,
-                                                    maxLines = 1,
-                                                    softWrap = false,
-                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                                )
-                                            }
-                                        } else {
-                                            Text(
-                                                text = "Set",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = Color(0xFF00E6C3),
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 8.dp),
-                                                maxLines = 1,
-                                                softWrap = false,
-                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    // Requirement 3: Shop profile
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = if (!profileMissing) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                                            contentDescription = null,
-                                            tint = if (!profileMissing) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Configure Name & Address",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            modifier = Modifier.weight(1f),
-                                            maxLines = 1,
-                                            softWrap = false,
-                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                        )
-                                        if (profileMissing) {
-                                            TextButton(
-                                                onClick = {
-                                                    showChecklistDialog = false
-                                                    selectedTab = 4
-                                                },
-                                                contentPadding = PaddingValues(horizontal = 8.dp)
-                                            ) {
-                                                Text(
-                                                    text = "Configure",
-                                                    color = Color(0xFF00E6C3),
-                                                    fontWeight = FontWeight.Bold,
-                                                    maxLines = 1,
-                                                    softWrap = false,
-                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                                )
-                                            }
-                                        } else {
-                                            Text(
-                                                text = "Configured",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = Color(0xFF00E6C3),
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 8.dp)
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Text(
-                                        text = "Once you have successfully completed all requirements, the administrator can review and activate your shop.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            },
-                            confirmButton = {
-                                TextButton(onClick = { showChecklistDialog = false }) {
-                                    Text("Close", color = Color(0xFF00E6C3))
-                                }
-                            }
+                        com.app.checkot.ui.components.FloatingOwnerNavBar(
+                            selectedTab = selectedTab,
+                            onTabSelected = { selectedTab = it },
+                            modifier = Modifier.align(Alignment.BottomCenter)
                         )
                     }
-
-                    // Show tabs normally
-                    when (selectedTab) {
-                        0 -> OwnerBookingsTab(navController, ownerViewModel, PaddingValues(0.dp))
-                        1 -> OwnerCustomersTab(ownerViewModel, PaddingValues(0.dp))
-                        2 -> OwnerRevenueTab(ownerViewModel, PaddingValues(0.dp))
-                        3 -> OwnerServicesTab(ownerViewModel, PaddingValues(0.dp), navController)
-                        4 -> OwnerSettingsTab(ownerViewModel, PaddingValues(0.dp), navController)
-                    }
                 }
-                "rejected" -> {
-                    // Full-screen rejection message instead of tabs
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(32.dp)
-                        ) {
-                            Surface(
-                                modifier = Modifier.size(100.dp),
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(50.dp),
-                                color = MaterialTheme.colorScheme.errorContainer
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        Icons.Default.Cancel,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(56.dp),
-                                        tint = MaterialTheme.colorScheme.onErrorContainer
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Text(
-                                "Shop Application Not Approved",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                "Unfortunately, your shop \"${shopCust.shopName}\" was not approved at this time.",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                                modifier = Modifier.padding(horizontal = 16.dp)
-                            )
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                )
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            Icons.Default.ContactMail,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(20.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            "Need help?",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        "If you have questions about this decision, please contact support or re-register with updated information.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                else -> {
-                    // Active — normal dashboard, no banner
-                    when (selectedTab) {
-                        0 -> OwnerBookingsTab(navController, ownerViewModel, PaddingValues(0.dp))
-                        1 -> OwnerCustomersTab(ownerViewModel, PaddingValues(0.dp))
-                        2 -> OwnerRevenueTab(ownerViewModel, PaddingValues(0.dp))
-                        3 -> OwnerServicesTab(ownerViewModel, PaddingValues(0.dp), navController)
-                        4 -> OwnerSettingsTab(ownerViewModel, PaddingValues(0.dp), navController)
-                    }
-                }
-            }
-
-            if (shopStatus != "rejected") {
-                com.app.checkot.ui.components.FloatingOwnerNavBar(
-                    selectedTab = selectedTab,
-                    onTabSelected = { selectedTab = it },
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
             }
         }
     }
