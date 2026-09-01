@@ -8,6 +8,12 @@ import com.app.checkot.ui.theme.CheckotCardSurface
 import com.app.checkot.ui.theme.CheckotTeal
 import com.app.checkot.ui.components.AppVersionFooter
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -320,15 +326,20 @@ fun OwnerSettingsTab(
         )
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues)
-    ) {
-        LazyColumn(
-            modifier = Modifier.weight(1f).imePadding(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 110.dp)
+    val hasChanges = (editedServices != customization.services || bayCountChanged || hoursChanged ||
+        closedDatesChanged || dayOverridesChanged || editedStaff != customization.staffNames ||
+        shopNameInput != customization.shopName || shopAddressInput != customization.shopAddress)
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
         ) {
+            LazyColumn(
+                modifier = Modifier.weight(1f).imePadding(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 160.dp)
+            ) {
         item {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
             // Card: Shop Availability Toggle
@@ -556,10 +567,32 @@ fun OwnerSettingsTab(
         }
         }
         item {
-            Spacer(modifier = Modifier.height(16.dp))
+            AppVersionFooter()
+        }
+        }
+    }
+
+    AnimatedVisibility(
+        visible = hasChanges,
+        enter = slideInVertically { it } + fadeIn(),
+        exit = slideOutVertically { it } + fadeOut(),
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(bottom = 88.dp, start = 16.dp, end = 16.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = Color(0xFF13222B),
+            shadowElevation = 10.dp,
+            border = BorderStroke(1.dp, Color(0xFF1E2D38)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Row(
                 modifier = Modifier
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedButton(
@@ -574,15 +607,12 @@ fun OwnerSettingsTab(
                         shopAddressInput = customization.shopAddress
                         invalidDurationKeys = emptySet()
                     },
-                    modifier = Modifier.weight(1f).height(46.dp),
-                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.weight(1f).height(42.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     ),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
-                    )
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f))
                 ) {
                     Text(
                         text = "Reset",
@@ -593,22 +623,22 @@ fun OwnerSettingsTab(
                 }
                 Button(
                     onClick = {
-                        // Confirm only when the hours actually changed; other edits
-                        // (services, bays) save straight through.
                         if (hoursChanged) showHoursConfirm = true else performSave()
                     },
-                    modifier = Modifier.weight(1f).height(46.dp),
-                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.weight(1f).height(42.dp),
+                    shape = RoundedCornerShape(20.dp),
                     enabled = canSave && !isSavingServices,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = CheckotTeal,
-                        contentColor = Color(0xFF00332B)
+                        containerColor = Color(0xFF00E6C3),
+                        contentColor = Color(0xFF0B1921),
+                        disabledContainerColor = Color(0xFF1E293B),
+                        disabledContentColor = Color(0xFF64748B)
                     )
                 ) {
                     if (isSavingServices) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
-                            color = Color(0xFF00332B),
+                            color = Color(0xFF0B1921),
                             strokeWidth = 2.dp
                         )
                     } else {
@@ -622,26 +652,8 @@ fun OwnerSettingsTab(
                 }
             }
         }
-        item {
-            AppVersionFooter()
-        }
-        }
     }
-    // Modal editor for a service (price/duration/description/unavailable dates).
-    val editing = editingService
-    if (editing != null) {
-        EditServiceDialog(
-            service = editing,
-            onSave = { updated ->
-                editedServices = editedServices.map {
-                    if (it.serviceName == updated.serviceName) updated else it
-                }
-                invalidDurationKeys = invalidDurationKeys - updated.serviceName
-                editingService = null
-            },
-            onDismiss = { editingService = null }
-        )
-    }
+}
 }
 
 /** Compact view-mode row for a service: title + price/duration, actions right. */
