@@ -124,9 +124,13 @@ fun BookingDetailsScreen(
                         .thenBy { it.createdAt }
                 )
                 val index = sorted.indexOfFirst { it.bookingId == booking.bookingId }
-                val position = if (index != -1) index + 1 else -1
+                val bayCount = (shopCustomization?.bayCount ?: 1).coerceAtLeast(1)
+                val position = when {
+                    index == -1 -> -1
+                    index < bayCount -> 1
+                    else -> index - bayCount + 2
+                }
                 val ahead = if (index > 0) sorted.subList(0, index) else emptyList()
-                val bayCount = shopCustomization?.bayCount ?: 1
                 val estimated = BookingUtils.calculateEstimatedWaitMinutes(ahead, bayCount)
                 
                 println("DEBUG_QUEUE: shopCustomizationLoaded=${shopCustomization != null}, bayCount=$bayCount, index=$index, position=$position")
