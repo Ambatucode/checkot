@@ -495,14 +495,9 @@ fun BookingCard(
                         .thenBy { it.createdAt }
                 )
                 val index = sorted.indexOfFirst { it.bookingId == booking.bookingId }
-                val safeBayCount = bayCount.coerceAtLeast(1)
-                val position = when {
-                    index == -1 -> -1
-                    index < safeBayCount -> 1
-                    else -> index - safeBayCount + 2
-                }
+                val position = if (index != -1) index + 1 else -1
                 val ahead = if (index > 0) sorted.subList(0, index) else emptyList()
-                val estimated = com.app.checkot.utils.BookingUtils.calculateEstimatedWaitMinutes(ahead, safeBayCount)
+                val estimated = com.app.checkot.utils.BookingUtils.calculateEstimatedWaitMinutes(ahead, bayCount)
                 queueInfo = QueueInfo(position, estimated, sorted.size)
                 isQueueLoaded = true
             }
