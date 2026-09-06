@@ -175,6 +175,9 @@ fun MyBookingsScreen(
                     }
                 }
             } else {
+                val hasMore by bookingViewModel.hasMoreBookings.collectAsState()
+                val isLoadingMore by bookingViewModel.isLoadingMore.collectAsState()
+
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 120.dp),
@@ -187,6 +190,34 @@ fun MyBookingsScreen(
                                 navController.navigate("booking_details/${booking.bookingId}")
                             }
                         )
+                    }
+
+                    if (hasMore) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isLoadingMore) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    OutlinedButton(
+                                        onClick = { bookingViewModel.loadMoreBookings() },
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.primary
+                                        )
+                                    ) {
+                                        Text("Load More History")
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

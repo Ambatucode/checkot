@@ -69,12 +69,23 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
         auth.addAuthStateListener(authStateListener!!)
     }
 
+    private var lastBookingDocumentSnap: com.google.firebase.firestore.DocumentSnapshot? = null
+    private val PAGE_SIZE = 15L
+
+    private val _hasMoreBookings = MutableStateFlow(true)
+    val hasMoreBookings: StateFlow<Boolean> = _hasMoreBookings
+
+    private val _isLoadingMore = MutableStateFlow(false)
+    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore
+
     fun setupRealTimeBookingsListener() {
         val user = auth.currentUser ?: return
         bookingsListenerRegistration?.remove()
 
         bookingsListenerRegistration = firestore.collection("bookings")
             .whereEqualTo("userId", user.uid)
+            .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            .limit(PAGE_SIZE)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.d(TAG, "Real-time listener cancelled: ${error.message}")
@@ -82,15 +93,17 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     return@addSnapshotListener
                 }
 
-                val bookings = snapshot?.documents?.mapNotNull { it.toObject(Booking::class.java) }
-                    ?.sortedByDescending { it.createdAt } ?: emptyList()
+                val docs = snapshot?.documents.orEmpty()
+                if (docs.isNotEmpty()) {
+                    lastBookingDocumentSnap = docs.last()
+                }
+                _hasMoreBookings.value = docs.size >= PAGE_SIZE
+
+                val bookings = docs.mapNotNull { it.toObject(Booking::class.java) }
 
                 // Detect status changes and update previous statuses
                 for (booking in bookings) {
                     val previousStatus = previousBookingStatuses[booking.bookingId]
-                    // We removed the local NotificationHelper call here because
-                    // FCMSender now handles sending push notifications for status changes.
-                    // This prevents duplicate notifications.
                     previousBookingStatuses[booking.bookingId] = booking.status
                 }
 
@@ -98,6 +111,39 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 _userBookingsLoaded.value = true
                 Log.d(TAG, "Bookings updated in real-time: ${bookings.size} bookings")
             }
+    }
+
+    fun loadMoreBookings() {
+        val user = auth.currentUser ?: return
+        val lastSnap = lastBookingDocumentSnap ?: return
+        if (_isLoadingMore.value || !_hasMoreBookings.value) return
+
+        _isLoadingMore.value = true
+        viewModelScope.launch {
+            try {
+                val snapshot = firestore.collection("bookings")
+                    .whereEqualTo("userId", user.uid)
+                    .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                    .startAfter(lastSnap)
+                    .limit(PAGE_SIZE)
+                    .get()
+                    .await()
+
+                val docs = snapshot.documents
+                if (docs.isNotEmpty()) {
+                    lastBookingDocumentSnap = docs.last()
+                    val newBookings = docs.mapNotNull { it.toObject(Booking::class.java) }
+                    _userBookings.value = (_userBookings.value + newBookings).distinctBy { it.bookingId }
+                    _hasMoreBookings.value = docs.size >= PAGE_SIZE
+                } else {
+                    _hasMoreBookings.value = false
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load more bookings: ${e.message}")
+            } finally {
+                _isLoadingMore.value = false
+            }
+        }
     }
 
     fun createBooking(booking: Booking) {
