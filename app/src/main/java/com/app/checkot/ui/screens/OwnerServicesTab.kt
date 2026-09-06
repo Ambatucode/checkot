@@ -13,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -1401,6 +1402,7 @@ private fun formatMinutesToFriendlyLabel(mins: Int): String {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DurationDropdownField(
     label: String,
@@ -1438,41 +1440,43 @@ private fun DurationDropdownField(
     )
     val displayLabel = options.find { it.first == selectedMinutes }?.second ?: formatMinutesToFriendlyLabel(selectedMinutes)
 
-    Box(modifier = modifier) {
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = modifier
+    ) {
         OutlinedTextField(
             value = displayLabel,
             onValueChange = {},
             readOnly = true,
             label = { Text(label) },
-            trailingIcon = {
-                Icon(
-                    imageVector = if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
-                    contentDescription = null,
-                    modifier = Modifier.clickable { expanded = !expanded }
-                )
-            },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             shape = MaterialTheme.shapes.small,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Box(
             modifier = Modifier
-                .matchParentSize()
-                .clickable { expanded = true }
+                .fillMaxWidth()
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
         )
-        DropdownMenu(
+        ExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
             modifier = Modifier
-                .width(180.dp)
-                .heightIn(max = 240.dp)
+                .heightIn(max = 220.dp)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
         ) {
             options.forEach { (mins, text) ->
                 DropdownMenuItem(
-                    text = { Text(text) },
+                    text = { 
+                        Text(
+                            text = text, 
+                            fontWeight = if (mins == selectedMinutes) FontWeight.Bold else FontWeight.Normal,
+                            color = if (mins == selectedMinutes) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        ) 
+                    },
                     onClick = {
                         onMinutesSelected(mins)
                         expanded = false
-                    }
+                    },
+                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                 )
             }
         }
