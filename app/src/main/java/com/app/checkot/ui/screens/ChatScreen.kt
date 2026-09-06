@@ -22,14 +22,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.app.checkot.model.ChatMessage
+import com.app.checkot.model.*
+import com.app.checkot.viewmodel.*
 import com.app.checkot.ui.theme.CheckotBadgeTeal
 import com.app.checkot.ui.theme.CheckotCardSurface
-import com.app.checkot.viewmodel.AuthViewModel
-import com.app.checkot.viewmodel.ChatViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +39,7 @@ fun ChatScreen(
     chatId: String,
     bookingId: String = "",
     shopId: String = "",
+    customerId: String = "",
     recipientName: String = "Chat",
     carDetails: String = "",
     recipientToken: String = "",
@@ -45,9 +47,13 @@ fun ChatScreen(
     chatViewModel: ChatViewModel = viewModel()
 ) {
     val currentUserData by authViewModel.currentUserData.collectAsState()
-    val currentUserId = currentUserData?.userId ?: ""
+    val currentUserId = com.google.firebase.ktx.Firebase.auth.currentUser?.uid ?: currentUserData?.userId ?: ""
     val currentUserRole = currentUserData?.role ?: "customer"
     val isCustomer = currentUserRole.lowercase() == "customer"
+
+    val targetUserId = customerId.ifBlank {
+        if (isCustomer) currentUserId else ""
+    }
 
     val messages by chatViewModel.messages.collectAsState()
     val isLoading by chatViewModel.isLoading.collectAsState()
@@ -55,14 +61,15 @@ fun ChatScreen(
     val listState = rememberLazyListState()
 
     // Start listener and clear unread count on open
-    LaunchedEffect(chatId) {
+    LaunchedEffect(chatId, targetUserId) {
         if (chatId.isNotBlank()) {
             chatViewModel.startChatListener(
                 chatId = chatId,
                 bookingId = bookingId,
                 shopId = shopId,
-                userId = currentUserId,
-                customerName = currentUserData?.fullName ?: "Customer"
+                userId = targetUserId,
+                customerName = if (isCustomer) (currentUserData?.fullName ?: "Customer") else recipientName,
+                shopName = if (isCustomer) recipientName else ""
             )
             chatViewModel.markAsRead(chatId, isCustomer)
         }

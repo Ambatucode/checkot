@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import com.app.checkot.model.BookingStatus
@@ -251,18 +252,21 @@ fun ChatIconButton(
     ownedShopId: String = "",
     modifier: Modifier = Modifier
 ) {
-    var unreadCount by androidx.compose.runtime.remember(userUid, isOwner, ownedShopId) { 
+    val authUid = com.google.firebase.ktx.Firebase.auth.currentUser?.uid ?: ""
+    val effectiveUid = userUid.ifBlank { authUid }
+
+    var unreadCount by androidx.compose.runtime.remember(effectiveUid, isOwner, ownedShopId) { 
         androidx.compose.runtime.mutableIntStateOf(0) 
     }
 
-    androidx.compose.runtime.DisposableEffect(userUid, isOwner, ownedShopId) {
-        if (userUid.isBlank()) return@DisposableEffect onDispose {}
+    androidx.compose.runtime.DisposableEffect(effectiveUid, isOwner, ownedShopId) {
+        if (effectiveUid.isBlank() && ownedShopId.isBlank()) return@DisposableEffect onDispose {}
 
         val db = Firebase.firestore
         val query = if (isOwner && ownedShopId.isNotBlank()) {
             db.collection("chats").whereEqualTo("shopId", ownedShopId)
         } else {
-            db.collection("chats").whereEqualTo("userId", userUid)
+            db.collection("chats").whereEqualTo("userId", effectiveUid)
         }
 
         val listener = query.addSnapshotListener { snapshot, error ->

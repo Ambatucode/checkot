@@ -542,7 +542,7 @@ fun BookingDetailsScreen(
                                 onClick = {
                                     val encodedRecipient = try { java.net.URLEncoder.encode(shopName.ifEmpty { "Shop Owner" }, "UTF-8") } catch (_: Exception) { "Shop" }
                                     val encodedCar = try { java.net.URLEncoder.encode(booking.carDetails, "UTF-8") } catch (_: Exception) { "" }
-                                    val route = "chat/${booking.bookingId}?bookingId=${booking.bookingId}&shopId=${booking.shopId}&recipientName=$encodedRecipient&carDetails=$encodedCar"
+                                    val route = "chat/${booking.bookingId}?bookingId=${booking.bookingId}&shopId=${booking.shopId}&customerId=${booking.userId}&recipientName=$encodedRecipient&carDetails=$encodedCar"
                                     navController.navigate(route)
                                 },
                                 modifier = Modifier.fillMaxWidth(),

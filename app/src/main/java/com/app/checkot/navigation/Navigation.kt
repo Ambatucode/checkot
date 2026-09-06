@@ -215,11 +215,12 @@ fun NavigationGraph(
             SetShopLocationScreen(navController = navController)
         }
         composable(
-            route = "chat/{chatId}?bookingId={bookingId}&shopId={shopId}&recipientName={recipientName}&carDetails={carDetails}&recipientToken={recipientToken}",
+            route = "chat/{chatId}?bookingId={bookingId}&shopId={shopId}&customerId={customerId}&recipientName={recipientName}&carDetails={carDetails}&recipientToken={recipientToken}",
             arguments = listOf(
                 navArgument("chatId") { type = NavType.StringType },
                 navArgument("bookingId") { type = NavType.StringType; defaultValue = "" },
                 navArgument("shopId") { type = NavType.StringType; defaultValue = "" },
+                navArgument("customerId") { type = NavType.StringType; defaultValue = "" },
                 navArgument("recipientName") { type = NavType.StringType; defaultValue = "Chat" },
                 navArgument("carDetails") { type = NavType.StringType; defaultValue = "" },
                 navArgument("recipientToken") { type = NavType.StringType; defaultValue = "" }
@@ -228,6 +229,7 @@ fun NavigationGraph(
             val chatId = backStackEntry.arguments?.getString("chatId") ?: ""
             val bookingId = backStackEntry.arguments?.getString("bookingId") ?: ""
             val shopId = backStackEntry.arguments?.getString("shopId") ?: ""
+            val customerId = backStackEntry.arguments?.getString("customerId") ?: ""
             val recipientName = backStackEntry.arguments?.getString("recipientName") ?: "Chat"
             val carDetails = backStackEntry.arguments?.getString("carDetails") ?: ""
             val recipientToken = backStackEntry.arguments?.getString("recipientToken") ?: ""
@@ -236,6 +238,7 @@ fun NavigationGraph(
                 chatId = chatId,
                 bookingId = bookingId,
                 shopId = shopId,
+                customerId = customerId,
                 recipientName = recipientName,
                 carDetails = carDetails,
                 recipientToken = recipientToken,

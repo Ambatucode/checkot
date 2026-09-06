@@ -28,6 +28,7 @@ import androidx.navigation.NavController
 import com.app.checkot.model.ChatThread
 import com.app.checkot.ui.components.BackTopAppBar
 import com.app.checkot.viewmodel.AuthViewModel
+import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import java.text.SimpleDateFormat
@@ -43,13 +44,14 @@ fun UserChatsScreen(
     var chatThreads by remember { mutableStateOf<List<ChatThread>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    val userUid = currentUser?.userId ?: ""
+    val authUid = com.google.firebase.ktx.Firebase.auth.currentUser?.uid ?: ""
+    val effectiveUid = (currentUser?.userId ?: "").ifBlank { authUid }
     val isOwner = currentUser?.role == "owner"
     val ownedShopId = currentUser?.ownedShopId ?: ""
 
     // Real-time listener on Firestore chats collection
-    DisposableEffect(userUid, ownedShopId, isOwner) {
-        if (userUid.isBlank()) {
+    DisposableEffect(effectiveUid, ownedShopId, isOwner) {
+        if (effectiveUid.isBlank() && ownedShopId.isBlank()) {
             isLoading = false
             return@DisposableEffect onDispose {}
         }
@@ -58,7 +60,7 @@ fun UserChatsScreen(
         val query = if (isOwner && ownedShopId.isNotBlank()) {
             db.collection("chats").whereEqualTo("shopId", ownedShopId)
         } else {
-            db.collection("chats").whereEqualTo("userId", userUid)
+            db.collection("chats").whereEqualTo("userId", effectiveUid)
         }
 
         val registration = query.addSnapshotListener { snapshot, error ->
@@ -123,7 +125,7 @@ fun UserChatsScreen(
                                         thread.shopName.ifBlank { "Car Wash Shop" }
                                     }
                                     val encodedName = Uri.encode(recipientName)
-                                    val route = "chat/${thread.chatId}?bookingId=${thread.bookingId}&shopId=${thread.shopId}&recipientName=${encodedName}"
+                                    val route = "chat/${thread.chatId}?bookingId=${thread.bookingId}&shopId=${thread.shopId}&customerId=${thread.userId}&recipientName=${encodedName}"
                                     navController.navigate(route)
                                 }
                             )

@@ -220,7 +220,7 @@ fun OwnerBookingsTab(
                             val name = customerNames[booking.userId] ?: "Customer"
                             val encodedRecipient = try { java.net.URLEncoder.encode(name, "UTF-8") } catch (_: Exception) { "Customer" }
                             val encodedCar = try { java.net.URLEncoder.encode(booking.carDetails, "UTF-8") } catch (_: Exception) { "" }
-                            val route = "chat/${booking.bookingId}?bookingId=${booking.bookingId}&shopId=${booking.shopId}&recipientName=$encodedRecipient&carDetails=$encodedCar"
+                            val route = "chat/${booking.bookingId}?bookingId=${booking.bookingId}&shopId=${booking.shopId}&customerId=${booking.userId}&recipientName=$encodedRecipient&carDetails=$encodedCar"
                             navController.navigate(route)
                         }
                     )
