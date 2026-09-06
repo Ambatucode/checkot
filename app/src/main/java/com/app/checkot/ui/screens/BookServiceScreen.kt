@@ -609,9 +609,9 @@ fun BookServiceScreen(
                                             showPhoneVerifyDialog = true
                                             isCreating = false
                                         } else {
-                                            bookingViewModel.createBooking(booking)
-                                            kotlinx.coroutines.delay(1500)
-                                            if (bookingViewModel.error.value == null) {
+                                            bookingViewModel.clearError()
+                                            val success = bookingViewModel.createBooking(booking)
+                                            if (success) {
                                                 navController.popBackStack()
                                             } else {
                                                 isCreating = false
@@ -1311,9 +1311,9 @@ fun BookServiceScreen(
         if (verifyState is PhoneVerifyState.Success && pendingBooking != null) {
             showPhoneVerifyDialog = false
             isCreating = true
-            bookingViewModel.createBooking(pendingBooking!!)
-            kotlinx.coroutines.delay(1500)
-            if (bookingViewModel.error.value == null) {
+            bookingViewModel.clearError()
+            val success = bookingViewModel.createBooking(pendingBooking!!)
+            if (success) {
                 navController.popBackStack()
             } else {
                 isCreating = false

@@ -500,16 +500,18 @@ exports.createBooking = onCall(
     try {
       await firestore.runTransaction(async (transaction) => {
         // Check if this vehicle has an active booking inside transaction to prevent race conditions
-        const activeQuery = firestore.collection("bookings")
-          .where("carId", "==", carId)
-          .where("status", "in", ["PENDING", "CONFIRMED", "IN_PROGRESS"]);
-        const activeSnapshot = await transaction.get(activeQuery);
-        
-        if (!activeSnapshot.empty) {
-          throw new HttpsError(
-            "failed-precondition",
-            "This car already has an active booking in the queue. You cannot book the same car twice.",
-          );
+        if (carId) {
+          const activeQuery = firestore.collection("bookings")
+            .where("carId", "==", carId)
+            .where("status", "in", ["PENDING", "CONFIRMED", "IN_PROGRESS"]);
+          const activeSnapshot = await transaction.get(activeQuery);
+          
+          if (!activeSnapshot.empty) {
+            throw new HttpsError(
+              "failed-precondition",
+              "This car already has an active booking in the queue. You cannot book the same car twice.",
+            );
+          }
         }
 
         const shopSnap = await transaction.get(shopRef);
