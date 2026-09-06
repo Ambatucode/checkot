@@ -101,7 +101,7 @@ fun NavigationGraph(
                 // Verify phone first; PhoneVerificationScreen then routes owners to
                 // their dashboard by role on success.
                 onSignupSuccess = {
-                    navController.navigate("phone_verification/signup") {
+                    navController.navigate("phone_verification/signup?isOwner=true") {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
                 },
