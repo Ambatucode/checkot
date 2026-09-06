@@ -1390,6 +1390,17 @@ private fun SettingsCard(
     }
 }
 
+private fun formatMinutesToFriendlyLabel(mins: Int): String {
+    if (mins <= 0) return "30 mins"
+    val hours = mins / 60
+    val remMins = mins % 60
+    return when {
+        hours == 0 -> "$remMins mins"
+        remMins == 0 -> if (hours == 1) "1 hour" else "$hours hours"
+        else -> if (hours == 1) "1 hr $remMins mins" else "$hours hrs $remMins mins"
+    }
+}
+
 @Composable
 private fun DurationDropdownField(
     label: String,
@@ -1410,9 +1421,22 @@ private fun DurationDropdownField(
         120 to "2 hours",
         150 to "2 hrs 30 mins",
         180 to "3 hours",
-        240 to "4 hours"
+        210 to "3 hrs 30 mins",
+        240 to "4 hours",
+        270 to "4 hrs 30 mins",
+        300 to "5 hours",
+        330 to "5 hrs 30 mins",
+        360 to "6 hours",
+        390 to "6 hrs 30 mins",
+        420 to "7 hours",
+        450 to "7 hrs 30 mins",
+        480 to "8 hours",
+        510 to "8 hrs 30 mins",
+        540 to "9 hours",
+        570 to "9 hrs 30 mins",
+        600 to "10 hours"
     )
-    val displayLabel = options.find { it.first == selectedMinutes }?.second ?: "$selectedMinutes mins"
+    val displayLabel = options.find { it.first == selectedMinutes }?.second ?: formatMinutesToFriendlyLabel(selectedMinutes)
 
     Box(modifier = modifier) {
         OutlinedTextField(
