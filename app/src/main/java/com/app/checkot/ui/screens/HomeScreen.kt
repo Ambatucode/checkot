@@ -628,8 +628,12 @@ fun BookingCard(
     var isQueueLoaded by remember { mutableStateOf(false) }
 
     // Direct Firestore listener on day_slots ledger for accurate queue calculation across all users
-    DisposableEffect(booking.bookingId, booking.shopId, booking.bookingDate, bayCount) {
-        if (booking.shopId.isEmpty()) return@DisposableEffect onDispose {}
+    DisposableEffect(booking.bookingId, booking.shopId, booking.bookingDate, booking.status, bayCount) {
+        if (booking.shopId.isEmpty() || booking.status == BookingStatus.CANCELLED || booking.status == BookingStatus.COMPLETED) {
+            queueInfo = QueueInfo(0, 0, 0)
+            isQueueLoaded = true
+            return@DisposableEffect onDispose {}
+        }
         val ledgerDocId = com.app.checkot.utils.BookingUtils.ledgerDocId(booking.shopId, booking.bookingDate)
         val listener = Firebase.firestore.collection("day_slots").document(ledgerDocId)
             .addSnapshotListener { snapshot, error ->

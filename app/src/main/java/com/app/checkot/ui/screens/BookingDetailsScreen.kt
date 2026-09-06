@@ -108,8 +108,12 @@ fun BookingDetailsScreen(
     var showReceipt by remember { mutableStateOf(false) }
 
     // Direct Firestore listener for queue info via day_slots ledger (accessible by all users)
-    DisposableEffect(booking?.bookingId, booking?.shopId, booking?.bookingDate, shopCustomization?.bayCount) {
-        if (booking == null || booking.shopId.isEmpty()) return@DisposableEffect onDispose {}
+    DisposableEffect(booking?.bookingId, booking?.shopId, booking?.bookingDate, booking?.status, shopCustomization?.bayCount) {
+        if (booking == null || booking.shopId.isEmpty() || booking.status == BookingStatus.CANCELLED || booking.status == BookingStatus.COMPLETED) {
+            queueInfo = QueueInfo(0, 0, 0)
+            isQueueLoaded = true
+            return@DisposableEffect onDispose {}
+        }
         val ledgerDocId = BookingUtils.ledgerDocId(booking.shopId, booking.bookingDate)
         val bayCount = shopCustomization?.bayCount ?: 1
         val listener = Firebase.firestore.collection("day_slots").document(ledgerDocId)

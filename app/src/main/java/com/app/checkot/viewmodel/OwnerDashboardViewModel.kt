@@ -200,7 +200,23 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 viewModelScope.launch {
                     loadUsers(bookingsList.map { it.userId }.distinct())
                 }
+
+                // Clean up inactive (COMPLETED/CANCELLED) bookings from day_slots ledger
+                sanitizeLedgerEntries(bookingsList)
             }
+    }
+
+    private fun sanitizeLedgerEntries(bookingsList: List<Booking>) {
+        val shopId = _currentOwnerShopId.value ?: return
+        val inactiveBookings = bookingsList.filter { 
+            it.status == BookingStatus.COMPLETED || it.status == BookingStatus.CANCELLED 
+        }
+        if (inactiveBookings.isEmpty()) return
+        viewModelScope.launch {
+            for (b in inactiveBookings) {
+                com.app.checkot.service.BookingLedgerService.release(firestore, shopId, b.bookingDate, b.bookingId)
+            }
+        }
     }
 
     fun loadBookings() {

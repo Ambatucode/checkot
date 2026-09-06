@@ -73,18 +73,23 @@ object BookingLedgerService {
      * overbooking.
      */
     suspend fun release(firestore: FirebaseFirestore, shopId: String, date: Long, bookingId: String) {
-        if (shopId.isEmpty()) return
+        if (shopId.isEmpty() || bookingId.isEmpty()) return
         val ref = ledgerRef(firestore, shopId, date)
         try {
             firestore.runTransaction { transaction ->
                 val snap = transaction.get(ref)
+                if (!snap.exists()) return@runTransaction null
                 val ledger = snap.toObject(DaySlotLedger::class.java) ?: return@runTransaction null
-                val updated = ledger.copy(entries = ledger.entries.filterNot { it.bookingId == bookingId })
-                transaction.set(ref, updated)
+                val filtered = ledger.entries.filterNot { it.bookingId == bookingId }
+                if (filtered.size != ledger.entries.size) {
+                    val updated = ledger.copy(entries = filtered)
+                    transaction.set(ref, updated)
+                }
                 null
             }.await()
+            android.util.Log.d("BookingLedgerService", "✅ Released booking $bookingId from ledger ${ref.id}")
         } catch (e: Exception) {
-            // Best-effort — see doc comment above.
+            android.util.Log.e("BookingLedgerService", "❌ Failed to release booking $bookingId from ledger: ${e.message}")
         }
     }
 }
