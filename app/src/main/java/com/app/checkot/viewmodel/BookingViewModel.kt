@@ -84,8 +84,6 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
 
         bookingsListenerRegistration = firestore.collection("bookings")
             .whereEqualTo("userId", user.uid)
-            .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
-            .limit(PAGE_SIZE)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.d(TAG, "Real-time listener cancelled: ${error.message}")
@@ -93,17 +91,11 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     return@addSnapshotListener
                 }
 
-                val docs = snapshot?.documents.orEmpty()
-                if (docs.isNotEmpty()) {
-                    lastBookingDocumentSnap = docs.last()
-                }
-                _hasMoreBookings.value = docs.size >= PAGE_SIZE
-
-                val bookings = docs.mapNotNull { it.toObject(Booking::class.java) }
+                val bookings = snapshot?.documents?.mapNotNull { it.toObject(Booking::class.java) }
+                    ?.sortedByDescending { it.createdAt } ?: emptyList()
 
                 // Detect status changes and update previous statuses
                 for (booking in bookings) {
-                    val previousStatus = previousBookingStatuses[booking.bookingId]
                     previousBookingStatuses[booking.bookingId] = booking.status
                 }
 
