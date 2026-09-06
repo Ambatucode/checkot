@@ -287,38 +287,53 @@ fun BookingDetailsScreen(
             contentPadding = PaddingValues(16.dp)
         ) {
             item {
-                // Status Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = when (booking.status) {
-                            BookingStatus.PENDING -> MaterialTheme.colorScheme.secondaryContainer
-                            BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.primaryContainer
-                            BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.tertiaryContainer
-                            BookingStatus.COMPLETED -> MaterialTheme.colorScheme.surfaceVariant
-                            BookingStatus.CANCELLED -> MaterialTheme.colorScheme.errorContainer
-                        }
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                if (booking.status == BookingStatus.IN_PROGRESS) {
+                    com.app.checkot.ui.components.LiveWashTimerCard(booking = booking)
+                } else {
+                    // Status Card (for PENDING, CONFIRMED, COMPLETED, CANCELLED)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = when (booking.status) {
+                                BookingStatus.PENDING -> MaterialTheme.colorScheme.secondaryContainer
+                                BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.primaryContainer
+                                BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.tertiaryContainer
+                                BookingStatus.COMPLETED -> MaterialTheme.colorScheme.surfaceVariant
+                                BookingStatus.CANCELLED -> MaterialTheme.colorScheme.errorContainer
+                            }
+                        )
                     ) {
-                        Column {
-                            Text(
-                                text = "Status",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                            )
-                            Text(
-                                text = booking.status.displayName,
-                                style = MaterialTheme.typography.titleLarge,
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                color = when (booking.status) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Status",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = booking.status.displayName,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    color = when (booking.status) {
+                                        BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
+                                        BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.onPrimaryContainer
+                                        BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.onTertiaryContainer
+                                        BookingStatus.COMPLETED -> MaterialTheme.colorScheme.onSurfaceVariant
+                                        BookingStatus.CANCELLED -> MaterialTheme.colorScheme.onErrorContainer
+                                    }
+                                )
+                            }
+                            AnimatedStatusIcon(
+                                status = booking.status,
+                                modifier = Modifier.size(48.dp),
+                                tint = when (booking.status) {
                                     BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
                                     BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.onPrimaryContainer
                                     BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.onTertiaryContainer
@@ -327,24 +342,7 @@ fun BookingDetailsScreen(
                                 }
                             )
                         }
-                        AnimatedStatusIcon(
-                            status = booking.status,
-                            modifier = Modifier.size(48.dp),
-                            tint = when (booking.status) {
-                                BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
-                                BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.onPrimaryContainer
-                                BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.onTertiaryContainer
-                                BookingStatus.COMPLETED -> MaterialTheme.colorScheme.onSurfaceVariant
-                                BookingStatus.CANCELLED -> MaterialTheme.colorScheme.onErrorContainer
-                            }
-                        )
                     }
-                }
-            }
-
-            if (booking.status == BookingStatus.IN_PROGRESS) {
-                item {
-                    com.app.checkot.ui.components.LiveWashTimerCard(booking = booking)
                 }
             }
 
