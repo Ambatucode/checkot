@@ -436,17 +436,20 @@ fun BookingDetailsScreen(
             // Queue Position Card — only for active waiting bookings (PENDING or CONFIRMED)
             if (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED) {
                 item {
-                    val showCard = isShopLoaded && isQueueLoaded && queueInfo.position > 0
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = showCard,
-                        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
-                        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
-                    ) {
-                        QueuePositionCard(
-                            queueInfo = queueInfo,
-                            status = booking.status,
-                            showWaitTime = queueInfo.estimatedWaitMinutes > 0
-                        )
+                    val isLoading = !isShopLoaded || !isQueueLoaded
+                    androidx.compose.animation.Crossfade(
+                        targetState = isLoading,
+                        label = "QueueCardCrossfade"
+                    ) { loading ->
+                        if (loading) {
+                            QueuePositionLoadingCard()
+                        } else if (queueInfo.position > 0) {
+                            QueuePositionCard(
+                                queueInfo = queueInfo,
+                                status = booking.status,
+                                showWaitTime = queueInfo.estimatedWaitMinutes > 0
+                            )
+                        }
                     }
                 }
             }
@@ -1375,6 +1378,47 @@ fun ServiceProgressStepper(status: BookingStatus) {
                         modifier = Modifier.weight(1f)
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun QueuePositionLoadingCard() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, Color(0xFF00E6C3).copy(alpha = 0.3f), MaterialTheme.shapes.medium),
+        colors = CardDefaults.cardColors(
+            containerColor = com.app.checkot.ui.theme.CheckotCardSurface
+        ),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                color = Color(0xFF00E6C3),
+                strokeWidth = 2.5.dp
+            )
+            Spacer(modifier = Modifier.width(14.dp))
+            Column {
+                Text(
+                    text = "Calculating Live Queue...",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Verifying position with shop ledger",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
             }
         }
     }

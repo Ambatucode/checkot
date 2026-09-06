@@ -587,12 +587,7 @@ fun BookingCard(
                 )
             }
             // Queue info — show for waiting bookings (PENDING or CONFIRMED)
-            val showQueue = isQueueLoaded && queueInfo.position > 0
-            androidx.compose.animation.AnimatedVisibility(
-                visible = showQueue && (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED),
-                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
-                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
-            ) {
+            if (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED) {
                 Column {
                     Spacer(modifier = Modifier.height(6.dp))
                     Surface(
@@ -603,29 +598,44 @@ fun BookingCard(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                Icons.Default.People,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            val carsAhead = queueInfo.position - 1
-                            val waitSuffix = if (queueInfo.estimatedWaitMinutes > 0 && carsAhead > 0) {
-                                val hours = queueInfo.estimatedWaitMinutes / 60
-                                val mins = queueInfo.estimatedWaitMinutes % 60
-                                val waitText = if (hours > 0 && mins > 0) "${hours}h ${mins}m"
-                                               else if (hours > 0) "${hours}h"
-                                               else "${mins}m"
-                                " • Est. wait: ~$waitText"
-                            } else ""
-                            Text(
-                                text = if (carsAhead == 0) "Queue: #${queueInfo.position} — You're next!$waitSuffix"
-                                       else "Queue: #${queueInfo.position} — $carsAhead ahead$waitSuffix",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                            )
+                            if (!isQueueLoaded) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(12.dp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    strokeWidth = 1.5.dp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Syncing queue position...",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                                )
+                            } else if (queueInfo.position > 0) {
+                                Icon(
+                                    Icons.Default.People,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                val carsAhead = queueInfo.position - 1
+                                val waitSuffix = if (queueInfo.estimatedWaitMinutes > 0 && carsAhead > 0) {
+                                    val hours = queueInfo.estimatedWaitMinutes / 60
+                                    val mins = queueInfo.estimatedWaitMinutes % 60
+                                    val waitText = if (hours > 0 && mins > 0) "${hours}h ${mins}m"
+                                                   else if (hours > 0) "${hours}h"
+                                                   else "${mins}m"
+                                    " • Est. wait: ~$waitText"
+                                } else ""
+                                Text(
+                                    text = if (carsAhead == 0) "Queue: #${queueInfo.position} — You're next!$waitSuffix"
+                                           else "Queue: #${queueInfo.position} — $carsAhead ahead$waitSuffix",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
                 }
