@@ -29,7 +29,9 @@ private data class ShopForService(
     val shopId: String,
     val name: String,
     val address: String,
-    val logoUrl: String
+    val logoUrl: String,
+    val averageRating: Double = 0.0,
+    val reviewCount: Int = 0
 )
 
 /**
@@ -63,7 +65,9 @@ fun ShopsForServiceScreen(navController: NavController, serviceTypeName: String)
                         shopId = doc.id,
                         name = custom.shopName,
                         address = custom.shopAddress,
-                        logoUrl = custom.logoUrl
+                        logoUrl = custom.logoUrl,
+                        averageRating = custom.averageRating,
+                        reviewCount = custom.reviewCount
                     )
                 }
                 withContext(Dispatchers.Main) {
@@ -176,6 +180,24 @@ private fun ShopCard(shop: ShopForService, serviceName: String, onClick: () -> U
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
+                }
+                if (shop.averageRating > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = "Rating",
+                            modifier = Modifier.size(13.dp),
+                            tint = androidx.compose.ui.graphics.Color(0xFFFFD700)
+                        )
+                        Spacer(Modifier.width(3.dp))
+                        Text(
+                            text = String.format("%.1f", shop.averageRating) + if (shop.reviewCount > 0) " (${shop.reviewCount})" else "",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
+                        )
+                    }
                 }
                 Spacer(Modifier.height(6.dp))
                 AssistChip(

@@ -4,6 +4,7 @@ import com.app.checkot.model.*
 import com.app.checkot.viewmodel.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -37,6 +38,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 
+import androidx.compose.ui.platform.LocalContext
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -44,17 +47,50 @@ fun HomeScreen(
     authViewModel: AuthViewModel = viewModel(),
     bookingViewModel: BookingViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val userData by authViewModel.currentUserData.collectAsState()
     val recentBookings by bookingViewModel.userBookings.collectAsState()
 
-    // Load shops from Firestore
+    // User location state for distance calculation (defaults to Metro Manila center)
+    var userLat by remember { mutableStateOf(14.5995) }
+    var userLon by remember { mutableStateOf(120.9842) }
+
+    // Load shops and reviews from Firestore
     var shopList by remember { mutableStateOf<List<CarWashShop>>(emptyList()) }
+    var selectedSortOption by remember { mutableStateOf(com.app.checkot.utils.ShopSortOption.RECOMMENDED) }
     var loadingShops by remember { mutableStateOf(true) }
     var loadError by remember { mutableStateOf<String?>(null) }
+
+    val sortedShops = remember(shopList, selectedSortOption, userLat, userLon) {
+        com.app.checkot.utils.ShopSortingUtils.sortShops(shopList, selectedSortOption, userLat, userLon)
+    }
+
+    // Try fetching user GPS location
+    LaunchedEffect(Unit) {
+        try {
+            val fusedLocationClient = com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(context)
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                if (location != null && location.latitude != 0.0 && location.longitude != 0.0) {
+                    userLat = location.latitude
+                    userLon = location.longitude
+                }
+            }
+        } catch (_: Exception) {}
+    }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             try {
+                // Fetch reviews to calculate actual ratings
+                val reviewsMap = try {
+                    val reviewsSnap = Firebase.firestore.collection("reviews").get().await()
+                    reviewsSnap.documents
+                        .mapNotNull { it.toObject(Review::class.java) }
+                        .groupBy { it.shopId }
+                } catch (_: Exception) {
+                    emptyMap<String, List<Review>>()
+                }
+
                 val snapshot = Firebase.firestore.collection("shop_services").get().await()
                 val shops = snapshot.documents.mapNotNull { doc ->
                     val name = doc.getString("shopName") ?: return@mapNotNull null
@@ -63,14 +99,23 @@ fun HomeScreen(
                     // Only show active shops (pending/rejected are hidden from customers)
                     if (status != "active") return@mapNotNull null
                     val customization = doc.toObject(ShopCustomization::class.java)
+
+                    val shopReviews = reviewsMap[doc.id] ?: emptyList()
+                    val avgRating = if (shopReviews.isNotEmpty()) shopReviews.map { it.rating }.average() else (customization?.averageRating ?: 0.0)
+                    val revCount = if (shopReviews.isNotEmpty()) shopReviews.size else (customization?.reviewCount ?: 0)
+
                     CarWashShop(
                         shopId = doc.id,
                         name = name,
                         address = address,
+                        latitude = doc.getDouble("latitude") ?: 0.0,
+                        longitude = doc.getDouble("longitude") ?: 0.0,
                         logoUrl = doc.getString("logoUrl") ?: "",
                         services = customization?.services ?: emptyList(),
                         bayCount = customization?.bayCount ?: 1,
-                        isClosed = customization?.isClosed ?: false
+                        isClosed = customization?.isClosed ?: false,
+                        averageRating = avgRating,
+                        reviewCount = revCount
                     )
                 }
                 withContext(Dispatchers.Main) {
@@ -269,23 +314,52 @@ fun HomeScreen(
             }
 
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Select a Car Wash",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = "${shopList.size} shops",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (loadingShops) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    )
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Select a Car Wash",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "${sortedShops.size} shops",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (loadingShops) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                                     else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+
+                    // Foodpanda-style Filter Chips Bar
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        items(com.app.checkot.utils.ShopSortOption.values()) { option ->
+                            val isSelected = selectedSortOption == option
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { selectedSortOption = option },
+                                label = {
+                                    Text(
+                                        option.displayName,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = if (isSelected) Color.Black else Color.White.copy(alpha = 0.8f)
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = com.app.checkot.ui.theme.CheckotBadgeTeal,
+                                    containerColor = Color.White.copy(alpha = 0.08f)
+                                ),
+                                border = null,
+                                shape = RoundedCornerShape(50)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -320,7 +394,7 @@ fun HomeScreen(
                 }
             }
 
-            items(shopList, key = { it.shopId }) { shop ->
+            items(sortedShops, key = { it.shopId }) { shop ->
                 ShopCard(
                     shop = shop,
                     onClick = {
@@ -438,6 +512,41 @@ fun ShopCard(
                         )
                     }
                 }
+                val formattedDistance = remember(shop.distanceKm) {
+                    com.app.checkot.utils.LocationUtils.formatDistance(shop.distanceKm)
+                }
+                if (shop.averageRating > 0 || formattedDistance.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (shop.averageRating > 0) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Star,
+                                    contentDescription = "Rating",
+                                    modifier = Modifier.size(12.dp),
+                                    tint = Color(0xFFFFD700)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = String.format("%.1f", shop.averageRating) + if (shop.reviewCount > 0) " (${shop.reviewCount})" else "",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        if (formattedDistance.isNotBlank()) {
+                            Text(
+                                text = "• $formattedDistance",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = com.app.checkot.ui.theme.CheckotBadgeTeal
+                            )
+                        }
+                    }
+                }
             }
             Spacer(modifier = Modifier.width(8.dp))
             // Price badge — starting price computed dynamically from the shop's
@@ -451,17 +560,41 @@ fun ShopCard(
                 .filter { it > 0 }
                 .minOrNull()
             Column(horizontalAlignment = Alignment.End) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (shop.isClosed) Color(0xFF331619) else com.app.checkot.ui.theme.CheckotBadgeSurface
-                ) {
-                    Text(
-                        text = if (shop.isClosed) "Closed" else if (minPrice != null) "From ${BookingUtils.formatPrice(minPrice)}" else "View Rates",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (shop.isClosed) Color(0xFFFF5252) else com.app.checkot.ui.theme.CheckotBadgeTeal,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
+                if (shop.isClosed) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF331619)
+                    ) {
+                        Text(
+                            text = "CLOSED",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFF5252),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                    if (minPrice != null) {
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = "From ${BookingUtils.formatPrice(minPrice)}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = com.app.checkot.ui.theme.CheckotBadgeSurface
+                    ) {
+                        Text(
+                            text = if (minPrice != null) "From ${BookingUtils.formatPrice(minPrice)}" else "View Rates",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = com.app.checkot.ui.theme.CheckotBadgeTeal,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Icon(

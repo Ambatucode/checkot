@@ -36,7 +36,10 @@ data class CarWashShop(
     val minPrice: Double = 0.0,  // cheapest service price; 0 = unknown (legacy)
     val services: List<CustomServiceConfig> = emptyList(), // offerings — drives the "From ₱X" badge
     val bayCount: Int = 1,
-    val isClosed: Boolean = false
+    val isClosed: Boolean = false,
+    val averageRating: Double = 0.0,
+    val reviewCount: Int = 0,
+    val distanceKm: Double = 0.0
 )
 
 enum class CarSize(val label: String, val sizeKey: String) {
@@ -181,7 +184,9 @@ data class ShopCustomization(
     val isDeleted: Boolean = false,
     @get:PropertyName("isClosed")
     @set:PropertyName("isClosed")
-    var isClosed: Boolean = false
+    var isClosed: Boolean = false,
+    val averageRating: Double = 0.0,
+    val reviewCount: Int = 0
 )
 
 @Immutable
