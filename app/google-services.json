@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "670218480723",
+    "firebase_url": "https://checkot-14700-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "checkot-14700",
+    "storage_bucket": "checkot-14700.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:670218480723:android:9f8331926a090c56c2eaa6",
+        "android_client_info": {
+          "package_name": "com.app.checkot"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "670218480723-gsqfksn2qkqdfcmt5te689qgul39fbd9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.app.checkot",
+            "certificate_hash": "fb731c7cd534b0d66b4eb2808ce764f4cfc7f647"
+          }
+        },
+        {
+          "client_id": "670218480723-o1uu05pblduipqaahd96l3cbv5jq1krb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCUZR6bZWyLNzSTYSimz3IDrr3-uH2Gc3A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "670218480723-o1uu05pblduipqaahd96l3cbv5jq1krb.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
