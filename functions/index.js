@@ -10,6 +10,7 @@
  */
 
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 
@@ -450,6 +451,47 @@ function findFreeBayIndex(busyRanges, bayCount, start, end) {
   return null;
 }
 
+async function cleanupLedgerEntries(shopId, bookingDate) {
+  if (!shopId || !bookingDate) return;
+  const db = admin.firestore();
+  const ledgerRef = db.collection("day_slots").doc(`${shopId}_${bookingDate}`);
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ledgerRef);
+      if (!snap.exists) return;
+      const data = snap.data();
+      const entries = data.entries || [];
+      if (entries.length === 0) return;
+
+      const bookingIds = [...new Set(entries.map(e => e.bookingId).filter(Boolean))];
+      if (bookingIds.length === 0) return;
+
+      const bookingSnaps = await Promise.all(
+        bookingIds.map(id => tx.get(db.collection("bookings").doc(id)))
+      );
+
+      const activeBookingIds = new Set();
+      bookingSnaps.forEach(s => {
+        if (s.exists) {
+          const st = s.data().status;
+          if (st === "PENDING" || st === "CONFIRMED" || st === "IN_PROGRESS") {
+            activeBookingIds.add(s.id);
+          }
+        }
+      });
+
+      const validEntries = entries.filter(e => activeBookingIds.has(e.bookingId));
+      if (validEntries.length !== entries.length) {
+        tx.set(ledgerRef, { ...data, entries: validEntries });
+        console.log(`Cleaned up ledger ${shopId}_${bookingDate}: kept ${validEntries.length}/${entries.length} entries`);
+      }
+    });
+  } catch (err) {
+    console.error(`Failed to cleanup ledger ${shopId}_${bookingDate}:`, err);
+  }
+}
+
 exports.createBooking = onCall(
   {
     region: "asia-southeast1",
@@ -672,6 +714,44 @@ exports.createBooking = onCall(
         `Booking failed: ${error.message}`,
       );
     }
+  }
+);
+
+exports.onBookingStatusUpdated = onDocumentUpdated(
+  {
+    document: "bookings/{bookingId}",
+    region: "asia-southeast1",
+  },
+  async (event) => {
+    const before = event.data.before ? event.data.before.data() : null;
+    const after = event.data.after ? event.data.after.data() : null;
+    if (!before || !after) return;
+
+    if (
+      (after.status === "CANCELLED" || after.status === "COMPLETED") &&
+      (before.status !== "CANCELLED" && before.status !== "COMPLETED")
+    ) {
+      await cleanupLedgerEntries(after.shopId, after.bookingDate);
+    }
+  }
+);
+
+exports.syncLedger = onCall(
+  {
+    region: "asia-southeast1",
+    memory: "256MiB",
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Please sign in.");
+    }
+    const { shopId, bookingDate } = request.data || {};
+    if (!shopId || !bookingDate) {
+      throw new HttpsError("invalid-argument", "Missing parameters.");
+    }
+    await cleanupLedgerEntries(shopId, bookingDate);
+    return { success: true };
   }
 );
 
