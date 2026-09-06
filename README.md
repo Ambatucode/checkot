@@ -1,7 +1,7 @@
 # 🧼 Checkot — AI-Powered Car Wash MIS & Booking Platform
 
-![Version](https://img.shields.io/badge/version-5.1-00E6C3?style=for-the-badge&logo=android)
-![Build](https://img.shields.io/badge/build-42-555555?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-5.2-00E6C3?style=for-the-badge&logo=android)
+![Build](https://img.shields.io/badge/build-43-555555?style=for-the-badge)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF?style=for-the-badge&logo=kotlin)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-BOM%202026.06-4285F4?style=for-the-badge&logo=jetpackcompose)
 ![Firebase](https://img.shields.io/badge/Firebase-Cloud%20Functions%20v2%20%2B%20Firestore-FFCA28?style=for-the-badge&logo=firebase)
