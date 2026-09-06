@@ -1,6 +1,7 @@
 package com.app.checkot.ui.screens
 
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -142,28 +143,26 @@ fun UserChatsScreen(
                         itemsIndexed(
                             items = chatThreads,
                             key = { index, thread ->
-                                if (thread.chatId.isNotBlank()) thread.chatId else "thread_${index}_${thread.lastMessageTimestamp}"
+                                val id = thread.chatId.ifBlank { thread.bookingId }
+                                if (id.isNotBlank()) id else "thread_${index}_${thread.lastMessageTimestamp}"
                             }
                         ) { _, thread ->
                             ChatThreadRow(
                                 thread = thread,
                                 isOwner = isOwner,
                                 onClick = {
-                                    if (thread.chatId.isNotBlank()) {
+                                    val effectiveChatId = thread.chatId.ifBlank { thread.bookingId }
+                                    if (effectiveChatId.isNotBlank()) {
                                         val recipientName = if (isOwner) {
                                             thread.customerName.ifBlank { "Customer" }
                                         } else {
                                             thread.shopName.ifBlank { "Car Wash Shop" }
                                         }
                                         val encodedName = try { Uri.encode(recipientName) } catch (_: Exception) { "Chat" }
-                                        val route = "chat/${thread.chatId}?bookingId=${thread.bookingId}&shopId=${thread.shopId}&customerId=${thread.userId}&recipientName=${encodedName}"
+                                        val route = "chat/$effectiveChatId?bookingId=${thread.bookingId}&shopId=${thread.shopId}&customerId=${thread.userId}&recipientName=${encodedName}"
                                         navController.navigate(route)
                                     }
                                 }
-                            )
-                            HorizontalDivider(
-                                modifier = Modifier.padding(horizontal = 16.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
                             )
                         }
                     }
@@ -173,6 +172,7 @@ fun UserChatsScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatThreadRow(
     thread: ChatThread,
@@ -189,10 +189,13 @@ private fun ChatThreadRow(
     val hasUnread = unreadCount > 0
 
     Surface(
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        color = Color.Transparent
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
     ) {
         Row(
             modifier = Modifier
