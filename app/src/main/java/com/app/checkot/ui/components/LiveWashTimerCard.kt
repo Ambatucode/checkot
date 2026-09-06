@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.HourglassTop
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -37,6 +38,7 @@ fun LiveWashTimerCard(
     if (booking.status != BookingStatus.IN_PROGRESS) return
 
     var currentTimeMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    var showInfoDialog by remember { mutableStateOf(false) }
 
     // Tick every 1 second while IN_PROGRESS
     LaunchedEffect(booking.bookingId, booking.inProgressAt, booking.status) {
@@ -67,6 +69,43 @@ fun LiveWashTimerCard(
         ),
         label = "alphaPulse"
     )
+
+    if (showInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = null,
+                    tint = Color(0xFF00E6C3)
+                )
+            },
+            title = {
+                Text(
+                    text = "Estimated Duration",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "This timer is an estimate based on average service durations for your vehicle size. Your wash may be completed earlier or take a few extra minutes depending on vehicle condition and shop workflow.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showInfoDialog = false }) {
+                    Text(
+                        text = "Got it",
+                        color = Color(0xFF00E6C3),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            containerColor = Color(0xFF13222B),
+            titleContentColor = Color.White,
+            textContentColor = Color.White.copy(alpha = 0.85f)
+        )
+    }
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -119,9 +158,14 @@ fun LiveWashTimerCard(
 
             // Middle Row: Big Countdown Display / Overtime Message
             if (!isOvertime) {
-                val mins = remainingSeconds / 60
+                val hours = remainingSeconds / 3600
+                val mins = (remainingSeconds % 3600) / 60
                 val secs = remainingSeconds % 60
-                val timerString = String.format("%02d:%02d", mins, secs)
+                val timerString = if (hours > 0) {
+                    String.format("%02d:%02d:%02d", hours, mins, secs)
+                } else {
+                    String.format("%02d:%02d", mins, secs)
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -136,11 +180,25 @@ fun LiveWashTimerCard(
                             color = Color.White,
                             letterSpacing = 2.sp
                         )
-                        Text(
-                            text = "Estimated time remaining",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.6f)
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Estimated time remaining",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.6f)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            IconButton(
+                                onClick = { showInfoDialog = true },
+                                modifier = Modifier.size(16.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = "Time Estimate Disclaimer",
+                                    tint = Color(0xFF00E6C3).copy(alpha = 0.8f),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
                     }
 
                     Icon(
@@ -180,11 +238,25 @@ fun LiveWashTimerCard(
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
-                        Text(
-                            text = "The shop is applying final touches to your vehicle.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.7f)
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "The shop is applying final touches.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            IconButton(
+                                onClick = { showInfoDialog = true },
+                                modifier = Modifier.size(16.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = "Time Estimate Disclaimer",
+                                    tint = Color(0xFFFFB74D).copy(alpha = 0.8f),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -213,3 +285,4 @@ fun LiveWashTimerCard(
         }
     }
 }
+
