@@ -80,14 +80,12 @@ fun OwnerDashboard(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = { navController.navigate("user_chats") }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Chat,
-                            contentDescription = "Messages"
-                        )
-                    }
+                    com.app.checkot.ui.components.ChatIconButton(
+                        onClick = { navController.navigate("user_chats") },
+                        userUid = userData?.userId ?: "",
+                        isOwner = true,
+                        ownedShopId = userData?.ownedShopId ?: ""
+                    )
                     IconButton(
                         onClick = { navController.navigate("profile") }
                     ) {

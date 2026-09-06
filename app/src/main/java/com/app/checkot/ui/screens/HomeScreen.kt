@@ -142,9 +142,11 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("Checkot") },
                 actions = {
-                    IconButton(onClick = { navController.navigate("user_chats") }) {
-                        Icon(Icons.Default.Chat, contentDescription = "Messages")
-                    }
+                    com.app.checkot.ui.components.ChatIconButton(
+                        onClick = { navController.navigate("user_chats") },
+                        userUid = userData?.userId ?: "",
+                        isOwner = false
+                    )
                     IconButton(onClick = { navController.navigate("profile") }) {
                         Icon(Icons.Default.Person, contentDescription = "Profile")
                     }

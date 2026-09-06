@@ -30,13 +30,20 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
 import com.app.checkot.model.BookingStatus
 
 /**
@@ -229,5 +236,68 @@ fun AppVersionFooter(modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
             fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
         )
+    }
+}
+
+/**
+ * TopAppBar Chat Icon Button with real-time unread badge counter.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun ChatIconButton(
+    onClick: () -> Unit,
+    userUid: String,
+    isOwner: Boolean = false,
+    ownedShopId: String = "",
+    modifier: Modifier = Modifier
+) {
+    var unreadCount by androidx.compose.runtime.remember(userUid, isOwner, ownedShopId) { 
+        androidx.compose.runtime.mutableIntStateOf(0) 
+    }
+
+    androidx.compose.runtime.DisposableEffect(userUid, isOwner, ownedShopId) {
+        if (userUid.isBlank()) return@DisposableEffect onDispose {}
+
+        val db = Firebase.firestore
+        val query = if (isOwner && ownedShopId.isNotBlank()) {
+            db.collection("chats").whereEqualTo("shopId", ownedShopId)
+        } else {
+            db.collection("chats").whereEqualTo("userId", userUid)
+        }
+
+        val listener = query.addSnapshotListener { snapshot, error ->
+            if (error != null || snapshot == null) return@addSnapshotListener
+            val sum = snapshot.documents.sumOf { doc ->
+                val field = if (isOwner) "unreadCountOwner" else "unreadCountCustomer"
+                (doc.getLong(field) ?: 0).toInt()
+            }
+            unreadCount = sum
+        }
+
+        onDispose { listener.remove() }
+    }
+
+    IconButton(onClick = onClick, modifier = modifier) {
+        androidx.compose.material3.BadgedBox(
+            badge = {
+                if (unreadCount > 0) {
+                    androidx.compose.material3.Badge(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    ) {
+                        Text(
+                            text = if (unreadCount > 99) "99+" else "$unreadCount",
+                            fontSize = 10.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        ) {
+            Icon(
+                imageVector = Icons.Default.Chat,
+                contentDescription = "Messages"
+            )
+        }
     }
 }
