@@ -113,14 +113,18 @@ fun BookingDetailsScreen(
         val listener = Firebase.firestore.collection("bookings")
             .whereEqualTo("shopId", booking.shopId)
             .whereEqualTo("bookingDate", booking.bookingDate)
-            .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
             .addSnapshotListener { snapshot, error ->
                 if (error != null || snapshot == null) {
                     isQueueLoaded = true
                     return@addSnapshotListener
                 }
-                val bookings = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
-                val sorted = bookings.sortedWith(
+                val allBookings = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
+                val activeBookings = allBookings.filter {
+                    it.status == BookingStatus.PENDING ||
+                    it.status == BookingStatus.CONFIRMED ||
+                    it.status == BookingStatus.IN_PROGRESS
+                }
+                val sorted = activeBookings.sortedWith(
                     compareBy<Booking> { it.status != com.app.checkot.model.BookingStatus.IN_PROGRESS }
                         .thenBy { com.app.checkot.utils.BookingUtils.parseTimeSlotToMinutes(it.timeSlot) }
                         .thenBy { it.createdAt }
