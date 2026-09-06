@@ -263,22 +263,42 @@ fun ChatIconButton(
         if (effectiveUid.isBlank() && ownedShopId.isBlank()) return@DisposableEffect onDispose {}
 
         val db = Firebase.firestore
-        val query = if (isOwner && ownedShopId.isNotBlank()) {
-            db.collection("chats").whereEqualTo("shopId", ownedShopId)
-        } else {
-            db.collection("chats").whereEqualTo("userId", effectiveUid)
+        val listeners = mutableListOf<com.google.firebase.firestore.ListenerRegistration>()
+        val unreadMap = mutableMapOf<String, Int>()
+
+        fun updateTotalUnread() {
+            unreadCount = unreadMap.values.sum()
         }
 
-        val listener = query.addSnapshotListener { snapshot, error ->
-            if (error != null || snapshot == null) return@addSnapshotListener
-            val sum = snapshot.documents.sumOf { doc ->
-                val field = if (isOwner) "unreadCountOwner" else "unreadCountCustomer"
-                (doc.getLong(field) ?: 0).toInt()
-            }
-            unreadCount = sum
+        // Listener 1: Customer chats (userId)
+        if (effectiveUid.isNotBlank()) {
+            val userQuery = db.collection("chats").whereEqualTo("userId", effectiveUid)
+            listeners.add(userQuery.addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) return@addSnapshotListener
+                for (doc in snapshot.documents) {
+                    val count = (doc.getLong("unreadCountCustomer") ?: 0).toInt()
+                    unreadMap["cust_${doc.id}"] = count
+                }
+                updateTotalUnread()
+            })
         }
 
-        onDispose { listener.remove() }
+        // Listener 2: Shop Owner chats (shopId)
+        if (isOwner && ownedShopId.isNotBlank()) {
+            val shopQuery = db.collection("chats").whereEqualTo("shopId", ownedShopId)
+            listeners.add(shopQuery.addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) return@addSnapshotListener
+                for (doc in snapshot.documents) {
+                    val count = (doc.getLong("unreadCountOwner") ?: 0).toInt()
+                    unreadMap["own_${doc.id}"] = count
+                }
+                updateTotalUnread()
+            })
+        }
+
+        onDispose {
+            listeners.forEach { it.remove() }
+        }
     }
 
     IconButton(onClick = onClick, modifier = modifier) {

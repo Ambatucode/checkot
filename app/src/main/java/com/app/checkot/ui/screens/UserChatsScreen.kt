@@ -57,26 +57,50 @@ fun UserChatsScreen(
         }
 
         val db = Firebase.firestore
-        val query = if (isOwner && ownedShopId.isNotBlank()) {
-            db.collection("chats").whereEqualTo("shopId", ownedShopId)
-        } else {
-            db.collection("chats").whereEqualTo("userId", effectiveUid)
+        val listeners = mutableListOf<com.google.firebase.firestore.ListenerRegistration>()
+        val threadsMap = mutableMapOf<String, ChatThread>()
+
+        fun updateThreads() {
+            isLoading = false
+            chatThreads = threadsMap.values.sortedByDescending { it.lastMessageTimestamp }
         }
 
-        val registration = query.addSnapshotListener { snapshot, error ->
-            isLoading = false
-            if (error != null || snapshot == null) {
-                return@addSnapshotListener
-            }
-            val threads = snapshot.documents.mapNotNull { doc ->
-                doc.toObject(ChatThread::class.java)
-            }.sortedByDescending { it.lastMessageTimestamp }
-            
-            chatThreads = threads
+        if (effectiveUid.isNotBlank()) {
+            val userQuery = db.collection("chats").whereEqualTo("userId", effectiveUid)
+            listeners.add(userQuery.addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) {
+                    isLoading = false
+                    return@addSnapshotListener
+                }
+                for (doc in snapshot.documents) {
+                    val thread = doc.toObject(ChatThread::class.java)
+                    if (thread != null) {
+                        threadsMap[doc.id] = thread
+                    }
+                }
+                updateThreads()
+            })
+        }
+
+        if (isOwner && ownedShopId.isNotBlank()) {
+            val shopQuery = db.collection("chats").whereEqualTo("shopId", ownedShopId)
+            listeners.add(shopQuery.addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) {
+                    isLoading = false
+                    return@addSnapshotListener
+                }
+                for (doc in snapshot.documents) {
+                    val thread = doc.toObject(ChatThread::class.java)
+                    if (thread != null) {
+                        threadsMap[doc.id] = thread
+                    }
+                }
+                updateThreads()
+            })
         }
 
         onDispose {
-            registration.remove()
+            listeners.forEach { it.remove() }
         }
     }
 

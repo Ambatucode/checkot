@@ -62,7 +62,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             if (snapshot != null && snapshot.exists()) {
-                _chatThread.value = snapshot.toObject(ChatThread::class.java)
+                val existing = snapshot.toObject(ChatThread::class.java)
+                _chatThread.value = existing
+
+                // Self-healing: Update any missing fields if parameters are provided
+                val updates = mutableMapOf<String, Any>()
+                if (userId.isNotBlank() && existing?.userId.isNullOrBlank()) updates["userId"] = userId
+                if (shopId.isNotBlank() && existing?.shopId.isNullOrBlank()) updates["shopId"] = shopId
+                if (bookingId.isNotBlank() && existing?.bookingId.isNullOrBlank()) updates["bookingId"] = bookingId
+                if (customerName.isNotBlank() && existing?.customerName.isNullOrBlank()) updates["customerName"] = customerName
+                if (shopName.isNotBlank() && existing?.shopName.isNullOrBlank()) updates["shopName"] = shopName
+
+                if (updates.isNotEmpty()) {
+                    threadRef.set(updates, SetOptions.merge())
+                }
             } else {
                 // Initialize default thread if document doesn't exist yet
                 val newThread = ChatThread(
