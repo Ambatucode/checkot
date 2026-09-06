@@ -580,6 +580,12 @@ fun BookingCard(
                     maxLines = 1
                 )
             }
+            if (booking.status == BookingStatus.IN_PROGRESS) {
+                com.app.checkot.ui.components.LiveWashTimerCard(
+                    booking = booking,
+                    modifier = Modifier.padding(top = 10.dp)
+                )
+            }
             // Queue info — always show for active bookings
             val showQueue = isQueueLoaded && queueInfo.position > 0
             androidx.compose.animation.AnimatedVisibility(

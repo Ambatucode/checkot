@@ -711,6 +711,21 @@ private fun EditServiceDialog(
     var priceXXLText by remember(service) {
         mutableStateOf(service.pricing["XXL"]?.toString() ?: (basePrice + 200.0).toString())
     }
+    var durSText by remember(service) {
+        mutableStateOf(service.sizeDurations["S"]?.toString() ?: if (service.durationMinutes > 0) service.durationMinutes.toString() else "30")
+    }
+    var durMText by remember(service) {
+        mutableStateOf(service.sizeDurations["M"]?.toString() ?: if (service.durationMinutes > 0) service.durationMinutes.toString() else "30")
+    }
+    var durLText by remember(service) {
+        mutableStateOf(service.sizeDurations["L"]?.toString() ?: if (service.durationMinutes > 0) service.durationMinutes.toString() else "45")
+    }
+    var durXLText by remember(service) {
+        mutableStateOf(service.sizeDurations["XL"]?.toString() ?: if (service.durationMinutes > 0) service.durationMinutes.toString() else "50")
+    }
+    var durXXLText by remember(service) {
+        mutableStateOf(service.sizeDurations["XXL"]?.toString() ?: if (service.durationMinutes > 0) service.durationMinutes.toString() else "60")
+    }
     var durationText by remember(service) {
         mutableStateOf(if (service.durationMinutes > 0) "${service.durationMinutes} mins" else "")
     }
@@ -801,56 +816,61 @@ private fun EditServiceDialog(
                     Text("All prices must be between ₱100 and ₱30,000", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
 
-                Column {
-                    val durationOptions = listOf(
-                        "20 mins", "30 mins", "45 mins", "1 hour", "1.5 hours", "2 hours", 
-                        "2.5 hours", "3 hours", "3.5 hours", "4 hours", "4.5 hours", "5 hours", 
-                        "5.5 hours", "6 hours", "6.5 hours", "7 hours", "7.5 hours", "8 hours", 
-                        "8.5 hours", "9 hours", "9.5 hours", "10 hours"
+                Text(
+                    text = "Estimated Wash Duration by Size (mins)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = durSText,
+                        onValueChange = { durSText = it.filter { c -> c.isDigit() } },
+                        label = { Text("S (mins)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.weight(1f)
                     )
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        OutlinedTextField(
-                            value = durationText,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Duration") },
-                            trailingIcon = {
-                                Icon(
-                                    imageVector = if (durationDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
-                                    contentDescription = null,
-                                    modifier = Modifier.clickable { durationDropdownExpanded = !durationDropdownExpanded }
-                                )
-                            },
-                            shape = MaterialTheme.shapes.small,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .clickable { durationDropdownExpanded = true }
-                        )
-                        DropdownMenu(
-                            expanded = durationDropdownExpanded,
-                            onDismissRequest = { durationDropdownExpanded = false },
-                            modifier = Modifier
-                                .width(280.dp)
-                                .heightIn(max = 240.dp)
-                        ) {
-                            durationOptions.forEach { option ->
-                                DropdownMenuItem(
-                                    text = { Text(option) },
-                                    onClick = {
-                                        durationText = option
-                                        durationDropdownExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    if (durationText.isNotEmpty() && !isDurationValid) {
-                        Text("Duration must be between 20 mins and 10 hours", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    }
+                    OutlinedTextField(
+                        value = durMText,
+                        onValueChange = { durMText = it.filter { c -> c.isDigit() } },
+                        label = { Text("M (mins)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = durLText,
+                        onValueChange = { durLText = it.filter { c -> c.isDigit() } },
+                        label = { Text("L (mins)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = durXLText,
+                        onValueChange = { durXLText = it.filter { c -> c.isDigit() } },
+                        label = { Text("XL (mins)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                OutlinedTextField(
+                    value = durXXLText,
+                    onValueChange = { durXXLText = it.filter { c -> c.isDigit() } },
+                    label = { Text("XXL Van (mins)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 Column {
                     OutlinedTextField(
@@ -915,18 +935,18 @@ private fun EditServiceDialog(
                         }
                     }
                 }
-                if (durationText.isNotEmpty() && parsedDuration == null) {
-                    Text(
-                        "Enter a valid duration like \"30 mins\" or \"1.5 hours\".",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
+                    val sizeDurationsMap = mapOf(
+                        "S" to (durSText.toIntOrNull() ?: 30),
+                        "M" to (durMText.toIntOrNull() ?: 30),
+                        "L" to (durLText.toIntOrNull() ?: 45),
+                        "XL" to (durXLText.toIntOrNull() ?: 50),
+                        "XXL" to (durXXLText.toIntOrNull() ?: 60)
+                    )
                     onSave(
                         service.copy(
                             customPrice = sVal ?: 0.0,
@@ -937,7 +957,8 @@ private fun EditServiceDialog(
                                 "XL" to (xlVal ?: 0.0),
                                 "XXL" to (xxlVal ?: 0.0)
                             ),
-                            durationMinutes = parsedDuration ?: service.durationMinutes,
+                            sizeDurations = sizeDurationsMap,
+                            durationMinutes = durMText.toIntOrNull() ?: (parsedDuration ?: service.durationMinutes),
                             description = descriptionText,
                             unavailableDates = unavailableDates
                         )

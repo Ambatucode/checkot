@@ -22,6 +22,21 @@ class BookingUtilsTest {
     }
 
     @Test
+    fun `CustomServiceConfig getDurationForSize resolves size durations correctly`() {
+        val config = com.app.checkot.model.CustomServiceConfig(
+            serviceName = "EXTERIOR_WASH",
+            durationMinutes = 30,
+            sizeDurations = mapOf("S" to 20, "M" to 30, "L" to 40, "XL" to 50, "XXL" to 60)
+        )
+        assertEquals(20, config.getDurationForSize("S"))
+        assertEquals(30, config.getDurationForSize("M"))
+        assertEquals(40, config.getDurationForSize("L"))
+        assertEquals(50, config.getDurationForSize("XL"))
+        assertEquals(60, config.getDurationForSize("XXL"))
+        assertEquals(30, config.getDurationForSize("UNKNOWN"))
+    }
+
+    @Test
     fun `parseTimeSlotToHourMinute handles the noon and midnight edge cases`() {
         // 12 PM is noon -> stays hour 12, not 24
         assertEquals(12 to 0, BookingUtils.parseTimeSlotToHourMinute("12:00 PM"))

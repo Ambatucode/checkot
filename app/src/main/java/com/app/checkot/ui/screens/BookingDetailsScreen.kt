@@ -342,6 +342,12 @@ fun BookingDetailsScreen(
                 }
             }
 
+            if (booking.status == BookingStatus.IN_PROGRESS) {
+                item {
+                    com.app.checkot.ui.components.LiveWashTimerCard(booking = booking)
+                }
+            }
+
             // Countdown / Arrival card
             item {
                 val countdownEnd = remember(booking.bookingId) {

@@ -559,7 +559,9 @@ exports.createBooking = onCall(
           totalPrice += servicePrice;
 
           let serviceDuration = 30;
-          if (config && parseInt(config.durationMinutes, 10) > 0) {
+          if (config && config.sizeDurations && config.sizeDurations[carSize] !== undefined && parseInt(config.sizeDurations[carSize], 10) > 0) {
+            serviceDuration = parseInt(config.sizeDurations[carSize], 10);
+          } else if (config && parseInt(config.durationMinutes, 10) > 0) {
             serviceDuration = parseInt(config.durationMinutes, 10);
           } else {
             serviceDuration = DEFAULT_SERVICE_DURATIONS[serviceName] !== undefined ? DEFAULT_SERVICE_DURATIONS[serviceName] : 30;

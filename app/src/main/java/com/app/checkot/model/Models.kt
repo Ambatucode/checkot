@@ -202,8 +202,14 @@ data class CustomServiceConfig(
     // it unavailable for a day (sold out / not offered) without deleting it.
     // Clients see it greyed out on those dates.
     val unavailableDates: List<Long> = emptyList(),
-    val pricing: Map<String, Double> = emptyMap()
-)
+    val pricing: Map<String, Double> = emptyMap(),
+    val sizeDurations: Map<String, Int> = emptyMap()
+) {
+    fun getDurationForSize(sizeKey: String): Int {
+        val sizeDur = sizeDurations[sizeKey]
+        return if (sizeDur != null && sizeDur > 0) sizeDur else durationMinutes
+    }
+}
 
 /**
  * One-off working hours for a single date, overriding the shop's permanent
