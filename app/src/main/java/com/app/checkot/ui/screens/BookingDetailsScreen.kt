@@ -573,32 +573,42 @@ fun BookingDetailsScreen(
                         booking.cancelledAt?.let { DetailRow("Cancelled:", DateUtils.formatDateTime(it)) }
                         
                         // Location Action Row
-                        if (booking.status != BookingStatus.CANCELLED && (shopLatitude != 0.0 || shopLongitude != 0.0)) {
+                        if (booking.status != BookingStatus.CANCELLED) {
                             Spacer(modifier = Modifier.height(16.dp))
-                            Surface(
-                                onClick = {
-                                    val uri = android.net.Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$shopLatitude,$shopLongitude")
-                                    try {
-                                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri).apply { setPackage("com.google.android.apps.maps") })
-                                    } catch (e: Exception) {
-                                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
-                                    }
-                                },
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                shape = MaterialTheme.shapes.medium
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                            if (!isShopLoaded) {
+                                SkeletonBox(
+                                    brush = rememberShimmerBrush(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(44.dp),
+                                    shape = MaterialTheme.shapes.medium
+                                )
+                            } else if (shopLatitude != 0.0 || shopLongitude != 0.0) {
+                                Surface(
+                                    onClick = {
+                                        val uri = android.net.Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$shopLatitude,$shopLongitude")
+                                        try {
+                                            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri).apply { setPackage("com.google.android.apps.maps") })
+                                        } catch (e: Exception) {
+                                            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
+                                        }
+                                    },
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                    shape = MaterialTheme.shapes.medium
                                 ) {
-                                    Icon(Icons.Default.Place, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "${shopName.ifEmpty { "Car wash" }} • View Map >",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.weight(1f)
-                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.Place, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "${shopName.ifEmpty { "Car wash" }} • View Map >",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
                                 }
                             }
                         }
