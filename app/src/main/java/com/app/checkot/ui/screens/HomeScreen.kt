@@ -25,6 +25,8 @@ import kotlinx.coroutines.tasks.await
 import com.app.checkot.utils.BookingUtils
 import com.app.checkot.ui.components.AnimatedStatusIcon
 import com.app.checkot.ui.components.ShopLogo
+import com.app.checkot.ui.components.rememberShimmerBrush
+import com.app.checkot.ui.components.SkeletonBox
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextOverflow
@@ -590,28 +592,23 @@ fun BookingCard(
             if (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED) {
                 Column {
                     Spacer(modifier = Modifier.height(6.dp))
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    if (!isQueueLoaded) {
+                        SkeletonBox(
+                            brush = rememberShimmerBrush(),
+                            modifier = Modifier
+                                .width(135.dp)
+                                .height(22.dp),
+                            shape = MaterialTheme.shapes.small
+                        )
+                    } else if (queueInfo.position > 0) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                            shape = MaterialTheme.shapes.small
                         ) {
-                            if (!isQueueLoaded) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(12.dp),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    strokeWidth = 1.5.dp
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Syncing queue position...",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                                )
-                            } else if (queueInfo.position > 0) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Icon(
                                     Icons.Default.People,
                                     contentDescription = null,

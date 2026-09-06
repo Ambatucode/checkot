@@ -5,6 +5,8 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
+import com.app.checkot.ui.components.rememberShimmerBrush
+import com.app.checkot.ui.components.SkeletonBox
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.ktx.firestore
@@ -1385,41 +1387,27 @@ fun ServiceProgressStepper(status: BookingStatus) {
 
 @Composable
 fun QueuePositionLoadingCard() {
+    val brush = rememberShimmerBrush()
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, Color(0xFF00E6C3).copy(alpha = 0.3f), MaterialTheme.shapes.medium),
+            .border(1.dp, Color(0xFF00E6C3).copy(alpha = 0.2f), MaterialTheme.shapes.medium),
         colors = CardDefaults.cardColors(
             containerColor = com.app.checkot.ui.theme.CheckotCardSurface
         ),
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(24.dp),
-                color = Color(0xFF00E6C3),
-                strokeWidth = 2.5.dp
-            )
-            Spacer(modifier = Modifier.width(14.dp))
-            Column {
-                Text(
-                    text = "Calculating Live Queue...",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Verifying position with shop ledger",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.7f)
-                )
-            }
+            SkeletonBox(brush = brush, modifier = Modifier.width(130.dp).height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
+            SkeletonBox(brush = brush, modifier = Modifier.width(80.dp).height(40.dp), shape = RoundedCornerShape(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+            SkeletonBox(brush = brush, modifier = Modifier.width(150.dp).height(14.dp))
         }
     }
 }
