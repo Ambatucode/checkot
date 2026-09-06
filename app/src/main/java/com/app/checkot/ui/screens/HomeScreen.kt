@@ -346,11 +346,21 @@ fun HomeScreen(
 
             if (recentBookings.isNotEmpty()) {
                 item {
-                    Text(
-                        text = "Recent Bookings",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(top = 16.dp)
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Recent Bookings",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                        TextButton(onClick = { navController.navigate("my_bookings") }) {
+                            Text("View All >", color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                 }
                 items(recentBookings.take(3), key = { it.bookingId }) { booking ->
                     BookingCard(
