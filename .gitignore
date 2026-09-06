@@ -12,8 +12,7 @@
 /captures
 .externalNativeBuild
 .cxx
-local.properties
-google-services.json
+# google-services.json tracked for CI/CD consistency
 /.idea/appInsightsSettings.xml
 /.idea/deploymentTargetSelector.xml
 
