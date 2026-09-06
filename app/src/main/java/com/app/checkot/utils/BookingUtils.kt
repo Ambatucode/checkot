@@ -282,4 +282,19 @@ object BookingUtils {
         }
         return bayEnds.minOrNull() ?: 0
     }
+
+    /**
+     * Estimates the wait time for a user from day_slots ledger entries ahead in the queue.
+     */
+    fun calculateEstimatedWaitMinutesFromEntries(ahead: List<DaySlotEntry>, bayCount: Int): Int {
+        val safeBayCount = bayCount.coerceAtLeast(1)
+        if (ahead.isEmpty()) return 0
+        val bayEnds = IntArray(safeBayCount) { 0 }
+        ahead.forEach { entry ->
+            val duration = (entry.end - entry.start).coerceAtLeast(1)
+            val earliestBay = bayEnds.indices.minByOrNull { bayEnds[it] } ?: 0
+            bayEnds[earliestBay] += duration
+        }
+        return bayEnds.minOrNull() ?: 0
+    }
 }

@@ -107,41 +107,29 @@ fun BookingDetailsScreen(
     var showAddOnDialog by remember { mutableStateOf(false) }
     var showReceipt by remember { mutableStateOf(false) }
 
-    // Direct Firestore listener for queue info
+    // Direct Firestore listener for queue info via day_slots ledger (accessible by all users)
     DisposableEffect(booking?.bookingId, booking?.shopId, booking?.bookingDate, shopCustomization?.bayCount) {
-        if (booking == null) return@DisposableEffect onDispose {}
-        val listener = Firebase.firestore.collection("bookings")
-            .whereEqualTo("shopId", booking.shopId)
-            .whereEqualTo("bookingDate", booking.bookingDate)
+        if (booking == null || booking.shopId.isEmpty()) return@DisposableEffect onDispose {}
+        val ledgerDocId = BookingUtils.ledgerDocId(booking.shopId, booking.bookingDate)
+        val bayCount = shopCustomization?.bayCount ?: 1
+        val listener = Firebase.firestore.collection("day_slots").document(ledgerDocId)
             .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) {
+                if (error != null || snapshot == null || !snapshot.exists()) {
+                    queueInfo = QueueInfo(1, 0, 1)
                     isQueueLoaded = true
                     return@addSnapshotListener
                 }
-                val allBookings = snapshot.documents.mapNotNull { it.toObject(Booking::class.java) }
-                val activeBookings = allBookings.filter {
-                    it.status == BookingStatus.PENDING ||
-                    it.status == BookingStatus.CONFIRMED ||
-                    it.status == BookingStatus.IN_PROGRESS
-                }
-                val sorted = activeBookings.sortedWith(
-                    compareBy<Booking> { it.status != com.app.checkot.model.BookingStatus.IN_PROGRESS }
-                        .thenBy { com.app.checkot.utils.BookingUtils.parseTimeSlotToMinutes(it.timeSlot) }
-                        .thenBy { it.createdAt }
+                val ledger = snapshot.toObject(com.app.checkot.model.DaySlotLedger::class.java)
+                val entries = ledger?.entries.orEmpty()
+                val sortedEntries = entries.sortedWith(
+                    compareBy<com.app.checkot.model.DaySlotEntry> { it.start }.thenBy { it.bay }
                 )
-                val index = sorted.indexOfFirst { it.bookingId == booking.bookingId }
-                val position = if (index != -1) index + 1 else -1
-                val ahead = if (index > 0) sorted.subList(0, index) else emptyList()
-                val bayCount = shopCustomization?.bayCount ?: 1
-                val estimated = BookingUtils.calculateEstimatedWaitMinutes(ahead, bayCount)
+                val index = sortedEntries.indexOfFirst { it.bookingId == booking.bookingId }
+                val position = if (index != -1) index + 1 else 1
+                val ahead = if (index > 0) sortedEntries.subList(0, index) else emptyList()
+                val estimated = BookingUtils.calculateEstimatedWaitMinutesFromEntries(ahead, bayCount)
                 
-                println("DEBUG_QUEUE: shopCustomizationLoaded=${shopCustomization != null}, bayCount=$bayCount, index=$index, position=$position")
-                ahead.forEachIndexed { i, b ->
-                    println("DEBUG_QUEUE: ahead[$i] bookingId=${b.bookingId}, status=${b.status}, duration=${BookingUtils.bookingDurationMinutes(b)}, inProgressAt=${b.inProgressAt}")
-                }
-                println("DEBUG_QUEUE: calculated estimated=$estimated")
-                
-                queueInfo = QueueInfo(position, estimated, sorted.size)
+                queueInfo = QueueInfo(position, estimated, sortedEntries.size.coerceAtLeast(1))
                 isQueueLoaded = true
             }
         onDispose { listener.remove() }
