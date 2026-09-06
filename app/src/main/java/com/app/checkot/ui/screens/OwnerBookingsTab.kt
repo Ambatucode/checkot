@@ -215,6 +215,13 @@ fun OwnerBookingsTab(
                         },
                         onMarkPaid = {
                             ownerViewModel.markBookingPaid(booking.bookingId)
+                        },
+                        onChat = {
+                            val name = customerNames[booking.userId] ?: "Customer"
+                            val encodedRecipient = try { java.net.URLEncoder.encode(name, "UTF-8") } catch (_: Exception) { "Customer" }
+                            val encodedCar = try { java.net.URLEncoder.encode(booking.carDetails, "UTF-8") } catch (_: Exception) { "" }
+                            val route = "chat/${booking.bookingId}?bookingId=${booking.bookingId}&shopId=${booking.shopId}&recipientName=$encodedRecipient&carDetails=$encodedCar"
+                            navController.navigate(route)
                         }
                     )
                 }
@@ -235,7 +242,8 @@ fun OwnerBookingCard(
     onStart: (String) -> Unit,
     onComplete: () -> Unit,
     onMarkPaid: () -> Unit = {},
-    staffNames: List<String> = emptyList()
+    staffNames: List<String> = emptyList(),
+    onChat: () -> Unit = {}
 ) {
     var isProcessing by remember { mutableStateOf(false) }
     var showApproveDialog by remember { mutableStateOf(false) }
@@ -435,31 +443,39 @@ fun OwnerBookingCard(
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                     )
                 }
-                Surface(
-                    color = when (booking.status) {
-                        BookingStatus.PENDING -> MaterialTheme.colorScheme.secondaryContainer
-                        BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.primaryContainer
-                        BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.tertiaryContainer
-                        BookingStatus.CANCELLED -> MaterialTheme.colorScheme.errorContainer
-                        else -> MaterialTheme.colorScheme.surfaceVariant
-                    },
-                    contentColor = when (booking.status) {
-                        BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
-                        BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.onPrimaryContainer
-                        BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.onTertiaryContainer
-                        BookingStatus.CANCELLED -> MaterialTheme.colorScheme.onErrorContainer
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        text = booking.status.displayName,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onChat) {
+                        Icon(
+                            Icons.Default.Chat,
+                            contentDescription = "Message Customer",
+                            tint = com.app.checkot.ui.theme.CheckotBadgeTeal
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Surface(
+                        color = when (booking.status) {
+                            BookingStatus.PENDING -> MaterialTheme.colorScheme.secondaryContainer
+                            BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.primaryContainer
+                            BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.tertiaryContainer
+                            BookingStatus.CANCELLED -> MaterialTheme.colorScheme.errorContainer
+                            else -> MaterialTheme.colorScheme.surfaceVariant
+                        },
+                        contentColor = when (booking.status) {
+                            BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
+                            BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.onPrimaryContainer
+                            BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.onTertiaryContainer
+                            BookingStatus.CANCELLED -> MaterialTheme.colorScheme.onErrorContainer
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = booking.status.displayName,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))

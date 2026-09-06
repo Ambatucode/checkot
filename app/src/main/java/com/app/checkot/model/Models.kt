@@ -294,4 +294,30 @@ fun Booking.resolvedServiceNames(): List<String> {
 /** Returns the formatted service names, replacing "Custom Service" with actual custom names */
 fun Booking.displayServiceNames(): String = resolvedServiceNames().joinToString(", ")
 
+@Immutable
+data class ChatMessage(
+    val messageId: String = "",
+    val chatId: String = "",
+    val senderId: String = "",
+    val senderRole: String = "customer", // "customer" or "owner"
+    val text: String = "",
+    val timestamp: Long = 0,
+    @get:PropertyName("isRead")
+    val isRead: Boolean = false
+)
+
+@Immutable
+data class ChatThread(
+    val chatId: String = "",
+    val bookingId: String = "",
+    val shopId: String = "",
+    val userId: String = "",
+    val customerName: String = "",
+    val shopName: String = "",
+    val lastMessage: String = "",
+    val lastMessageTimestamp: Long = 0,
+    val unreadCountCustomer: Int = 0,
+    val unreadCountOwner: Int = 0
+)
+
 

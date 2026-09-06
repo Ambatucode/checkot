@@ -30,6 +30,7 @@ sealed class Screen(val route: String) {
     object OwnerSignup : Screen("owner_signup")
     object AdminDashboard : Screen("admin_dashboard")
     object SetShopLocation : Screen("set_shop_location")
+    object Chat : Screen("chat/{chatId}")
 }
 @Composable
 fun NavigationGraph(
@@ -211,6 +212,34 @@ fun NavigationGraph(
         }
         composable(Screen.SetShopLocation.route) {
             SetShopLocationScreen(navController = navController)
+        }
+        composable(
+            route = "chat/{chatId}?bookingId={bookingId}&shopId={shopId}&recipientName={recipientName}&carDetails={carDetails}&recipientToken={recipientToken}",
+            arguments = listOf(
+                navArgument("chatId") { type = NavType.StringType },
+                navArgument("bookingId") { type = NavType.StringType; defaultValue = "" },
+                navArgument("shopId") { type = NavType.StringType; defaultValue = "" },
+                navArgument("recipientName") { type = NavType.StringType; defaultValue = "Chat" },
+                navArgument("carDetails") { type = NavType.StringType; defaultValue = "" },
+                navArgument("recipientToken") { type = NavType.StringType; defaultValue = "" }
+            )
+        ) { backStackEntry ->
+            val chatId = backStackEntry.arguments?.getString("chatId") ?: ""
+            val bookingId = backStackEntry.arguments?.getString("bookingId") ?: ""
+            val shopId = backStackEntry.arguments?.getString("shopId") ?: ""
+            val recipientName = backStackEntry.arguments?.getString("recipientName") ?: "Chat"
+            val carDetails = backStackEntry.arguments?.getString("carDetails") ?: ""
+            val recipientToken = backStackEntry.arguments?.getString("recipientToken") ?: ""
+            ChatScreen(
+                navController = navController,
+                chatId = chatId,
+                bookingId = bookingId,
+                shopId = shopId,
+                recipientName = recipientName,
+                carDetails = carDetails,
+                recipientToken = recipientToken,
+                authViewModel = authViewModel
+            )
         }
     }
 }

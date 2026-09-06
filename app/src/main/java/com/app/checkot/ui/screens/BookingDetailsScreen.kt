@@ -536,6 +536,25 @@ fun BookingDetailsScreen(
                             }
                         }
                         
+                        if (booking.status != BookingStatus.CANCELLED) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = {
+                                    val encodedRecipient = try { java.net.URLEncoder.encode(shopName.ifEmpty { "Shop Owner" }, "UTF-8") } catch (_: Exception) { "Shop" }
+                                    val encodedCar = try { java.net.URLEncoder.encode(booking.carDetails, "UTF-8") } catch (_: Exception) { "" }
+                                    val route = "chat/${booking.bookingId}?bookingId=${booking.bookingId}&shopId=${booking.shopId}&recipientName=$encodedRecipient&carDetails=$encodedCar"
+                                    navController.navigate(route)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.medium,
+                                colors = ButtonDefaults.buttonColors(containerColor = com.app.checkot.ui.theme.CheckotBadgeTeal, contentColor = androidx.compose.ui.graphics.Color.Black)
+                            ) {
+                                Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Chat with Shop Owner", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        
                         Spacer(modifier = Modifier.height(16.dp))
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                         Spacer(modifier = Modifier.height(12.dp))
