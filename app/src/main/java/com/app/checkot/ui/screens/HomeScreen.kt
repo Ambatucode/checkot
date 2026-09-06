@@ -586,10 +586,10 @@ fun BookingCard(
                     modifier = Modifier.padding(top = 10.dp)
                 )
             }
-            // Queue info — always show for active bookings
+            // Queue info — show for waiting bookings (PENDING or CONFIRMED)
             val showQueue = isQueueLoaded && queueInfo.position > 0
             androidx.compose.animation.AnimatedVisibility(
-                visible = showQueue && (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS),
+                visible = showQueue && (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED),
                 enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
                 exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
             ) {

@@ -435,8 +435,8 @@ fun BookingDetailsScreen(
             item {
                 ServiceProgressStepper(status = booking.status)
             }
-            // Queue Position Card — only for active bookings
-            if (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS) {
+            // Queue Position Card — only for active waiting bookings (PENDING or CONFIRMED)
+            if (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED) {
                 item {
                     val showCard = isShopLoaded && isQueueLoaded && queueInfo.position > 0
                     androidx.compose.animation.AnimatedVisibility(
