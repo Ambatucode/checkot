@@ -25,13 +25,11 @@
 - **Booking History**: Paginated booking history (cursor-based, 15 per page) with a booking details screen showing service summary, price, add-ons, assigned staff, and payment status.
 - **Paid Add-Ons**: Customers can add extra services to a `CONFIRMED` or `IN_PROGRESS` booking; these bump the total price but do not change the reserved bay window.
 - **Post-Service Reviews**: Leave a 1–5 star rating and comment on any completed booking (one review per booking, stored at `reviews/{bookingId}`).
-- **Authentication**:
-  - Email/Password signup & login
-  - Google Sign-In (via Credential Manager API)
-  - Phone-only (SMS OTP) sign-in/signup
-  - Biometric login (Fingerprint / Face Unlock) via `BiometricPrompt`
-  - Phone OTP verification required gate for new accounts before accessing the app
-  - Password reset via email
+- **Passwordless Authentication**:
+  - Google Sign-In (via Credential Manager API 1.3.0)
+  - Phone-only Authentication (SMS OTP via Firebase Auth)
+  - Biometric Authentication (Fingerprint / Face Unlock) via `BiometricPrompt`
+  - Progressive Phone OTP verification gate before creating bookings
 
 ### 🏪 For Shop Owners
 - **Owner Dashboard**: Tabbed interface covering Bookings, Revenue, Services, Customers, and Settings.
@@ -66,7 +64,7 @@
 | **Navigation** | Navigation Compose 2.9.8, `sealed class Screen` routes |
 | **Database** | Firebase Cloud Firestore (real-time listeners + cursor-based pagination) |
 | **Backend** | Firebase Cloud Functions v2 (Node.js Callable Functions, region `asia-southeast1`) |
-| **Authentication** | Firebase Auth — Email/Password, Google Sign-In (Credential Manager 1.3.0), Phone OTP (SMS), Biometric (`BiometricPrompt` 1.1.0) |
+| **Authentication** | Firebase Auth — Google Sign-In (Credential Manager 1.3.0), Phone SMS OTP, Biometric (`BiometricPrompt` 1.1.0) |
 | **AI Integration** | Google Gemini AI (`gemini-3.1-flash-lite`) via `checkCar` Callable Cloud Function; API key stored in GCP Secret Manager |
 | **Push Notifications** | Firebase Cloud Messaging (FCM) + Android Notification Channels (`checkot_bookings`) |
 | **Maps & Location** | Google Maps SDK for Android 19.0.0, `maps-compose` 6.4.1, Fused Location Provider 21.3.0 |
@@ -101,7 +99,7 @@
 
 | ViewModel | Responsibility |
 | :--- | :--- |
-| `AuthViewModel` | Firebase Auth (email, Google, phone OTP), role loading & RBAC gate, phone verification state machine, FCM token upload, demo mode auto-sign-in |
+| `AuthViewModel` | Firebase Auth (Google Sign-In, Phone SMS OTP), role loading & RBAC gate, phone verification state machine, FCM token upload, demo mode auto-sign-in |
 | `BookingViewModel` | Real-time user booking listener, time slot availability, booking creation via `createBooking` CF, cancellation, cursor-based pagination |
 | `OwnerDashboardViewModel` | Live booking stream for the owner's shop, status transitions, add-on management, staff assignment, payment confirmation, shop analytics |
 | `CarViewModel` | CRUD for a user's saved vehicles (up to 3 per account) |
