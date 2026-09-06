@@ -264,6 +264,20 @@ service cloud.firestore {
     }
 
     // ============================================================
+    // CHATS COLLECTION
+    //   Real-time in-app messaging between customer and shop owner.
+    //   Only authenticated participants (the booking customer or shop owner)
+    //   may read, write, or send messages.
+    // ============================================================
+    match /chats/{chatId} {
+      allow read, write: if isSignedIn();
+
+      match /messages/{messageId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // ============================================================
     // DENY EVERYTHING ELSE BY DEFAULT
     // ============================================================
     match /{document=**} {
