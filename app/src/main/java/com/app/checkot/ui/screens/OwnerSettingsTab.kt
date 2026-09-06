@@ -668,9 +668,17 @@ private fun ServiceRow(
     val context = LocalContext.current
     val defaultPrice = ServiceType.values().find { it.name == config.serviceName }?.price ?: 0.0
     val price = if (config.customPrice > 0) config.customPrice else defaultPrice
-    val durationLabel = if (config.durationMinutes % 60 == 0) {
-        "${config.durationMinutes / 60} hr"
-    } else "${config.durationMinutes} mins"
+    val dursList = listOf("S", "M", "L", "XL", "XXL").mapNotNull { size ->
+        val sizeDur = config.sizeDurations[size]
+        if (sizeDur != null && sizeDur > 0) sizeDur else null
+    }
+    val minDur = if (dursList.isNotEmpty()) dursList.minOrNull() ?: 30 else (if (config.durationMinutes > 0) config.durationMinutes else 30)
+    val maxDur = if (dursList.isNotEmpty()) dursList.maxOrNull() ?: 30 else (if (config.durationMinutes > 0) config.durationMinutes else 30)
+    val durationLabel = if (minDur == maxDur) {
+        formatMinutesToFriendlyLabel(minDur)
+    } else {
+        "${formatMinutesToFriendlyLabel(minDur)} - ${formatMinutesToFriendlyLabel(maxDur)}"
+    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1280,3 +1288,15 @@ private fun SettingsCard(
         }
     }
 }
+
+private fun formatMinutesToFriendlyLabel(mins: Int): String {
+    if (mins <= 0) return "30 mins"
+    val hours = mins / 60
+    val remMins = mins % 60
+    return when {
+        hours == 0 -> "$remMins mins"
+        remMins == 0 -> if (hours == 1) "1 hour" else "$hours hours"
+        else -> if (hours == 1) "1 hr $remMins mins" else "$hours hrs $remMins mins"
+    }
+}
+

@@ -614,9 +614,17 @@ private fun ServiceRow(
     } else {
         "${BookingUtils.formatPrice(minPrice)} - ${BookingUtils.formatPrice(maxPrice)}"
     }
-    val durationLabel = if (config.durationMinutes % 60 == 0) {
-        "${config.durationMinutes / 60} hr"
-    } else "${config.durationMinutes} mins"
+    val dursList = listOf("S", "M", "L", "XL", "XXL").mapNotNull { size ->
+        val sizeDur = config.sizeDurations[size]
+        if (sizeDur != null && sizeDur > 0) sizeDur else null
+    }
+    val minDur = if (dursList.isNotEmpty()) dursList.minOrNull() ?: 30 else (if (config.durationMinutes > 0) config.durationMinutes else 30)
+    val maxDur = if (dursList.isNotEmpty()) dursList.maxOrNull() ?: 30 else (if (config.durationMinutes > 0) config.durationMinutes else 30)
+    val durationLabel = if (minDur == maxDur) {
+        formatMinutesToFriendlyLabel(minDur)
+    } else {
+        "${formatMinutesToFriendlyLabel(minDur)} - ${formatMinutesToFriendlyLabel(maxDur)}"
+    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
