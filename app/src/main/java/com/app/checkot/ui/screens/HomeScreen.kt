@@ -142,6 +142,9 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("Checkot") },
                 actions = {
+                    IconButton(onClick = { navController.navigate("user_chats") }) {
+                        Icon(Icons.Default.Chat, contentDescription = "Messages")
+                    }
                     IconButton(onClick = { navController.navigate("profile") }) {
                         Icon(Icons.Default.Person, contentDescription = "Profile")
                     }

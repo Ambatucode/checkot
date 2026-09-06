@@ -80,8 +80,14 @@ fun OwnerDashboard(
                     }
                 },
                 actions = {
-                    // Opens the shared profile screen (shop logo, contact info,
-                    // Edit Profile, and Logout) — same pattern as the client home.
+                    IconButton(
+                        onClick = { navController.navigate("user_chats") }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Chat,
+                            contentDescription = "Messages"
+                        )
+                    }
                     IconButton(
                         onClick = { navController.navigate("profile") }
                     ) {

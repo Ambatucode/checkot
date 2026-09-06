@@ -31,6 +31,7 @@ sealed class Screen(val route: String) {
     object AdminDashboard : Screen("admin_dashboard")
     object SetShopLocation : Screen("set_shop_location")
     object Chat : Screen("chat/{chatId}")
+    object UserChats : Screen("user_chats")
 }
 @Composable
 fun NavigationGraph(
@@ -238,6 +239,12 @@ fun NavigationGraph(
                 recipientName = recipientName,
                 carDetails = carDetails,
                 recipientToken = recipientToken,
+                authViewModel = authViewModel
+            )
+        }
+        composable(Screen.UserChats.route) {
+            UserChatsScreen(
+                navController = navController,
                 authViewModel = authViewModel
             )
         }
