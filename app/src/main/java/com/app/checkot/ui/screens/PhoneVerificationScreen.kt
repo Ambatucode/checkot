@@ -279,7 +279,7 @@ fun PhoneVerificationScreen(
             if (!isChange) {
                 TextButton(onClick = {
                     authViewModel.signOut()
-                    navController.navigate("login") { popUpTo(0) { inclusive = true } }
+                    navController.navigate("auth_landing") { popUpTo(0) { inclusive = true } }
                 }) { Text("Sign in with a different account") }
             }
         }

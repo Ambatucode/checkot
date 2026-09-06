@@ -139,8 +139,8 @@ fun AdminDashboard(
             onConfirm = {
                 showLogoutDialog = false
                 authViewModel.signOut()
-                navController.navigate("login") {
-                    popUpTo(0)
+                navController.navigate("auth_landing") {
+                    popUpTo(0) { inclusive = true }
                 }
             },
             onDismiss = { showLogoutDialog = false }

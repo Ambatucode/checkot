@@ -204,8 +204,8 @@ fun OwnerSettingsTab(
             onSuccess = {
                 isDeletingAccount = false
                 showDeleteConfirm = false
-                navController.navigate("login") {
-                    popUpTo(0)
+                navController.navigate("auth_landing") {
+                    popUpTo(0) { inclusive = true }
                 }
             },
             onError = { msg ->

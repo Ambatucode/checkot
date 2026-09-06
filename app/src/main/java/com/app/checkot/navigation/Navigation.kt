@@ -15,8 +15,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
 sealed class Screen(val route: String) {
-    object Login : Screen("login")
-    object Signup : Screen("signup")
+    object Login : Screen("auth_landing")
+    object Signup : Screen("auth_landing")
     object Home : Screen("home")
     object Profile : Screen("profile")
     object BookService : Screen("book_service")
@@ -68,13 +68,8 @@ fun NavigationGraph(
             )
         }
         composable(Screen.Login.route) {
-            LoginScreen(
+            AuthLandingScreen(
                 navController = navController,
-                onNavigateToSignup = { navController.navigate(Screen.Signup.route) },
-                onLoginSuccess = {
-                    navController.popBackStack()
-                    navController.navigate(Screen.Home.route)
-                },
                 authViewModel = authViewModel
             )
         }
@@ -91,14 +86,8 @@ fun NavigationGraph(
             )
         }
         composable(Screen.Signup.route) {
-            SignupScreen(
-                onNavigateToLogin = { navController.popBackStack() },
-                // New accounts must verify their phone before entering the app.
-                onSignupSuccess = {
-                    navController.navigate("phone_verification/signup") {
-                        popUpTo(Screen.Login.route) { inclusive = true }
-                    }
-                },
+            AuthLandingScreen(
+                navController = navController,
                 authViewModel = authViewModel
             )
         }

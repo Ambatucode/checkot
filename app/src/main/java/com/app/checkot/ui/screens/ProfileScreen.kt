@@ -182,8 +182,8 @@ fun ProfileScreen(
                 isDeletingAccount = false
                 showDeleteConfirm = false
                 onLogout()
-                navController.navigate("login") {
-                    popUpTo(0)
+                navController.navigate("auth_landing") {
+                    popUpTo(0) { inclusive = true }
                 }
             },
             onError = { msg ->
