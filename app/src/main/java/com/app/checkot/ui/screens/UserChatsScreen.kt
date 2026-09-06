@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -138,19 +139,26 @@ fun UserChatsScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(vertical = 8.dp)
                     ) {
-                        items(chatThreads, key = { it.chatId }) { thread ->
+                        itemsIndexed(
+                            items = chatThreads,
+                            key = { index, thread ->
+                                if (thread.chatId.isNotBlank()) thread.chatId else "thread_${index}_${thread.lastMessageTimestamp}"
+                            }
+                        ) { _, thread ->
                             ChatThreadRow(
                                 thread = thread,
                                 isOwner = isOwner,
                                 onClick = {
-                                    val recipientName = if (isOwner) {
-                                        thread.customerName.ifBlank { "Customer" }
-                                    } else {
-                                        thread.shopName.ifBlank { "Car Wash Shop" }
+                                    if (thread.chatId.isNotBlank()) {
+                                        val recipientName = if (isOwner) {
+                                            thread.customerName.ifBlank { "Customer" }
+                                        } else {
+                                            thread.shopName.ifBlank { "Car Wash Shop" }
+                                        }
+                                        val encodedName = try { Uri.encode(recipientName) } catch (_: Exception) { "Chat" }
+                                        val route = "chat/${thread.chatId}?bookingId=${thread.bookingId}&shopId=${thread.shopId}&customerId=${thread.userId}&recipientName=${encodedName}"
+                                        navController.navigate(route)
                                     }
-                                    val encodedName = Uri.encode(recipientName)
-                                    val route = "chat/${thread.chatId}?bookingId=${thread.bookingId}&shopId=${thread.shopId}&customerId=${thread.userId}&recipientName=${encodedName}"
-                                    navController.navigate(route)
                                 }
                             )
                             HorizontalDivider(
