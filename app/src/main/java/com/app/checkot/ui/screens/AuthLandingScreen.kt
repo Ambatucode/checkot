@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.credentials.CredentialManager
@@ -139,11 +140,17 @@ fun AuthLandingScreen(
 
     LaunchedEffect(Unit) { authViewModel.clearError() }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0B1921)).systemBarsPadding()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0B1921))
+            .systemBarsPadding(),
+        contentAlignment = Alignment.Center
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -153,81 +160,83 @@ fun AuthLandingScreen(
                 painter = painterResource(id = R.drawable.logo),
                 contentDescription = "Checkot",
                 colorFilter = ColorFilter.tint(Color.White),
-                modifier = Modifier.size(100.dp)
+                modifier = Modifier.size(96.dp)
             )
             
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             
             Text(
-                text = if (isOwnerMode) "Checkot\nBusiness" else "Checkot",
-                fontSize = 36.sp,
+                text = if (isOwnerMode) "Checkot Business" else "Checkot",
+                fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
-                lineHeight = 40.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                lineHeight = 36.sp,
+                textAlign = TextAlign.Center
             )
             
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             
             TypewriterText(
-                text = if (isOwnerMode) "Manage your shop" else "Book your wash",
-                fontSize = 16.sp,
+                text = if (isOwnerMode) "Manage your car wash shop" else "Book your wash in seconds",
+                fontSize = 15.sp,
                 color = Color(0xFF94A3B8)
             )
             
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(40.dp))
             
             Button(
                 onClick = { signInWithGoogle() },
                 modifier = Modifier
-                    .fillMaxWidth(0.88f)
-                    .height(54.dp),
+                    .fillMaxWidth()
+                    .height(52.dp),
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.White,
                     contentColor = Color(0xFF0B1921)
                 )
             ) {
-                // Simple Google "G" placeholder
                 Text("G", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color(0xFF4285F4))
                 Spacer(modifier = Modifier.width(12.dp))
                 Text("Continue with Google", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
             }
 
             if (googleError != null) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = googleError!!,
-                    color = Color.Red,
-                    fontSize = 12.sp
+                    color = Color(0xFFFF5252),
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
                 )
             }
             
             if (authState is AuthState.Error) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = (authState as AuthState.Error).message,
-                    color = Color.Red,
-                    fontSize = 12.sp
+                    color = Color(0xFFFF5252),
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
                 )
             }
             
             if (authState is AuthState.Loading) {
                 Spacer(modifier = Modifier.height(16.dp))
-                CircularProgressIndicator(color = Color.White)
+                CircularProgressIndicator(color = Color(0xFF00E6C3), modifier = Modifier.size(32.dp))
             }
 
             Spacer(modifier = Modifier.weight(1f))
             
             TextButton(
                 onClick = { isOwnerMode = !isOwnerMode },
-                modifier = Modifier.padding(bottom = 32.dp)
+                modifier = Modifier.padding(bottom = 24.dp)
             ) {
                 Text(
                     text = if (isOwnerMode) "Looking to book a wash? Tap here"
                            else "Are you a business owner? Tap here",
                     color = Color(0xFF00E6C3),
-                    fontSize = 14.sp
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center
                 )
             }
         }
