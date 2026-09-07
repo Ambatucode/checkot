@@ -603,19 +603,12 @@ fun BookServiceScreen(
                                         // Progressive guard: if the user hasn't verified
                                         // a phone number yet, stash the booking and show
                                         // the inline verification dialog first.
-                                        val user = userData
-                                        if (user != null && !user.phoneVerified) {
-                                            pendingBooking = booking
-                                            showPhoneVerifyDialog = true
-                                            isCreating = false
+                                        bookingViewModel.clearError()
+                                        val success = bookingViewModel.createBooking(booking)
+                                        if (success) {
+                                            navController.popBackStack()
                                         } else {
-                                            bookingViewModel.clearError()
-                                            val success = bookingViewModel.createBooking(booking)
-                                            if (success) {
-                                                navController.popBackStack()
-                                            } else {
-                                                isCreating = false
-                                            }
+                                            isCreating = false
                                         }
                                     }
                                 }

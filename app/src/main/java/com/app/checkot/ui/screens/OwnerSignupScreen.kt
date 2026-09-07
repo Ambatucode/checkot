@@ -140,7 +140,6 @@ fun OwnerSignupScreen(
 
     val isFormValid = fullName.trim().isNotEmpty() &&
             email.isNotEmpty() &&
-            phoneNumber.isNotEmpty() &&
             password.isNotEmpty() &&
             shopName.trim().isNotEmpty() &&
             shopAddress.trim().isNotEmpty() &&
@@ -454,13 +453,13 @@ fun OwnerSignupScreen(
                             val digits = input.filter { it.isDigit() }.take(10)
                             phoneNumber = digits
                             phoneError = when {
-                                digits.isEmpty() -> "Phone number cannot be empty"
+                                digits.isEmpty() -> null
                                 digits.length != 10 -> "Enter 10 digits after +63 (e.g. 9123456789)"
                                 !digits.startsWith("9") -> "Number must start with 9"
                                 else -> null
                             }
                         },
-                        label = { Text("Phone Number") },
+                        label = { Text("Phone Number (Optional)") },
                         leadingIcon = {
                             Icon(Icons.Default.Phone, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         },
@@ -545,12 +544,13 @@ fun OwnerSignupScreen(
                     val trimmedName = fullName.trim()
                     val trimmedShopName = shopName.trim()
                     val trimmedAddress = shopAddress.trim()
+                    val formattedPhone = if (phoneNumber.isNotBlank()) "+63${phoneNumber.trim()}" else ""
                     if (isFormValid) {
                         authViewModel.signUpOwner(
                             email = email.trim(),
                             password = password,
                             fullName = trimmedName,
-                            phoneNumber = "+63${phoneNumber.trim()}",
+                            phoneNumber = formattedPhone,
                             shopName = trimmedShopName,
                             shopAddress = trimmedAddress,
                             latitude = shopLocation!!.latitude,

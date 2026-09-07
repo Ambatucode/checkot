@@ -287,6 +287,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     createdAt = System.currentTimeMillis(),
                     role = "owner",
                     ownedShopId = shopId,
+                    phoneVerified = true,
                     savedCars = emptyList()
                 )
                 firestore.collection("users").document(user.uid).set(userData).await()

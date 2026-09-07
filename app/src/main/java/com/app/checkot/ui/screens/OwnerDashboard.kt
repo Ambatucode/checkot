@@ -216,7 +216,7 @@ fun OwnerDashboard(
 
                         // Checklist popup dialog
                         if (showChecklistDialog) {
-                            val phoneMissing = userData?.phoneVerified != true || userData?.phoneNumber.isNullOrEmpty()
+                            val phoneMissing = false
                             val locationMissing = shopCust.latitude == 0.0 && shopCust.longitude == 0.0
                             val profileMissing = shopCust.shopAddress.isBlank()
 
@@ -226,7 +226,7 @@ fun OwnerDashboard(
                                 text = {
                                     Column(modifier = Modifier.fillMaxWidth()) {
                                         Text(
-                                            text = "Complete these 3 requirements so that the administrator can approve your shop and make it visible to clients.",
+                                            text = "Complete these shop requirements so that the administrator can approve your shop and make it visible to clients.",
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                         )
@@ -238,49 +238,30 @@ fun OwnerDashboard(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Icon(
-                                                imageVector = if (!phoneMissing) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                                                imageVector = Icons.Default.CheckCircle,
                                                 contentDescription = null,
-                                                tint = if (!phoneMissing) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error,
+                                                tint = Color(0xFF00E6C3),
                                                 modifier = Modifier.size(20.dp)
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text(
-                                                text = "Verify Phone Number",
+                                                text = "Phone Number (Optional)",
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 modifier = Modifier.weight(1f),
                                                 maxLines = 1,
                                                 softWrap = false,
                                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                             )
-                                            if (phoneMissing) {
-                                                TextButton(
-                                                    onClick = {
-                                                        showChecklistDialog = false
-                                                        navController.navigate("phone_verification/signup")
-                                                    },
-                                                    contentPadding = PaddingValues(horizontal = 8.dp)
-                                                ) {
-                                                    Text(
-                                                        text = "Verify Now",
-                                                        color = Color(0xFF00E6C3),
-                                                        fontWeight = FontWeight.Bold,
-                                                        maxLines = 1,
-                                                        softWrap = false,
-                                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                                    )
-                                                }
-                                            } else {
-                                                Text(
-                                                    text = "Verified",
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = Color(0xFF00E6C3),
-                                                    fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(horizontal = 8.dp),
-                                                    maxLines = 1,
-                                                    softWrap = false,
-                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                                )
-                                            }
+                                            Text(
+                                                text = "OK",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = Color(0xFF00E6C3),
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 8.dp),
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
                                         }
 
                                         Spacer(modifier = Modifier.height(8.dp))

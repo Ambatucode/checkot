@@ -355,11 +355,11 @@ private fun PendingShopCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Phone Badge
-                val isPhoneVerified = shop.ownerPhoneVerified && shop.ownerPhone.isNotBlank()
+                val hasPhone = shop.ownerPhone.isNotBlank()
                 Surface(
-                    color = if (isPhoneVerified) Color(0xFF00E6C3).copy(alpha = 0.15f) else MaterialTheme.colorScheme.errorContainer,
+                    color = Color(0xFF00E6C3).copy(alpha = 0.15f),
                     shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isPhoneVerified) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E6C3).copy(alpha = 0.5f)),
                     modifier = Modifier.weight(1f)
                 ) {
                     Row(
@@ -367,16 +367,16 @@ private fun PendingShopCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = if (isPhoneVerified) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                            imageVector = Icons.Default.Phone,
                             contentDescription = null,
-                            tint = if (isPhoneVerified) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error,
+                            tint = Color(0xFF00E6C3),
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (isPhoneVerified) "Phone: ${shop.ownerPhone}" else "Phone Unverified",
+                            text = if (hasPhone) "Phone: ${shop.ownerPhone}" else "Phone: N/A",
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (isPhoneVerified) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error,
+                            color = Color(0xFF00E6C3),
                             maxLines = 1,
                             softWrap = false,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -461,10 +461,9 @@ private fun PendingShopCard(
                 )
             }
 
-            val isPhoneVerified = shop.ownerPhoneVerified && shop.ownerPhone.isNotBlank()
             val isLocationSet = shop.latitude != 0.0 || shop.longitude != 0.0
             val isAddressSet = shop.shopAddress.isNotBlank()
-            val isApproveEnabled = !isProcessing && isPhoneVerified && isLocationSet && isAddressSet
+            val isApproveEnabled = !isProcessing && isLocationSet && isAddressSet
 
             // Action buttons
             Spacer(modifier = Modifier.height(16.dp))
@@ -507,15 +506,10 @@ private fun PendingShopCard(
             }
 
             if (!isApproveEnabled && !isProcessing) {
-                val missingPhone = !isPhoneVerified
                 val missingLocation = !isLocationSet
                 val missingAddress = !isAddressSet
                 val missingText = when {
-                    missingPhone && missingLocation && missingAddress -> "Pending phone verification, location setup, and shop profile details"
-                    missingPhone && missingLocation -> "Pending phone verification and location setup"
-                    missingPhone && missingAddress -> "Pending phone verification and shop profile details"
                     missingLocation && missingAddress -> "Pending location setup and shop profile details"
-                    missingPhone -> "Pending phone verification"
                     missingLocation -> "Pending location setup"
                     else -> "Pending shop profile details (name/address)"
                 }
@@ -752,10 +746,9 @@ private fun ShopInfoCard(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Spacer(modifier = Modifier.height(12.dp))
 
-            val isPhoneVerified = shop.ownerPhoneVerified && shop.ownerPhone.isNotBlank()
             val isLocationSet = shop.latitude != 0.0 || shop.longitude != 0.0
             val isAddressSet = shop.shopAddress.isNotBlank()
-            val isApproveEnabled = !isProcessing && isPhoneVerified && isLocationSet && isAddressSet
+            val isApproveEnabled = !isProcessing && isLocationSet && isAddressSet
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

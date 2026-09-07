@@ -119,13 +119,6 @@ fun LoginScreen(
     LaunchedEffect(authState, currentUserData) {
         val user = currentUserData
         if (authState is AuthState.Authenticated && user != null) {
-            // Customers must have a verified phone before entering the app.
-            if (user.role == "customer" && !user.phoneVerified) {
-                navController.navigate("phone_verification/signup") {
-                    popUpTo("login") { inclusive = true }
-                }
-                return@LaunchedEffect
-            }
             val dest = when {
                 user.role == "admin" -> "admin_dashboard"
                 user.role == "owner" -> "owner_dashboard"
