@@ -125,12 +125,10 @@ fun AuthLandingScreen(
         val user = currentUser
         if (authState is AuthState.Authenticated && user != null) {
 
-            // Customer without verified phone -> skip phone, go straight to home
-            // (progressive guard will catch them at booking time)
+            // Customer or Owner -> go straight to home or owner_dashboard
             val dest = when {
                 user.role == "admin" -> "admin_dashboard"
                 user.role == "owner" -> "owner_dashboard"
-                user.fullName == "New User" -> "complete_profile"
                 else -> "home"
             }
             navController.navigate(dest) {
@@ -194,26 +192,6 @@ fun AuthLandingScreen(
                 Text("G", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color(0xFF4285F4))
                 Spacer(modifier = Modifier.width(12.dp))
                 Text("Continue with Google", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            OutlinedButton(
-                onClick = {
-                    // Navigate to pure phone sign-in flow
-                    val route = if (isOwnerMode) "phone_verification/signin?isOwner=true" else "phone_verification/signin"
-                    navController.navigate(route)
-                },
-                modifier = Modifier
-                    .fillMaxWidth(0.88f)
-                    .height(54.dp),
-                shape = CircleShape,
-                border = BorderStroke(1.dp, Color(0xFF94A3B8)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-            ) {
-                Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(12.dp))
-                Text("Continue with Phone", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
             }
 
             if (googleError != null) {

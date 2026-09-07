@@ -385,7 +385,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                             fullName = user.displayName ?: "",
                             email = user.email ?: "",
                             phoneNumber = "",
-                            phoneVerified = false,
+                            phoneVerified = true,
                             createdAt = System.currentTimeMillis(),
                             role = "owner",
                             ownedShopId = shopId,
@@ -409,13 +409,13 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         uploadFcmToken(user.uid)
                         _roleLoadState.value = RoleLoadState.Ready
                     } else {
-                        // Customer mode: write record immediately, skip phone verification.
+                        // Customer mode: write record immediately, phoneVerified = true.
                         val userData = CarWashUser(
                             userId = user.uid,
                             fullName = user.displayName ?: "",
                             email = user.email ?: "",
                             phoneNumber = "",
-                            phoneVerified = false,
+                            phoneVerified = true,
                             createdAt = System.currentTimeMillis(),
                             role = "customer",
                             savedCars = emptyList()
