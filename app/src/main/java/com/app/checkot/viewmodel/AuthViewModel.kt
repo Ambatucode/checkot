@@ -579,12 +579,45 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun checkActiveBookings(onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val user = auth.currentUser
+            if (user == null) {
+                onResult(false)
+                return@launch
+            }
+            try {
+                val activeBookings = firestore.collection("bookings")
+                    .whereEqualTo("userId", user.uid)
+                    .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
+                    .get().await()
+                onResult(!activeBookings.isEmpty)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to check active bookings for user: ${e.message}")
+                onResult(false)
+            }
+        }
+    }
+
     fun savePhoneNumberDirect(e164Phone: String) {
         viewModelScope.launch {
             _phoneVerifyState.value = PhoneVerifyState.Verifying
             try {
                 val user = auth.currentUser
                 if (user != null) {
+                    // Guardrail: prevent phone number changes while client has active or queued bookings
+                    val activeBookings = firestore.collection("bookings")
+                        .whereEqualTo("userId", user.uid)
+                        .whereIn("status", listOf("PENDING", "CONFIRMED", "IN_PROGRESS"))
+                        .get().await()
+
+                    if (!activeBookings.isEmpty) {
+                        _phoneVerifyState.value = PhoneVerifyState.Error(
+                            "You currently have an active or queued booking. Phone number changes are locked until your booking is completed or cancelled."
+                        )
+                        return@launch
+                    }
+
                     firestore.collection("users").document(user.uid)
                         .set(
                             mapOf("phoneNumber" to e164Phone, "phoneVerified" to true),

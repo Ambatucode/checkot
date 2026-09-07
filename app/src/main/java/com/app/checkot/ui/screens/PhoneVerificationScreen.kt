@@ -30,6 +30,9 @@ import androidx.navigation.NavController
 import com.app.checkot.viewmodel.AuthViewModel
 import com.app.checkot.viewmodel.PhoneVerifyState
 
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Lock
+
 /** Walk up the Compose context wrappers to the hosting Activity (needed by Firebase phone auth). */
 private fun Context.findActivity(): Activity? {
     var ctx = this
@@ -66,9 +69,15 @@ fun PhoneVerificationScreen(
     }
 
     val busy = verifyState is PhoneVerifyState.Verifying
+    var hasActiveBookings by remember { mutableStateOf(false) }
 
-    // Fresh start each time this screen opens.
-    LaunchedEffect(Unit) { authViewModel.resetPhoneVerify() }
+    // Fresh start each time this screen opens, and check active bookings
+    LaunchedEffect(Unit) {
+        authViewModel.resetPhoneVerify()
+        authViewModel.checkActiveBookings { active ->
+            hasActiveBookings = active
+        }
+    }
 
     // On success, route out of the screen.
     LaunchedEffect(verifyState) {
@@ -126,6 +135,32 @@ fun PhoneVerificationScreen(
             )
             Spacer(Modifier.height(24.dp))
 
+            if (hasActiveBookings) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Phone Number Locked: You currently have an active or queued carwash booking. Phone changes are locked until your booking is completed or cancelled.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = localDigits,
                 onValueChange = { input -> localDigits = input.filter { it.isDigit() }.take(10) },
@@ -134,7 +169,7 @@ fun PhoneVerificationScreen(
                 placeholder = { Text("9XXXXXXXXX") },
                 leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
                 singleLine = true,
-                enabled = !busy,
+                enabled = !busy && !hasActiveBookings,
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(
@@ -163,11 +198,11 @@ fun PhoneVerificationScreen(
             val validNumber = localDigits.length == 10 && localDigits.startsWith("9")
             Spacer(Modifier.height(24.dp))
             AppButton(
-                text = "Save phone number",
+                text = if (hasActiveBookings) "Phone Change Locked" else "Save phone number",
                 onClick = {
                     authViewModel.savePhoneNumberDirect("+63$localDigits")
                 },
-                enabled = validNumber,
+                enabled = validNumber && !hasActiveBookings,
                 isLoading = busy
             )
 
