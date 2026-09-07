@@ -579,6 +579,38 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun savePhoneNumberDirect(e164Phone: String) {
+        viewModelScope.launch {
+            _phoneVerifyState.value = PhoneVerifyState.Verifying
+            try {
+                val user = auth.currentUser
+                if (user != null) {
+                    firestore.collection("users").document(user.uid)
+                        .set(
+                            mapOf("phoneNumber" to e164Phone, "phoneVerified" to true),
+                            SetOptions.merge()
+                        ).await()
+                    
+                    val currentUserData = _currentUserData.value
+                    if (currentUserData?.role == "owner" && !currentUserData.ownedShopId.isNullOrEmpty()) {
+                        firestore.collection("shop_services").document(currentUserData.ownedShopId)
+                            .update(mapOf("ownerPhone" to e164Phone, "ownerPhoneVerified" to true))
+                            .await()
+                    }
+                    
+                    _currentUserData.value = _currentUserData.value?.copy(
+                        phoneNumber = e164Phone,
+                        phoneVerified = true
+                    )
+                }
+                _phoneVerifyState.value = PhoneVerifyState.Success
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save phone number directly: ${e.message}", e)
+                _phoneVerifyState.value = PhoneVerifyState.Error(e.message ?: "Failed to save phone number")
+            }
+        }
+    }
+
     private fun mapPhoneError(e: Exception): String = when {
         e is FirebaseAuthUserCollisionException ->
             "That number is already linked to another account. Use a different number."

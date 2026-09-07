@@ -48,10 +48,19 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 firestore.collection("users").document(user.uid).update(safeUpdates).await()
                 
                 val newName = safeUpdates["fullName"] as? String
-                if (role == "owner" && !ownedShopId.isNullOrEmpty() && newName != null) {
-                    firestore.collection("shop_services").document(ownedShopId)
-                        .update("ownerName", newName)
-                        .await()
+                val newPhone = safeUpdates["phoneNumber"] as? String
+                if (role == "owner" && !ownedShopId.isNullOrEmpty()) {
+                    val shopUpdates = mutableMapOf<String, Any>()
+                    if (newName != null) shopUpdates["ownerName"] = newName
+                    if (newPhone != null) {
+                        shopUpdates["ownerPhone"] = newPhone
+                        shopUpdates["ownerPhoneVerified"] = true
+                    }
+                    if (shopUpdates.isNotEmpty()) {
+                        firestore.collection("shop_services").document(ownedShopId)
+                            .update(shopUpdates)
+                            .await()
+                    }
                 }
                 
                 onResult(true, null)

@@ -687,7 +687,7 @@ fun ProfileScreen(
                             }
                             Spacer(modifier = Modifier.weight(1f))
                             TextButton(onClick = { navController.navigate("phone_verification/change") }) {
-                                Text("Change", style = MaterialTheme.typography.labelMedium)
+                                Text(if (phone.isNullOrBlank()) "Add" else "Change", style = MaterialTheme.typography.labelMedium)
                             }
                         }
                         Spacer(modifier = Modifier.height(12.dp))

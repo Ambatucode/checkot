@@ -55,46 +55,17 @@ fun PhoneVerificationScreen(
     authViewModel: AuthViewModel = viewModel()
 ) {
     val isChange = mode == "change"
-    val context = LocalContext.current
-    val activity = remember(context) { context.findActivity() }
 
     val verifyState by authViewModel.phoneVerifyState.collectAsState()
     val currentUser by authViewModel.currentUserData.collectAsState()
 
-    // Prefill the signup gate with any number already on the profile (e.g. from the
-    // email signup form); the change flow starts blank.
     var localDigits by remember(currentUser?.phoneNumber, isChange) {
         mutableStateOf(
-            if (!isChange) currentUser?.phoneNumber?.removePrefix("+63")?.filter { it.isDigit() }?.take(10) ?: ""
-            else ""
+            currentUser?.phoneNumber?.removePrefix("+63")?.filter { it.isDigit() }?.take(10) ?: ""
         )
     }
-    var code by remember { mutableStateOf("") }
 
-    // We're in the code-entry step once a code has been sent (stays there while
-    // verifying, and while showing a "wrong code" error so the field remains).
-    val awaitingCode = verifyState is PhoneVerifyState.CodeSent ||
-        verifyState is PhoneVerifyState.Verifying ||
-        (verifyState is PhoneVerifyState.Error && authViewModel.hasPendingCode())
-    val busy = verifyState is PhoneVerifyState.Sending || verifyState is PhoneVerifyState.Verifying
-
-    var timerSeconds by remember { mutableStateOf(60) }
-    var isTimerActive by remember { mutableStateOf(false) }
-    var resendTrigger by remember { mutableStateOf(0) }
-
-    // Start a 60-second countdown whenever we transition into the code entry step,
-    // or when the user triggers a resend.
-    LaunchedEffect(awaitingCode, resendTrigger) {
-        if (awaitingCode) {
-            timerSeconds = 60
-            isTimerActive = true
-            while (timerSeconds > 0) {
-                kotlinx.coroutines.delay(1000)
-                timerSeconds--
-            }
-            isTimerActive = false
-        }
-    }
+    val busy = verifyState is PhoneVerifyState.Verifying
 
     // Fresh start each time this screen opens.
     LaunchedEffect(Unit) { authViewModel.resetPhoneVerify() }
@@ -102,10 +73,9 @@ fun PhoneVerificationScreen(
     // On success, route out of the screen.
     LaunchedEffect(verifyState) {
         if (verifyState is PhoneVerifyState.Success) {
-            if (isChange) {
+            if (isChange || navController.previousBackStackEntry != null) {
                 navController.popBackStack()
             } else {
-
                 val dest = when {
                     currentUser?.role == "admin" -> "admin_dashboard"
                     currentUser?.role == "owner" -> "owner_dashboard"
@@ -122,12 +92,10 @@ fun PhoneVerificationScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isChange) "Change phone number" else "Verify your number") },
+                title = { Text(if (isChange) "Change phone number" else "Set phone number") },
                 navigationIcon = {
-                    if (isChange) {
-                        IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                        }
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -151,117 +119,57 @@ fun PhoneVerificationScreen(
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                text = if (!isChange && !awaitingCode)
-                    "We'll text a code to confirm this number is really yours. Every account needs a verified number."
-                else if (isChange && !awaitingCode)
-                    "Enter your new number — we'll text a code to verify it before switching."
-                else
-                    "Enter the 6-digit code we sent to +63$localDigits.",
+                text = "Enter your 10-digit mobile number below to update your profile contact information.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(24.dp))
 
-            if (!awaitingCode) {
-                // --- Step 1: enter number ---
-                OutlinedTextField(
-                    value = localDigits,
-                    onValueChange = { input -> localDigits = input.filter { it.isDigit() }.take(10) },
-                    label = { Text("Phone Number") },
-                    prefix = { Text("+63 ") },
-                    placeholder = { Text("9XXXXXXXXX") },
-                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
-                    singleLine = true,
-                    enabled = !busy,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Done
-                    )
+            OutlinedTextField(
+                value = localDigits,
+                onValueChange = { input -> localDigits = input.filter { it.isDigit() }.take(10) },
+                label = { Text("Phone Number") },
+                prefix = { Text("+63 ") },
+                placeholder = { Text("9XXXXXXXXX") },
+                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                singleLine = true,
+                enabled = !busy,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done
                 )
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp).padding(top = 2.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "Firebase SMS gateway works best with Globe, Smart, TM, and TNT. GOMO/DITO numbers may experience delivery delays due to gateway routing.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                    )
-                }
-                val validNumber = localDigits.length == 10 && localDigits.startsWith("9")
-                Spacer(Modifier.height(24.dp))
-                AppButton(
-                    text = "Send code",
-                    onClick = {
-                        val act = activity
-                        if (act != null) {
-                            authViewModel.startPhoneVerification(act, "+63$localDigits", mode, isOwner)
-                        }
-                    },
-                    enabled = validNumber && activity != null,
-                    isLoading = busy
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp).padding(top = 2.dp)
                 )
-            } else {
-                // --- Step 2: enter code ---
-                OutlinedTextField(
-                    value = code,
-                    onValueChange = { code = it.filter { c -> c.isDigit() }.take(6) },
-                    label = { Text("6-digit code") },
-                    singleLine = true,
-                    enabled = !busy,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Done
-                    )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Your phone number allows carwash owners and customers to communicate easily regarding bookings.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )
-                Spacer(Modifier.height(24.dp))
-                AppButton(
-                    text = "Verify",
-                    onClick = { authViewModel.confirmPhoneCode(code) },
-                    enabled = code.length == 6,
-                    isLoading = busy
-                )
-                Spacer(Modifier.height(8.dp))
-                if (isTimerActive) {
-                    Text(
-                        text = "Resend code in ${timerSeconds}s",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        modifier = Modifier.padding(vertical = 12.dp)
-                    )
-                } else {
-                    TextButton(
-                        onClick = {
-                            val act = activity
-                            if (act != null) {
-                                authViewModel.startPhoneVerification(act, "+63$localDigits", mode, isOwner)
-                                resendTrigger++
-                            }
-                        },
-                        enabled = !busy && activity != null
-                    ) {
-                        Text("Resend code", color = Color(0xFF00E6C3), fontWeight = FontWeight.Bold)
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                TextButton(
-                    onClick = { authViewModel.resetPhoneVerify(); code = "" },
-                    enabled = !busy
-                ) { Text("Use a different number") }
             }
+            val validNumber = localDigits.length == 10 && localDigits.startsWith("9")
+            Spacer(Modifier.height(24.dp))
+            AppButton(
+                text = "Save phone number",
+                onClick = {
+                    authViewModel.savePhoneNumberDirect("+63$localDigits")
+                },
+                enabled = validNumber,
+                isLoading = busy
+            )
 
             if (verifyState is PhoneVerifyState.Error) {
                 Spacer(Modifier.height(16.dp))
@@ -271,16 +179,6 @@ fun PhoneVerificationScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center
                 )
-            }
-
-            Spacer(Modifier.weight(1f))
-
-            // Signup gate has no back button — give a way out that doesn't bypass it.
-            if (!isChange) {
-                TextButton(onClick = {
-                    authViewModel.signOut()
-                    navController.navigate("auth_landing") { popUpTo(0) { inclusive = true } }
-                }) { Text("Sign in with a different account") }
             }
         }
     }
