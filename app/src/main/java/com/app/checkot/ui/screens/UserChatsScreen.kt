@@ -64,7 +64,23 @@ fun UserChatsScreen(
 
         fun updateThreads() {
             isLoading = false
-            chatThreads = threadsMap.values.sortedByDescending { it.lastMessageTimestamp }
+            val grouped = threadsMap.values.groupBy { thread ->
+                val sId = thread.shopId
+                val uId = thread.userId
+                if (sId.isNotBlank() && uId.isNotBlank()) "${sId}_${uId}" else (thread.chatId.ifBlank { thread.bookingId })
+            }
+            val deduplicated = grouped.map { (_, threads) ->
+                val latest = threads.maxByOrNull { it.lastMessageTimestamp } ?: threads.first()
+                val totalUnreadOwner = threads.sumOf { it.unreadCountOwner }
+                val totalUnreadCustomer = threads.sumOf { it.unreadCountCustomer }
+                val unifiedId = if (latest.shopId.isNotBlank() && latest.userId.isNotBlank()) "${latest.shopId}_${latest.userId}" else latest.chatId.ifBlank { latest.bookingId }
+                latest.copy(
+                    chatId = unifiedId,
+                    unreadCountOwner = totalUnreadOwner,
+                    unreadCountCustomer = totalUnreadCustomer
+                )
+            }
+            chatThreads = deduplicated.sortedByDescending { it.lastMessageTimestamp }
         }
 
         if (effectiveUid.isNotBlank()) {
@@ -143,7 +159,7 @@ fun UserChatsScreen(
                         itemsIndexed(
                             items = chatThreads,
                             key = { index, thread ->
-                                val id = thread.chatId.ifBlank { thread.bookingId }
+                                val id = if (thread.shopId.isNotBlank() && thread.userId.isNotBlank()) "${thread.shopId}_${thread.userId}" else thread.chatId.ifBlank { thread.bookingId }
                                 if (id.isNotBlank()) id else "thread_${index}_${thread.lastMessageTimestamp}"
                             }
                         ) { _, thread ->
@@ -151,7 +167,11 @@ fun UserChatsScreen(
                                 thread = thread,
                                 isOwner = isOwner,
                                 onClick = {
-                                    val effectiveChatId = thread.chatId.ifBlank { thread.bookingId }
+                                    val effectiveChatId = if (thread.shopId.isNotBlank() && thread.userId.isNotBlank()) {
+                                        "${thread.shopId}_${thread.userId}"
+                                    } else {
+                                        thread.chatId.ifBlank { thread.bookingId }
+                                    }
                                     if (effectiveChatId.isNotBlank()) {
                                         val recipientName = if (isOwner) {
                                             thread.customerName.ifBlank { "Customer" }

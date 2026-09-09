@@ -131,6 +131,8 @@ fun ChatScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .background(Color(0xFF0F172A))
+                .navigationBarsPadding()
+                .imePadding()
         ) {
             // Message List
             Box(
