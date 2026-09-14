@@ -4,6 +4,8 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -96,6 +98,7 @@ fun BookServiceScreen(
     // One-off hours overrides (date → open/close). Applied only on that date.
     var shopDayOverrides by remember { mutableStateOf(emptyList<DayHoursOverride>()) }
     var isShopClosed by remember { mutableStateOf(false) }
+    var reservationFee by remember { mutableStateOf(50.0) }
 
     // Progressive phone verification guard: if the client hasn't verified a
     // phone number yet, show an inline dialog before completing the booking.
@@ -129,6 +132,7 @@ fun BookServiceScreen(
                     shopBannerUrl = customization.bannerUrl
                     shopClosedDates = customization.closedDates
                     shopDayOverrides = customization.dayOverrides
+                    reservationFee = customization.reservationFee
                     for (config in customization.services) {
                         val type = if (!config.isCustom) {
                             ServiceType.values().find { it.name == config.serviceName }
@@ -568,7 +572,7 @@ fun BookServiceScreen(
                             }
                         }
                         AppButton(
-                            text = if (step < 4) "Continue" else "Confirm",
+                            text = if (step < 4) "Continue" else if (reservationFee > 0) "Pay Reservation Fee (₱${reservationFee.toInt()})" else "Confirm",
                             onClick = {
                                 if (step < 4) {
                                     step++
@@ -604,8 +608,21 @@ fun BookServiceScreen(
                                         // a phone number yet, stash the booking and show
                                         // the inline verification dialog first.
                                         bookingViewModel.clearError()
-                                        val success = bookingViewModel.createBooking(booking)
-                                        if (success) {
+                                        val createdBookingId = bookingViewModel.createBooking(booking)
+                                        if (!createdBookingId.isNullOrEmpty()) {
+                                            if (reservationFee > 0) {
+                                                val checkout = bookingViewModel.createPayMongoCheckoutSession(
+                                                    bookingId = createdBookingId,
+                                                    amountPesos = reservationFee,
+                                                    customerName = userData?.fullName.orEmpty(),
+                                                    customerEmail = userData?.email.orEmpty(),
+                                                    customerPhone = userData?.phoneNumber.orEmpty()
+                                                )
+                                                if (checkout != null && checkout.checkoutUrl.isNotEmpty()) {
+                                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(checkout.checkoutUrl))
+                                                    context.startActivity(intent)
+                                                }
+                                            }
                                             navController.popBackStack()
                                         } else {
                                             isCreating = false
@@ -1305,8 +1322,21 @@ fun BookServiceScreen(
             showPhoneVerifyDialog = false
             isCreating = true
             bookingViewModel.clearError()
-            val success = bookingViewModel.createBooking(pendingBooking!!)
-            if (success) {
+            val createdBookingId = bookingViewModel.createBooking(pendingBooking!!)
+            if (!createdBookingId.isNullOrEmpty()) {
+                if (reservationFee > 0) {
+                    val checkout = bookingViewModel.createPayMongoCheckoutSession(
+                        bookingId = createdBookingId,
+                        amountPesos = reservationFee,
+                        customerName = userData?.fullName.orEmpty(),
+                        customerEmail = userData?.email.orEmpty(),
+                        customerPhone = userData?.phoneNumber.orEmpty()
+                    )
+                    if (checkout != null && checkout.checkoutUrl.isNotEmpty()) {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(checkout.checkoutUrl))
+                        context.startActivity(intent)
+                    }
+                }
                 navController.popBackStack()
             } else {
                 isCreating = false

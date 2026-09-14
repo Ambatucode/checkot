@@ -139,18 +139,19 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    suspend fun createBooking(booking: Booking): Boolean {
+    suspend fun createBooking(booking: Booking): String? {
         // Guard: never hit the network with an empty service list.
         if (booking.services.isEmpty()) {
             _isLoading.value = false
             _error.value = "Please select at least one service to continue."
-            return false
+            return null
         }
         _isLoading.value = true
+        _error.value = null
         val user = auth.currentUser
         if (user == null) {
             _isLoading.value = false
-            return false
+            return null
         }
         try {
             // Check cooldown (rapid booking after cancel) — stored in Firestore for persistence
@@ -162,7 +163,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     val endTime = lastCancelled + COOLDOWN_MS
                     _error.value = "cooldown:$endTime"
                     _isLoading.value = false
-                    return false
+                    return null
                 }
             }
 
@@ -176,7 +177,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 _isLoading.value = false
                 _error.value = "This car already has an active booking in the queue. You cannot book the same car twice."
                 Log.e(TAG, "❌ Cannot create booking — car has an active booking already")
-                return false
+                return null
             }
 
             // Re-validate availability at creation time — closes the race
@@ -216,7 +217,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 _isLoading.value = false
                 _error.value = "One or more services you selected are no longer available for this date, or the shop's hours changed. Please review your selection and try again."
                 Log.e(TAG, "❌ Cannot create booking — availability re-check failed")
-                return false
+                return null
             }
 
             val normalizedDate = normalizeToStartOfDay(booking.bookingDate)
@@ -251,7 +252,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
             val serviceSummary = booking.resolvedServiceNames().joinToString(", ")
             NotificationHelper.showBookingCreatedNotification(appContext, serviceSummary)
 
-            return true
+            return bookingId
 
         } catch (e: Exception) {
             val isFullyBooked = e.message?.contains("fully-booked", ignoreCase = true) == true ||
@@ -265,7 +266,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 else -> "Could not create booking. Please try again."
             }
             Log.e(TAG, "❌ Booking creation failed: ${e.message}")
-            return false
+            return null
         } finally {
             _isLoading.value = false
         }
@@ -447,6 +448,58 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 Log.d(TAG, "✅ Push notification sent successfully to $targetToken")
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Failed to send push notification: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Creates a PayMongo Checkout Session for the reservation fee and saves checkout info to Firestore.
+     */
+    suspend fun createPayMongoCheckoutSession(
+        bookingId: String,
+        amountPesos: Double,
+        customerName: String = "Checkot Customer",
+        customerEmail: String = "customer@checkot.app",
+        customerPhone: String = "09123456789"
+    ): com.app.checkot.service.PayMongoCheckoutResponse? {
+        val result = com.app.checkot.service.PayMongoService.createCheckoutSession(
+            amountPesos = amountPesos,
+            bookingId = bookingId,
+            description = "Slot Reservation Fee - Carwash Booking",
+            customerName = customerName,
+            customerEmail = customerEmail,
+            customerPhone = customerPhone
+        )
+        val response = result.getOrNull()
+        if (response != null) {
+            try {
+                firestore.collection("bookings").document(bookingId).update(
+                    "paymongoCheckoutId", response.checkoutId,
+                    "paymongoCheckoutUrl", response.checkoutUrl,
+                    "reservationFee", amountPesos
+                ).await()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to store PayMongo info on booking $bookingId: ${e.message}")
+            }
+        }
+        return response
+    }
+
+    /**
+     * Marks a booking's payment status as paid and updates its status to CONFIRMED.
+     */
+    fun confirmPaymentSuccess(bookingId: String) {
+        viewModelScope.launch {
+            try {
+                firestore.collection("bookings").document(bookingId).update(
+                    "paymentStatus", "paid",
+                    "status", BookingStatus.CONFIRMED.name,
+                    "paidAt", System.currentTimeMillis(),
+                    "confirmedAt", System.currentTimeMillis()
+                ).await()
+                Log.d(TAG, "✅ Booking $bookingId marked as paid & CONFIRMED")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Failed to confirm payment for $bookingId: ${e.message}")
             }
         }
     }

@@ -50,6 +50,7 @@ fun OwnerSettingsTab(
     val allBookings by ownerViewModel.allBookings.collectAsState()
     var editedServices by remember { mutableStateOf<List<CustomServiceConfig>>(normalizeConfigs(customization.services)) }
     var bayCountText by remember { mutableStateOf(customization.bayCount.toString()) }
+    var reservationFeeInput by remember(customization.reservationFee) { mutableStateOf(customization.reservationFee.toString()) }
     var editedStaff by remember { mutableStateOf(customization.staffNames) }
     var staffNameInput by remember { mutableStateOf("") }
     var shopNameInput by remember { mutableStateOf(customization.shopName) }
@@ -154,6 +155,7 @@ fun OwnerSettingsTab(
             if (config.durationMinutes > 0) config
             else config.copy(durationMinutes = defaultDurationMinutes(config))
         }
+        val feeVal = (reservationFeeInput.toDoubleOrNull() ?: 50.0).coerceIn(0.0, 100.0)
         val updated = customization.copy(
             shopName = shopNameInput.trim(),
             shopAddress = shopAddressInput.trim(),
@@ -163,7 +165,8 @@ fun OwnerSettingsTab(
             closeMinutes = closeMinutes,
             closedDates = closedDates,
             dayOverrides = dayOverrides,
-            staffNames = editedStaff
+            staffNames = editedStaff,
+            reservationFee = feeVal
         )
         ownerViewModel.saveShopCustomization(updated)
         scope.launch {
@@ -326,9 +329,11 @@ fun OwnerSettingsTab(
         )
     }
 
+    val reservationFeeChanged = (reservationFeeInput.toDoubleOrNull() ?: 50.0) != customization.reservationFee
     val hasChanges = (editedServices != customization.services || bayCountChanged || hoursChanged ||
         closedDatesChanged || dayOverridesChanged || editedStaff != customization.staffNames ||
-        shopNameInput != customization.shopName || shopAddressInput != customization.shopAddress)
+        shopNameInput != customization.shopName || shopAddressInput != customization.shopAddress ||
+        reservationFeeChanged)
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -401,6 +406,41 @@ fun OwnerSettingsTab(
                     onValueChange = { if (it.length <= 100) shopAddressInput = it },
                     label = { Text("Shop Address") },
                     singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = CheckotCardSurface,
+                        unfocusedContainerColor = CheckotCardSurface,
+                        focusedBorderColor = CheckotTeal,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                        errorContainerColor = CheckotCardSurface,
+                        disabledContainerColor = CheckotCardSurface
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Card: Slot Reservation Fee
+            SettingsCard(title = "Slot Reservation Fee", icon = Icons.Default.Payments) {
+                Text(
+                    text = "Set the reservation fee clients pay via PayMongo (GCash, Maya, Card) when booking a slot. Capped at ₱100 max.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = reservationFeeInput,
+                    onValueChange = { input ->
+                        if (input.isEmpty() || input.toDoubleOrNull() != null) {
+                            val fee = input.toDoubleOrNull() ?: 0.0
+                            if (fee <= 100.0) {
+                                reservationFeeInput = input
+                            }
+                        }
+                    },
+                    label = { Text("Reservation Fee (₱ 0 – 100)") },
+                    prefix = { Text("₱ ") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = CheckotCardSurface,
                         unfocusedContainerColor = CheckotCardSurface,

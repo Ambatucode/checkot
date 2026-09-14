@@ -207,9 +207,30 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        val bookingId = intent?.getStringExtra("bookingId")
+        if (intent == null) return
+        val bookingId = intent.getStringExtra("bookingId")
         if (!bookingId.isNullOrEmpty()) {
             pendingBookingId = bookingId
+        }
+
+        // Deep link callback handling (checkot://payment_success or checkot://payment_cancel)
+        val data: Uri? = intent.data
+        if (data != null && data.scheme == "checkot") {
+            val host = data.host
+            val deepLinkBookingId = data.getQueryParameter("booking_id")
+            if (!deepLinkBookingId.isNullOrEmpty()) {
+                pendingBookingId = deepLinkBookingId
+                if (host == "payment_success") {
+                    com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("bookings")
+                        .document(deepLinkBookingId)
+                        .update(
+                            "paymentStatus", "paid",
+                            "status", com.app.checkot.model.BookingStatus.CONFIRMED.name,
+                            "paidAt", System.currentTimeMillis(),
+                            "confirmedAt", System.currentTimeMillis()
+                        )
+                }
+            }
         }
     }
 
