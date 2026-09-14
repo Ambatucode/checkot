@@ -652,25 +652,7 @@ fun OwnerBookingCard(
                     )
                 }
             }
-            if (booking.addOns.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                booking.addOns.forEach { addOn ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Add-on: $addOn",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                        )
-                    }
-                }
-            }
+
             if (booking.status == BookingStatus.PENDING) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -104,7 +104,6 @@ fun BookingDetailsScreen(
     var shopLogo by remember(booking) { mutableStateOf<ImageBitmap?>(null) }
     // Full shop doc — used to flag bookings impacted by closures/hours changes.
     var shopCustomization by remember(booking) { mutableStateOf<ShopCustomization?>(null) }
-    var showAddOnDialog by remember { mutableStateOf(false) }
     var showReceipt by remember { mutableStateOf(false) }
 
     // Direct Firestore listener for queue info via day_slots ledger (accessible by all users)
@@ -217,52 +216,6 @@ fun BookingDetailsScreen(
                 }
             },
             onDismiss = { showCancelDialog = false }
-        )
-    }
-    if (showAddOnDialog) {
-        AlertDialog(
-            onDismissRequest = { showAddOnDialog = false },
-            title = { Text("Add an Add-on") },
-            text = {
-                // Exclude services already on this booking — both the original
-                // services and any add-ons already added — so a client can't
-                // add a duplicate of something they're already paying for.
-                val bookedNames = booking.resolvedServiceNames().toSet()
-                val available = shopServices.filter { config ->
-                    config.displayName !in bookedNames &&
-                        booking.addOns.none { it.startsWith("${config.displayName} - ") }
-                }
-                if (available.isEmpty()) {
-                    Text("You already have all of this shop's services on this booking.")
-                } else {
-                    Column {
-                        Text("Add an extra paid service. It's added to your total — your booked time slot doesn't change.")
-                        Spacer(modifier = Modifier.height(8.dp))
-                        available.forEach { config ->
-                            val addOnPrice = if (config.customPrice > 0) config.customPrice
-                                else (ServiceType.values().find { it.name == config.serviceName }?.price ?: 0.0)
-                            TextButton(
-                                onClick = {
-                                    showAddOnDialog = false
-                                    bookingViewModel.addBookingAddOn(
-                                        booking.bookingId,
-                                        "${config.displayName} - ₱$addOnPrice",
-                                        addOnPrice
-                                    )
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(config.displayName, modifier = Modifier.weight(1f))
-                                Text("₱$addOnPrice", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showAddOnDialog = false }) { Text("Close") }
-            }
         )
     }
     if (showReceipt) {
@@ -501,9 +454,6 @@ fun BookingDetailsScreen(
                         if (booking.servicedBy.isNotBlank()) {
                             DetailRow("Serviced by:", booking.servicedBy)
                         }
-                        if (booking.addOns.isNotEmpty()) {
-                            DetailRow("Add-ons:", booking.addOns.joinToString(", "))
-                        }
                         DetailRow("Payment:", "Cash · " + if (booking.paymentStatus == "paid") "Paid" else "Unpaid")
                         
                         if (booking.paymentStatus == "paid") {
@@ -527,18 +477,7 @@ fun BookingDetailsScreen(
                         if (booking.notes.isNotBlank()) {
                             DetailRow("Special Requests:", booking.notes)
                         }
-                        if (booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            OutlinedButton(
-                                onClick = { showAddOnDialog = true },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = MaterialTheme.shapes.medium
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Add an add-on service")
-                            }
-                        }
+
                         
                         if (booking.status != BookingStatus.CANCELLED) {
                             Spacer(modifier = Modifier.height(8.dp))
@@ -1030,15 +969,7 @@ private fun ReceiptBody(booking: Booking, shopName: String, shopLogo: ImageBitma
             modifier = Modifier.padding(top = 2.dp)
         )
     }
-    if (booking.addOns.isNotEmpty()) {
-        Spacer(modifier = Modifier.height(10.dp))
-        Text("Add-ons", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-        booking.addOns.forEach { label ->
-            val name = label.substringBeforeLast(" - ₱").trim().ifEmpty { label }
-            val amount = label.substringAfterLast("₱", "")
-            ReceiptRow(name, if (amount.isNotEmpty()) "₱$amount" else "")
-        }
-    }
+
     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
     Row(
         modifier = Modifier.fillMaxWidth(),

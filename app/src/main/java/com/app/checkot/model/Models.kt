@@ -96,10 +96,6 @@ data class Booking(
     // Staff member assigned when the service is started. Display-only: shown to
     // the client and owner, never gates bay capacity or scheduling.
     val servicedBy: String = "",
-    // Paid add-ons appended while the service is in progress. Each entry is a
-    // display label like "Exterior Wax - ₱350". Money only: add-ons bump
-    // `price` but never extend the reserved bay window (keeps the ledger valid).
-    val addOns: List<String> = emptyList(),
     // --- Payment (cash only) ---
     val paymentMethod: String = "Cash",
     // "unpaid" until the owner confirms cash received at the shop.
