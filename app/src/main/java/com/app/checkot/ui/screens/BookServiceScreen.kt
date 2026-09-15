@@ -103,6 +103,10 @@ fun BookServiceScreen(
     // Stash the pending booking so we can submit it after verification succeeds.
     var pendingBooking by remember { mutableStateOf<Booking?>(null) }
 
+    var currentShopCustomization by remember { mutableStateOf<ShopCustomization?>(null) }
+    var selectedDate by remember { mutableStateOf(System.currentTimeMillis()) }
+    var dateBookings by remember { mutableStateOf<List<Booking>>(emptyList()) }
+
     // Real-time listener for shop services — updates instantly when owner changes services
     DisposableEffect(shopId) {
         if (shopId.isEmpty()) return@DisposableEffect onDispose {}
@@ -119,6 +123,7 @@ fun BookServiceScreen(
                 val customization = snapshot?.toObject(ShopCustomization::class.java)
                 val services = mutableListOf<AvailableService>()
                 if (customization != null) {
+                    currentShopCustomization = customization
                     isShopClosed = customization.isClosed
                     shopOpenMinutes = customization.openMinutes
                     shopCloseMinutes = customization.closeMinutes
@@ -144,9 +149,25 @@ fun BookServiceScreen(
         }
     }
 
+    DisposableEffect(shopId, selectedDate) {
+        if (shopId.isEmpty()) return@DisposableEffect onDispose {}
+        val startOfDay = BookingUtils.startOfDay(selectedDate)
+        val endOfDay = startOfDay + 24 * 60 * 60 * 1000L - 1
+        val listener = firestore.collection("bookings")
+            .whereEqualTo("shopId", shopId)
+            .whereGreaterThanOrEqualTo("bookingDate", startOfDay)
+            .whereLessThanOrEqualTo("bookingDate", endOfDay)
+            .addSnapshotListener { snapshot, _ ->
+                val list = snapshot?.documents?.mapNotNull { it.toObject(Booking::class.java) }
+                    ?.filter { it.status in listOf(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.IN_PROGRESS) }
+                    ?: emptyList()
+                dateBookings = list
+            }
+        onDispose { listener.remove() }
+    }
+
     var selectedServiceConfigs by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectedCar by remember { mutableStateOf<Car?>(null) }
-    var selectedDate by remember { mutableStateOf(System.currentTimeMillis()) }
     var selectedTimeSlot by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var step by remember { mutableStateOf(1) }
@@ -810,6 +831,13 @@ fun BookServiceScreen(
                     }
                 }
 
+                // Live Shop Bays Header Card (Today)
+                if (selectedTimeSlot.isBlank()) {
+                    item {
+                        LiveShopBaysHeaderCard(shopCustomization = currentShopCustomization)
+                    }
+                }
+
                 // Stepper right below header details
                 item {
                     LinearProgressIndicator(
@@ -1227,6 +1255,16 @@ fun BookServiceScreen(
                                     }
                                 }
                             }
+                        }
+                    }
+                    if (selectedTimeSlot.isNotBlank()) {
+                        item {
+                            val maxBays = (currentShopCustomization?.bayCount ?: 1).coerceIn(1, 4)
+                            SlotBayStatusStrip(
+                                selectedSlot = selectedTimeSlot,
+                                maxBays = maxBays,
+                                dateBookings = dateBookings
+                            )
                         }
                     }
                 }
@@ -1674,5 +1712,212 @@ fun getServicePrice(config: CustomServiceConfig, serviceType: ServiceType?, carS
         "XL" -> basePrice + 150.0
         "XXL" -> basePrice + 200.0
         else -> basePrice
+    }
+}
+
+@Composable
+fun LiveShopBaysHeaderCard(
+    shopCustomization: ShopCustomization?
+) {
+    val maxBays = (shopCustomization?.bayCount ?: 1).coerceIn(1, 4)
+    val activeWalkIns = shopCustomization?.activeWalkIns ?: emptyList()
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.DirectionsCar,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "LIVE SHOP BAYS (TODAY)",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Text(
+                    text = "$maxBays Bays Active",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                (1..maxBays).forEach { bayNum ->
+                    val walkIn = activeWalkIns.find { it.bay == bayNum }
+                    val isWalkIn = walkIn != null
+
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 54.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        color = when {
+                            isWalkIn -> Color(0xFF2C1D18)
+                            else -> MaterialTheme.colorScheme.surface
+                        },
+                        border = BorderStroke(
+                            1.dp,
+                            when {
+                                isWalkIn -> Color(0xFFFF9800)
+                                else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            }
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Bay $bayNum",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isWalkIn) Color(0xFFFFB74D) else MaterialTheme.colorScheme.onSurface
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (isWalkIn) Icons.Default.Schedule else Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = if (isWalkIn) Color(0xFFFFB74D) else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                     text = if (isWalkIn && walkIn != null) "🚶 ${walkIn.remainingTimeText()}" else "FREE",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isWalkIn) Color(0xFFFFB74D) else MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SlotBayStatusStrip(
+    selectedSlot: String,
+    maxBays: Int,
+    dateBookings: List<Booking>
+) {
+    if (selectedSlot.isBlank()) return
+
+    val slotBookings = dateBookings.filter { it.timeSlot == selectedSlot }
+    val occupiedBays = slotBookings.mapNotNull { if (it.assignedBay > 0) it.assignedBay else null }.toSet()
+    val totalOccupiedCount = slotBookings.size.coerceAtMost(maxBays)
+    val freeCount = (maxBays - totalOccupiedCount).coerceAtLeast(0)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF0F2530)
+        ),
+        border = BorderStroke(1.dp, Color(0xFF00E6C3).copy(alpha = 0.4f)),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Schedule,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Color(0xFF00E6C3)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "BAY AVAILABILITY FOR $selectedSlot",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF00E6C3)
+                    )
+                }
+                Text(
+                    text = if (freeCount == maxBays) "All $maxBays Bays Free" else "$freeCount of $maxBays Free",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (freeCount > 0) Color(0xFF00E6C3) else MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                (1..maxBays).forEach { bayNum ->
+                    val isBayOccupied = occupiedBays.contains(bayNum) || (bayNum <= totalOccupiedCount)
+
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 54.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isBayOccupied) Color(0xFF1E1E24) else Color(0xFF0A2E28),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isBayOccupied) Color(0xFFFF9800) else Color(0xFF00E6C3).copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Bay $bayNum",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isBayOccupied) Color(0xFFFFB74D) else Color(0xFF00E6C3)
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (isBayOccupied) Icons.Default.DirectionsCar else Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = if (isBayOccupied) Color(0xFFFFB74D) else Color(0xFF00E6C3),
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = if (isBayOccupied) "Booked" else "Available",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isBayOccupied) Color(0xFFFFB74D) else Color(0xFF00E6C3)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
