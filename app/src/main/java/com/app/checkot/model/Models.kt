@@ -101,7 +101,10 @@ data class Booking(
     // "unpaid" until the owner confirms cash received at the shop.
     val paymentStatus: String = "unpaid",
     // Server timestamp when the owner confirmed cash received. null = not yet.
-    val paidAt: Long? = null
+    val paidAt: Long? = null,
+    // --- Bay Assignment ---
+    // 1-based index of assigned bay (e.g. 1 for Bay 1, 2 for Bay 2). null = unassigned.
+    val assignedBay: Int? = null
 )
 enum class ServiceType(
     val displayName: String,

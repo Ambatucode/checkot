@@ -488,6 +488,38 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    /**
+     * Assigns a specific bay (1..bayCount) to a booking, or null to unassign.
+     */
+    fun assignBayToBooking(bookingId: String, bayNumber: Int?) {
+        viewModelScope.launch {
+            try {
+                val doc = firestore.collection("bookings").document(bookingId).get().await()
+                val booking = doc.toObject(Booking::class.java)
+                val ownerShopId = _currentOwnerShopId.value
+                if (booking == null || booking.shopId != ownerShopId) {
+                    Log.e(TAG, "❌ Security: assignBay on a booking not belonging to this shop. Blocked.")
+                    return@launch
+                }
+                firestore.collection("bookings").document(bookingId).update("assignedBay", bayNumber).await()
+                Log.d(TAG, "✅ Booking $bookingId assigned to bay $bayNumber")
+
+                if (bayNumber != null && bayNumber != booking.assignedBay) {
+                    triggerPushNotification(
+                        targetToken = "",
+                        title = "Bay Assigned! 🚗",
+                        body = "Your vehicle has been assigned to Bay $bayNumber. Proceed to Bay $bayNumber on arrival!",
+                        bookingId = bookingId,
+                        targetUserId = booking.userId
+                    )
+                }
+                loadBookings()
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Failed to assign bay: ${e.message}")
+            }
+        }
+    }
+
     private val _saveResult = MutableStateFlow<String?>(null)
     val saveResult: StateFlow<String?> = _saveResult
 

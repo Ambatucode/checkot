@@ -683,6 +683,21 @@ fun BookingCard(
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
+                if (booking.assignedBay != null) {
+                    Surface(
+                        color = com.app.checkot.ui.theme.CheckotBadgeTeal.copy(alpha = 0.2f),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                        modifier = Modifier.padding(end = 6.dp)
+                    ) {
+                        Text(
+                            text = "Bay ${booking.assignedBay}",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            color = com.app.checkot.ui.theme.CheckotBadgeTeal,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
                 BookingStatusBadge(status = booking.status)
             }
             Spacer(modifier = Modifier.height(6.dp))

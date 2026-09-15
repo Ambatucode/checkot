@@ -200,6 +200,8 @@ fun OwnerBookingsTab(
                         customerName = customerNames[booking.userId] ?: "",
                         queuePosition = queuePositions[booking.bookingId] ?: 0,
                         staffNames = customization.staffNames,
+                        bayCount = customization.bayCount,
+                        onAssignBay = { bay -> ownerViewModel.assignBayToBooking(booking.bookingId, bay) },
                         onNoShow = { ownerViewModel.markNoShow(booking.bookingId) },
                         onApprove = {
                             ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.CONFIRMED)
@@ -237,6 +239,8 @@ fun OwnerBookingCard(
     booking: Booking,
     customerName: String = "",
     queuePosition: Int = 0,
+    bayCount: Int = 1,
+    onAssignBay: (Int?) -> Unit = {},
     onNoShow: () -> Unit = {},
     onApprove: () -> Unit,
     onReject: () -> Unit,
@@ -650,6 +654,94 @@ fun OwnerBookingCard(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                }
+            }
+
+            // Bay Assignment Row (for active bookings)
+            if (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS) {
+                var showBayMenu by remember { mutableStateOf(false) }
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.DirectionsCar,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = com.app.checkot.ui.theme.CheckotBadgeTeal
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "Assigned Bay",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = if (booking.assignedBay != null) "Bay ${booking.assignedBay}" else "Unassigned",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    color = if (booking.assignedBay != null) com.app.checkot.ui.theme.CheckotBadgeTeal else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+                        Box {
+                            OutlinedButton(
+                                onClick = { showBayMenu = true },
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                modifier = Modifier.height(32.dp),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    text = if (booking.assignedBay != null) "Change Bay" else "Assign Bay",
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showBayMenu,
+                                onDismissRequest = { showBayMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Unassigned", color = MaterialTheme.colorScheme.error) },
+                                    onClick = {
+                                        showBayMenu = false
+                                        onAssignBay(null)
+                                    }
+                                )
+                                val totalBays = bayCount.coerceAtLeast(1)
+                                (1..totalBays).forEach { bayNum ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = "Bay $bayNum ${if (booking.assignedBay == bayNum) "✓" else ""}",
+                                                fontWeight = if (booking.assignedBay == bayNum) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal
+                                            )
+                                        },
+                                        onClick = {
+                                            showBayMenu = false
+                                            onAssignBay(bayNum)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
