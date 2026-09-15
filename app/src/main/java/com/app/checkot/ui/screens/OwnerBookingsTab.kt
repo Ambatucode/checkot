@@ -259,7 +259,43 @@ fun OwnerBookingCard(
     var showCancelConfirmedDialog by remember { mutableStateOf(false) }
     var showMarkPaidDialog by remember { mutableStateOf(false) }
     var showRequireBayDialog by remember { mutableStateOf(false) }
+
+    // MLBB / LoL style Anti-Spam Rate Limiting state
+    var lastBayChangeTime by remember { mutableStateOf(0L) }
+    var baySpamCount by remember { mutableIntStateOf(0) }
+    var cooldownRemainingSeconds by remember { mutableIntStateOf(0) }
+    var showSpamDialog by remember { mutableStateOf(false) }
+
     val scope = rememberCoroutineScope()
+
+    // Countdown ticker for anti-spam cooldown
+    LaunchedEffect(cooldownRemainingSeconds) {
+        if (cooldownRemainingSeconds > 0) {
+            kotlinx.coroutines.delay(1000)
+            cooldownRemainingSeconds -= 1
+        }
+    }
+
+    fun safeAssignBay(targetBay: Int) {
+        val now = System.currentTimeMillis()
+        if (cooldownRemainingSeconds > 0) {
+            showSpamDialog = true
+            return
+        }
+        if (now - lastBayChangeTime < 3000L) {
+            baySpamCount += 1
+        } else {
+            baySpamCount = 1
+        }
+        lastBayChangeTime = now
+
+        if (baySpamCount >= 3) {
+            cooldownRemainingSeconds = 5
+            showSpamDialog = true
+        } else {
+            onAssignBay(targetBay)
+        }
+    }
 
     fun runAction(action: () -> Unit) {
         scope.launch {
@@ -268,6 +304,29 @@ fun OwnerBookingCard(
             kotlinx.coroutines.delay(2000)
             isProcessing = false
         }
+    }
+
+    if (showSpamDialog) {
+        AlertDialog(
+            onDismissRequest = { if (cooldownRemainingSeconds == 0) showSpamDialog = false },
+            title = { Text("⚠️ Action Cooldown") },
+            text = {
+                Text(
+                    if (cooldownRemainingSeconds > 0)
+                        "You are performing actions too frequently! Please wait $cooldownRemainingSeconds seconds before changing bays again."
+                    else
+                        "Cooldown complete. You can now perform actions again."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showSpamDialog = false },
+                    enabled = cooldownRemainingSeconds == 0
+                ) {
+                    Text(if (cooldownRemainingSeconds > 0) "Wait (${cooldownRemainingSeconds}s)" else "OK")
+                }
+            }
+        )
     }
 
     if (showRequireBayDialog) {
@@ -735,7 +794,7 @@ fun OwnerBookingCard(
                                     text = { Text("Unassigned", color = MaterialTheme.colorScheme.error) },
                                     onClick = {
                                         showBayMenu = false
-                                        onAssignBay(0)
+                                        safeAssignBay(0)
                                     }
                                 )
                                 val totalBays = bayCount.coerceAtLeast(1)
@@ -749,7 +808,7 @@ fun OwnerBookingCard(
                                         },
                                         onClick = {
                                             showBayMenu = false
-                                            onAssignBay(bayNum)
+                                            safeAssignBay(bayNum)
                                         }
                                     )
                                 }
