@@ -193,8 +193,21 @@ data class ShopCustomization(
 data class WalkInOccupancy(
     val bay: Int = 0,
     val note: String = "Walk-In",
-    val occupiedAt: Long = 0
-)
+    val occupiedAt: Long = 0,
+    val estimatedMinutes: Int = 30
+) {
+    fun remainingTimeText(): String {
+        val now = System.currentTimeMillis()
+        val elapsedMinutes = ((now - occupiedAt) / 60000).toInt()
+        val remaining = (estimatedMinutes - elapsedMinutes).coerceAtLeast(0)
+        if (remaining == 0) return "Finishing..."
+        val hours = remaining / 60
+        val mins = remaining % 60
+        return if (hours > 0 && mins > 0) "${hours}h ${mins}m"
+        else if (hours > 0) "${hours}h"
+        else "${mins}m"
+    }
+}
 
 @Immutable
 data class CustomServiceConfig(

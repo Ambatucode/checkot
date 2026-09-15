@@ -83,6 +83,76 @@ fun OwnerBookingsTab(
     val queuePositions = remember(activeSorted) {
         activeSorted.mapIndexed { i, b -> b.bookingId to (i + 1) }.toMap()
     }
+    var walkInDialogBay by remember { mutableStateOf<Int?>(null) }
+
+    if (walkInDialogBay != null) {
+        val bayNum = walkInDialogBay!!
+        var selectedDuration by remember { mutableStateOf(30) }
+        val durationOptions = listOf(
+            30 to "30m",
+            45 to "45m",
+            60 to "1h",
+            90 to "1h 30m",
+            120 to "2h",
+            180 to "3h"
+        )
+
+        AlertDialog(
+            onDismissRequest = { walkInDialogBay = null },
+            title = {
+                Text("Log Walk-In for Bay $bayNum", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column {
+                    Text(
+                        "Select estimated busy time for this bay:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        durationOptions.take(3).forEach { (mins, label) ->
+                            FilterChip(
+                                selected = selectedDuration == mins,
+                                onClick = { selectedDuration = mins },
+                                label = { Text(label, fontSize = 12.sp) }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        durationOptions.drop(3).forEach { (mins, label) ->
+                            FilterChip(
+                                selected = selectedDuration == mins,
+                                onClick = { selectedDuration = mins },
+                                label = { Text(label, fontSize = 12.sp) }
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        ownerViewModel.toggleWalkInForBay(bayNum, durationMinutes = selectedDuration)
+                        walkInDialogBay = null
+                    }
+                ) {
+                    Text("Confirm Walk-In")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { walkInDialogBay = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -171,8 +241,10 @@ fun OwnerBookingsTab(
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable {
-                                    if (!isAppBooked) {
+                                    if (isWalkIn) {
                                         ownerViewModel.toggleWalkInForBay(bayNum)
+                                    } else if (!isAppBooked) {
+                                        walkInDialogBay = bayNum
                                     }
                                 },
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
@@ -208,7 +280,7 @@ fun OwnerBookingsTab(
                                 Text(
                                     text = when {
                                         isAppBooked -> "🚗 App"
-                                        isWalkIn -> "🚶 Walk-In"
+                                        isWalkIn -> "🚶 ${walkIn.remainingTimeText()}"
                                         else -> "🟢 Free"
                                     },
                                     style = MaterialTheme.typography.bodySmall,

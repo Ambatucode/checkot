@@ -455,7 +455,8 @@ fun BookingDetailsScreen(
                                         ) {
                                             (1..maxBays).forEach { bayNum ->
                                                 val isMyBay = booking.assignedBay == bayNum
-                                                val isWalkIn = activeWalkIns.any { it.bay == bayNum }
+                                                val walkIn = activeWalkIns.find { it.bay == bayNum }
+                                                val isWalkIn = walkIn != null
 
                                                 Surface(
                                                     modifier = Modifier.weight(1f),
@@ -491,7 +492,7 @@ fun BookingDetailsScreen(
                                                         Text(
                                                             text = when {
                                                                 isMyBay -> "🚗 YOU"
-                                                                isWalkIn -> "🚶 Walk-In"
+                                                                isWalkIn -> "🚶 ${walkIn.remainingTimeText()}"
                                                                 else -> "🟢 Free"
                                                             },
                                                             fontSize = 10.sp,

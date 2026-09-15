@@ -538,7 +538,7 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
-    fun toggleWalkInForBay(bayNumber: Int, note: String = "Walk-In") {
+    fun toggleWalkInForBay(bayNumber: Int, note: String = "Walk-In", durationMinutes: Int = 30) {
         val shopId = _currentOwnerShopId.value ?: return
         viewModelScope.launch {
             try {
@@ -546,13 +546,20 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 val currentWalkIns = currentCust.activeWalkIns.filter { it.bay != bayNumber }.toMutableList()
                 val isCurrentlyOccupied = currentCust.activeWalkIns.any { it.bay == bayNumber }
                 if (!isCurrentlyOccupied) {
-                    currentWalkIns.add(WalkInOccupancy(bay = bayNumber, note = note, occupiedAt = System.currentTimeMillis()))
+                    currentWalkIns.add(
+                        WalkInOccupancy(
+                            bay = bayNumber,
+                            note = note,
+                            occupiedAt = System.currentTimeMillis(),
+                            estimatedMinutes = durationMinutes
+                        )
+                    )
                 }
                 firestore.collection("shop_services").document(shopId)
                     .update("activeWalkIns", currentWalkIns).await()
-                Log.d(TAG, "✅ Walk-in status toggled for bay $bayNumber")
+                Log.d(TAG, "✅ Walk-in status updated for bay $bayNumber (duration: ${durationMinutes}m)")
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Failed to toggle walk-in for bay $bayNumber: ${e.message}")
+                Log.e(TAG, "❌ Failed to update walk-in for bay $bayNumber: ${e.message}")
             }
         }
     }
