@@ -203,6 +203,9 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
 
                 // Clean up inactive (COMPLETED/CANCELLED) bookings from day_slots ledger
                 sanitizeLedgerEntries(bookingsList)
+
+                // Auto-cancel stale pending bookings
+                autoCancelStaleBookings()
             }
     }
 
@@ -221,29 +224,30 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
 
     fun loadBookings() {
         setupRealTimeBookingsListener()
-        // Also auto-cancel stale pending bookings
         autoCancelStaleBookings()
     }
 
-    /** Cancel PENDING bookings older than 2 hours */
+    /** Cancel PENDING bookings older than 2 hours or past their scheduled booking date */
     private fun autoCancelStaleBookings() {
         viewModelScope.launch {
             try {
                 val shopId = _currentOwnerShopId.value ?: return@launch
                 val cutoff = System.currentTimeMillis() - 2 * 60 * 60 * 1000L // 2 hours
+                val todayStart = BookingUtils.startOfDay(System.currentTimeMillis())
                 val snapshot = firestore.collection("bookings")
                     .whereEqualTo("shopId", shopId)
                     .whereEqualTo("status", "PENDING")
                     .get().await()
                 for (doc in snapshot.documents) {
                     val createdAt = doc.getLong("createdAt") ?: continue
-                    if (createdAt < cutoff) {
+                    val bookingDate = doc.getLong("bookingDate") ?: 0L
+                    val isPastDate = bookingDate > 0 && BookingUtils.startOfDay(bookingDate) < todayStart
+                    if (createdAt < cutoff || isPastDate) {
                         val bookingId = doc.id
                         firestore.collection("bookings").document(bookingId)
                             .update("status", "CANCELLED", "cancelledAt", System.currentTimeMillis())
                             .await()
-                        val bookingDate = doc.getLong("bookingDate")
-                        if (bookingDate != null) {
+                        if (bookingDate > 0) {
                             BookingLedgerService.release(firestore, shopId, bookingDate, bookingId)
                         }
                         // Notify customer

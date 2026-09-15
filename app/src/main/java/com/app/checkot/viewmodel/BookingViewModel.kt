@@ -103,7 +103,33 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 _userBookings.value = bookings
                 _userBookingsLoaded.value = true
                 Log.d(TAG, "Bookings updated in real-time: ${bookings.size} bookings")
+
+                autoCancelClientStaleBookings(bookings)
             }
+    }
+
+    private fun autoCancelClientStaleBookings(bookings: List<Booking>) {
+        val cutoff = System.currentTimeMillis() - 2 * 60 * 60 * 1000L // 2 hours
+        val todayStart = BookingUtils.startOfDay(System.currentTimeMillis())
+        val stalePending = bookings.filter { b ->
+            b.status == BookingStatus.PENDING && (b.createdAt < cutoff || BookingUtils.startOfDay(b.bookingDate) < todayStart)
+        }
+        if (stalePending.isEmpty()) return
+
+        viewModelScope.launch {
+            for (b in stalePending) {
+                try {
+                    firestore.collection("bookings").document(b.bookingId).update(
+                        "status", BookingStatus.CANCELLED,
+                        "cancelledAt", System.currentTimeMillis()
+                    ).await()
+                    BookingLedgerService.release(firestore, b.shopId, b.bookingDate, b.bookingId)
+                    Log.d(TAG, "🧹 Auto-cancelled stale pending booking: ${b.bookingId}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Failed to auto-cancel stale booking ${b.bookingId}: ${e.message}")
+                }
+            }
+        }
     }
 
     fun loadMoreBookings() {
