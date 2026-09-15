@@ -105,7 +105,6 @@ fun BookServiceScreen(
 
     var currentShopCustomization by remember { mutableStateOf<ShopCustomization?>(null) }
     var selectedDate by remember { mutableStateOf(System.currentTimeMillis()) }
-    var dateBookings by remember { mutableStateOf<List<Booking>>(emptyList()) }
 
     // Real-time listener for shop services — updates instantly when owner changes services
     DisposableEffect(shopId) {
@@ -149,19 +148,19 @@ fun BookServiceScreen(
         }
     }
 
+    var daySlotEntries by remember { mutableStateOf<List<DaySlotEntry>>(emptyList()) }
+
     DisposableEffect(shopId, selectedDate) {
         if (shopId.isEmpty()) return@DisposableEffect onDispose {}
-        val startOfDay = BookingUtils.startOfDay(selectedDate)
-        val endOfDay = startOfDay + 24 * 60 * 60 * 1000L - 1
-        val listener = firestore.collection("bookings")
-            .whereEqualTo("shopId", shopId)
-            .whereGreaterThanOrEqualTo("bookingDate", startOfDay)
-            .whereLessThanOrEqualTo("bookingDate", endOfDay)
+        val ledgerDocId = BookingUtils.ledgerDocId(shopId, selectedDate)
+        val listener = firestore.collection("day_slots").document(ledgerDocId)
             .addSnapshotListener { snapshot, _ ->
-                val list = snapshot?.documents?.mapNotNull { it.toObject(Booking::class.java) }
-                    ?.filter { it.status in listOf(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.IN_PROGRESS) }
-                    ?: emptyList()
-                dateBookings = list
+                if (snapshot != null && snapshot.exists()) {
+                    val ledger = snapshot.toObject(DaySlotLedger::class.java)
+                    daySlotEntries = ledger?.entries.orEmpty()
+                } else {
+                    daySlotEntries = emptyList()
+                }
             }
         onDispose { listener.remove() }
     }
@@ -1263,7 +1262,7 @@ fun BookServiceScreen(
                             SlotBayStatusStrip(
                                 selectedSlot = selectedTimeSlot,
                                 maxBays = maxBays,
-                                dateBookings = dateBookings
+                                daySlotEntries = daySlotEntries
                             )
                         }
                     }
@@ -1822,14 +1821,20 @@ fun LiveShopBaysHeaderCard(
 fun SlotBayStatusStrip(
     selectedSlot: String,
     maxBays: Int,
-    dateBookings: List<Booking>
+    daySlotEntries: List<DaySlotEntry>
 ) {
     if (selectedSlot.isBlank()) return
 
-    val slotBookings = dateBookings.filter { it.timeSlot == selectedSlot }
-    val occupiedBays = slotBookings.mapNotNull { if (it.assignedBay > 0) it.assignedBay else null }.toSet()
-    val totalOccupiedCount = slotBookings.size.coerceAtMost(maxBays)
-    val freeCount = (maxBays - totalOccupiedCount).coerceAtLeast(0)
+    val slotMinutes = try { BookingUtils.parseTimeSlotToMinutesSince9AM(selectedSlot) } catch (_: Exception) { -1 }
+    if (slotMinutes < 0) return
+
+    val occupiedBayIndices = daySlotEntries
+        .filter { slotMinutes >= it.start && slotMinutes < it.end }
+        .map { it.bay }
+        .toSet()
+
+    val occupiedCount = occupiedBayIndices.size.coerceAtMost(maxBays)
+    val freeCount = (maxBays - occupiedCount).coerceAtLeast(0)
 
     Card(
         modifier = Modifier
@@ -1875,7 +1880,7 @@ fun SlotBayStatusStrip(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 (1..maxBays).forEach { bayNum ->
-                    val isBayOccupied = occupiedBays.contains(bayNum) || (bayNum <= totalOccupiedCount)
+                    val isBayOccupied = occupiedBayIndices.contains(bayNum - 1)
 
                     Surface(
                         modifier = Modifier
