@@ -683,7 +683,7 @@ fun BookingCard(
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
-                if (booking.assignedBay > 0) {
+                if (booking.assignedBay > 0 && (booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS)) {
                     Surface(
                         color = com.app.checkot.ui.theme.CheckotBadgeTeal.copy(alpha = 0.2f),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),

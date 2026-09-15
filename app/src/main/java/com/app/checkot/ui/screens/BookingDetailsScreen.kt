@@ -299,15 +299,17 @@ fun BookingDetailsScreen(
 
             // Bay Assignment Card (for active bookings)
             if (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS) {
+                val isConfirmedOrActive = booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS
+                val showBayToClient = booking.assignedBay > 0 && isConfirmedOrActive
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (booking.assignedBay > 0) Color(0xFF00E6C3).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            containerColor = if (showBayToClient) Color(0xFF00E6C3).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                         ),
                         border = androidx.compose.foundation.BorderStroke(
                             width = 1.dp,
-                            color = if (booking.assignedBay > 0) Color(0xFF00E6C3) else MaterialTheme.colorScheme.outlineVariant
+                            color = if (showBayToClient) Color(0xFF00E6C3) else MaterialTheme.colorScheme.outlineVariant
                         )
                     ) {
                         Row(
@@ -317,7 +319,7 @@ fun BookingDetailsScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Surface(
-                                color = if (booking.assignedBay > 0) Color(0xFF00E6C3) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                                color = if (showBayToClient) Color(0xFF00E6C3) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
                                 shape = androidx.compose.foundation.shape.CircleShape,
                                 modifier = Modifier.size(44.dp)
                             ) {
@@ -325,14 +327,14 @@ fun BookingDetailsScreen(
                                     Icon(
                                         imageVector = Icons.Default.DirectionsCar,
                                         contentDescription = null,
-                                        tint = if (booking.assignedBay > 0) Color(0xFF0D1B2A) else MaterialTheme.colorScheme.onSurface,
+                                        tint = if (showBayToClient) Color(0xFF0D1B2A) else MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.size(24.dp)
                                     )
                                 }
                             }
                             Spacer(modifier = Modifier.width(14.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                if (booking.assignedBay > 0) {
+                                if (showBayToClient) {
                                     Text(
                                         text = "Proceed to Bay ${booking.assignedBay}",
                                         style = MaterialTheme.typography.titleMedium,
@@ -354,7 +356,7 @@ fun BookingDetailsScreen(
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = "The shop owner will assign your bay shortly.",
+                                        text = "The shop owner will assign your bay upon approval.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                     )
