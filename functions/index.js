@@ -11,6 +11,7 @@
 
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 
@@ -752,6 +753,52 @@ exports.syncLedger = onCall(
     }
     await cleanupLedgerEntries(shopId, bookingDate);
     return { success: true };
+  }
+);
+
+/**
+ * Scheduled Cloud Function (runs every 15 minutes 24/7)
+ * Automatically cancels PENDING bookings older than 2 hours or past their scheduled date,
+ * and releases their bay reservations from day_slots ledger.
+ */
+exports.autoCancelStaleBookingsCron = onSchedule(
+  {
+    schedule: "every 15 minutes",
+    timeZone: "Asia/Manila",
+    region: "asia-southeast1",
+  },
+  async (event) => {
+    const db = admin.firestore();
+    const cutoff = Date.now() - 2 * 60 * 60 * 1000; // 2 hours ago
+    const todayStart = new Date().setHours(0, 0, 0, 0);
+
+    try {
+      const snap = await db.collection("bookings")
+        .where("status", "==", "PENDING")
+        .get();
+
+      console.log(`⏰ Cron check: found ${snap.docs.length} PENDING bookings.`);
+
+      for (const doc of snap.docs) {
+        const data = doc.data();
+        const createdAt = data.createdAt || 0;
+        const bookingDate = data.bookingDate || 0;
+        const isPastDate = bookingDate > 0 && bookingDate < todayStart;
+
+        if (createdAt < cutoff || isPastDate) {
+          await doc.ref.update({
+            status: "CANCELLED",
+            cancelledAt: Date.now(),
+          });
+          if (data.shopId && data.bookingDate) {
+            await cleanupLedgerEntries(data.shopId, data.bookingDate);
+          }
+          console.log(`🧹 Cron auto-cancelled stale booking ${doc.id}`);
+        }
+      }
+    } catch (err) {
+      console.error("❌ Cron autoCancelStaleBookings failed:", err);
+    }
   }
 );
 
