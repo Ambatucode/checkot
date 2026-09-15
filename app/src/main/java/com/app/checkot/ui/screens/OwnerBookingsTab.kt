@@ -153,174 +153,198 @@ fun OwnerBookingsTab(
             }
         )
     }
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(paddingValues)
+            .padding(paddingValues),
+        contentPadding = PaddingValues(top = 8.dp, bottom = 110.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Stats summary card
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            )
-        ) {
-            Row(
+        item {
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                )
             ) {
-                val pendingCount = allBookings.count { it.status == BookingStatus.PENDING }
-                val confirmedCount = allBookings.count { it.status == BookingStatus.CONFIRMED }
-                val inProgressCount = allBookings.count { it.status == BookingStatus.IN_PROGRESS }
-                val todayCompleted = allBookings.count {
-                    it.status == BookingStatus.COMPLETED &&
-                    it.completedAt?.let { completed ->
-                        val cal = java.util.Calendar.getInstance()
-                        completed > cal.timeInMillis - 86400000
-                    } ?: false
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    val pendingCount = allBookings.count { it.status == BookingStatus.PENDING }
+                    val confirmedCount = allBookings.count { it.status == BookingStatus.CONFIRMED }
+                    val inProgressCount = allBookings.count { it.status == BookingStatus.IN_PROGRESS }
+                    val todayCompleted = allBookings.count {
+                        it.status == BookingStatus.COMPLETED &&
+                        it.completedAt?.let { completed ->
+                            val cal = java.util.Calendar.getInstance()
+                            completed > cal.timeInMillis - 86400000
+                        } ?: false
+                    }
+                    StatsBadge(label = "Pending", count = pendingCount, color = MaterialTheme.colorScheme.error)
+                    StatsBadge(label = "Active", count = confirmedCount + inProgressCount, color = MaterialTheme.colorScheme.primary)
+                    StatsBadge(label = "Done Today", count = todayCompleted, color = MaterialTheme.colorScheme.tertiary)
                 }
-                // Three distinct hues, not three shades of teal. Coral marks the
-                // queue that needs action (pending bookings auto-cancel after 2h),
-                // teal is work in flight, sparkle is settled.
-                StatsBadge(label = "Pending", count = pendingCount, color = MaterialTheme.colorScheme.error)
-                StatsBadge(label = "Active", count = confirmedCount + inProgressCount, color = MaterialTheme.colorScheme.primary)
-                StatsBadge(label = "Done Today", count = todayCompleted, color = MaterialTheme.colorScheme.tertiary)
             }
         }
 
         // Live Bay Occupancy & Walk-In Quick Controls
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
-            ),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "LIVE BAY OCCUPANCY (TODAY)",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "${customization.bayCount.coerceIn(1, 4)} Bays Active",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                val maxBays = customization.bayCount.coerceIn(1, 4)
-                val activeWalkIns = customization.activeWalkIns
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+                ),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "LIVE BAY OCCUPANCY (TODAY)",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "${customization.bayCount.coerceIn(1, 4)} Bays Active",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val maxBays = customization.bayCount.coerceIn(1, 4)
+                    val activeWalkIns = customization.activeWalkIns
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    (1..maxBays).forEach { bayNum ->
-                        val walkIn = activeWalkIns.find { it.bay == bayNum }
-                        val appBooking = allBookings.find {
-                            it.assignedBay == bayNum &&
-                            it.status in listOf(BookingStatus.CONFIRMED, BookingStatus.IN_PROGRESS)
-                        }
-                        val isWalkIn = walkIn != null
-                        val isAppBooked = appBooking != null
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        (1..maxBays).forEach { bayNum ->
+                            val walkIn = activeWalkIns.find { it.bay == bayNum }
+                            val appBooking = allBookings.find {
+                                it.assignedBay == bayNum &&
+                                it.status in listOf(BookingStatus.CONFIRMED, BookingStatus.IN_PROGRESS)
+                            }
+                            val isWalkIn = walkIn != null
+                            val isAppBooked = appBooking != null
 
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 72.dp)
-                                .clickable {
-                                    if (isWalkIn) {
-                                        ownerViewModel.toggleWalkInForBay(bayNum)
-                                    } else {
-                                        walkInDialogBay = bayNum
-                                    }
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 72.dp)
+                                    .clickable {
+                                        if (isWalkIn) {
+                                            ownerViewModel.toggleWalkInForBay(bayNum)
+                                        } else {
+                                            walkInDialogBay = bayNum
+                                        }
+                                    },
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                                color = when {
+                                    isWalkIn && isAppBooked -> Color(0xFF1E1E24)
+                                    isAppBooked -> Color(0xFF0F2530)
+                                    isWalkIn -> Color(0xFF2C1D18)
+                                    else -> MaterialTheme.colorScheme.surface
                                 },
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
-                            color = when {
-                                isWalkIn && isAppBooked -> Color(0xFF1E1E24)
-                                isAppBooked -> Color(0xFF0F2530)
-                                isWalkIn -> Color(0xFF2C1D18)
-                                else -> MaterialTheme.colorScheme.surface
-                            },
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                when {
-                                    isAppBooked -> Color(0xFF00E6C3)
-                                    isWalkIn -> Color(0xFFFF9800)
-                                    else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                                }
-                            )
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "Bay $bayNum",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = when {
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    when {
                                         isAppBooked -> Color(0xFF00E6C3)
-                                        isWalkIn -> Color(0xFFFFB74D)
-                                        else -> MaterialTheme.colorScheme.onSurface
+                                        isWalkIn -> Color(0xFFFF9800)
+                                        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                                     }
                                 )
-
-                                if (isWalkIn && isAppBooked) {
-                                    Surface(
-                                        color = Color(0xFFFF9800).copy(alpha = 0.25f),
-                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
-                                    ) {
-                                        Text(
-                                            text = "🚶 ${walkIn.remainingTimeText()}",
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = Color(0xFFFFB74D),
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                    Surface(
-                                        color = Color(0xFF00E6C3).copy(alpha = 0.25f),
-                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
-                                    ) {
-                                        Text(
-                                            text = "🚗 App",
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF00E6C3),
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                } else {
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.SpaceBetween
+                                ) {
                                     Text(
-                                        text = when {
-                                            isAppBooked -> "🚗 App"
-                                            isWalkIn -> "🚶 ${walkIn.remainingTimeText()}"
-                                            else -> "🟢 Free"
-                                        },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.SemiBold,
+                                        text = "Bay $bayNum",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
                                         color = when {
                                             isAppBooked -> Color(0xFF00E6C3)
                                             isWalkIn -> Color(0xFFFFB74D)
-                                            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                            else -> MaterialTheme.colorScheme.onSurface
                                         }
                                     )
+
+                                    if (isWalkIn && isAppBooked) {
+                                        Surface(
+                                            color = Color(0xFFFF9800).copy(alpha = 0.25f),
+                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            ) {
+                                                Icon(Icons.Default.Schedule, contentDescription = null, tint = Color(0xFFFFB74D), modifier = Modifier.size(10.dp))
+                                                Spacer(modifier = Modifier.width(2.dp))
+                                                Text(text = walkIn.remainingTimeText(), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFFFB74D))
+                                            }
+                                        }
+                                        Surface(
+                                            color = Color(0xFF00E6C3).copy(alpha = 0.25f),
+                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            ) {
+                                                Icon(Icons.Default.DirectionsCar, contentDescription = null, tint = Color(0xFF00E6C3), modifier = Modifier.size(10.dp))
+                                                Spacer(modifier = Modifier.width(2.dp))
+                                                Text(text = "BOOKED", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00E6C3))
+                                            }
+                                        }
+                                    } else {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = when {
+                                                    isAppBooked -> Icons.Default.DirectionsCar
+                                                    isWalkIn -> Icons.Default.Schedule
+                                                    else -> Icons.Default.CheckCircle
+                                                },
+                                                contentDescription = null,
+                                                tint = when {
+                                                    isAppBooked -> Color(0xFF00E6C3)
+                                                    isWalkIn -> Color(0xFFFFB74D)
+                                                    else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                                },
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = when {
+                                                    isAppBooked -> "BOOKED"
+                                                    isWalkIn -> walkIn.remainingTimeText()
+                                                    else -> "FREE"
+                                                },
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = when {
+                                                    isAppBooked -> Color(0xFF00E6C3)
+                                                    isWalkIn -> Color(0xFFFFB74D)
+                                                    else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                                }
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -328,116 +352,112 @@ fun OwnerBookingsTab(
                 }
             }
         }
-        // Filter Chips — the chip's own selected state is the only selection
-        // indicator; a TabRow here used to draw a second, competing one.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            BookingFilter.entries.forEach { entry ->
-                val isSelected = filter == entry
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { filter = entry },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = if (isSelected) Icons.Default.Check else entry.icon,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    label = { Text(entry.label) }
-                )
+
+        // Filter Chips Row
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                BookingFilter.entries.forEach { entry ->
+                    val isSelected = filter == entry
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { filter = entry },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = if (isSelected) Icons.Default.Check else entry.icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        label = { Text(entry.label) }
+                    )
+                }
             }
         }
         // Bookings List
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 110.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            if (!allBookingsLoaded) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+        if (!allBookingsLoaded) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                }
+            }
+        } else if (filteredBookings.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.BookmarkBorder,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            "No bookings found",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Bookings in this category will appear here",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                        )
                     }
                 }
-            } else if (filteredBookings.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.BookmarkBorder,
-                                contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                "No bookings found",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                "Bookings in this category will appear here",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                            )
-                        }
+            }
+        } else {
+            items(
+                items = filteredBookings,
+                key = { it.bookingId }
+            ) { booking ->
+                OwnerBookingCard(
+                    booking = booking,
+                    customerName = customerNames[booking.userId] ?: "",
+                    queuePosition = queuePositions[booking.bookingId] ?: 0,
+                    staffNames = customization.staffNames,
+                    bayCount = customization.bayCount,
+                    onAssignBay = { bay -> ownerViewModel.assignBayToBooking(booking.bookingId, bay) },
+                    onNoShow = { ownerViewModel.markNoShow(booking.bookingId) },
+                    onApprove = {
+                        ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.CONFIRMED)
+                    },
+                    onReject = {
+                        ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.CANCELLED)
+                    },
+                    onStart = { staff ->
+                        ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.IN_PROGRESS, staff)
+                    },
+                    onComplete = {
+                        ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.COMPLETED)
+                    },
+                    onMarkPaid = {
+                        ownerViewModel.markBookingPaid(booking.bookingId)
+                    },
+                    onChat = {
+                        val name = customerNames[booking.userId] ?: "Customer"
+                        val encodedRecipient = try { java.net.URLEncoder.encode(name, "UTF-8") } catch (_: Exception) { "Customer" }
+                        val encodedCar = try { java.net.URLEncoder.encode(booking.carDetails, "UTF-8") } catch (_: Exception) { "" }
+                        val chatId = "${booking.shopId}_${booking.userId}"
+                        val route = "chat/$chatId?bookingId=${booking.bookingId}&shopId=${booking.shopId}&customerId=${booking.userId}&recipientName=$encodedRecipient&carDetails=$encodedCar"
+                        navController.navigate(route)
                     }
-                }
-            } else {
-                items(
-                    items = filteredBookings,
-                    key = { it.bookingId }
-                ) { booking ->
-                    OwnerBookingCard(
-                        booking = booking,
-                        customerName = customerNames[booking.userId] ?: "",
-                        queuePosition = queuePositions[booking.bookingId] ?: 0,
-                        staffNames = customization.staffNames,
-                        bayCount = customization.bayCount,
-                        onAssignBay = { bay -> ownerViewModel.assignBayToBooking(booking.bookingId, bay) },
-                        onNoShow = { ownerViewModel.markNoShow(booking.bookingId) },
-                        onApprove = {
-                            ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.CONFIRMED)
-                        },
-                        onReject = {
-                            ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.CANCELLED)
-                        },
-                        onStart = { staff ->
-                            ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.IN_PROGRESS, staff)
-                        },
-                        onComplete = {
-                            ownerViewModel.updateBookingStatus(booking.bookingId, BookingStatus.COMPLETED)
-                        },
-                        onMarkPaid = {
-                            ownerViewModel.markBookingPaid(booking.bookingId)
-                        },
-                        onChat = {
-                            val name = customerNames[booking.userId] ?: "Customer"
-                            val encodedRecipient = try { java.net.URLEncoder.encode(name, "UTF-8") } catch (_: Exception) { "Customer" }
-                            val encodedCar = try { java.net.URLEncoder.encode(booking.carDetails, "UTF-8") } catch (_: Exception) { "" }
-                            val chatId = "${booking.shopId}_${booking.userId}"
-                            val route = "chat/$chatId?bookingId=${booking.bookingId}&shopId=${booking.shopId}&customerId=${booking.userId}&recipientName=$encodedRecipient&carDetails=$encodedCar"
-                            navController.navigate(route)
-                        }
-                    )
-                }
+                )
             }
         }
     }
