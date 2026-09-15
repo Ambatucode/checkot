@@ -149,7 +149,8 @@ service cloud.firestore {
             .hasOnly(['status', 'confirmedAt',
                       'inProgressAt', 'completedAt',
                       'cancelledAt', 'servicedBy',
-                      'paymentStatus', 'paidAt']));
+                      'paymentStatus', 'paidAt',
+                      'assignedBay']));
 
       // --- DELETE ---
       // Nobody can hard-delete bookings from the client
