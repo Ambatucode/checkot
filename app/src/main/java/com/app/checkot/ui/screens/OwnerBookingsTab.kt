@@ -1395,8 +1395,17 @@ private fun BayScheduleGrid(
     onLogWalkIn: (Int) -> Unit
 ) {
     val maxBays = bayCount.coerceIn(1, 4)
+    val todayStart = remember { BookingUtils.startOfDay(System.currentTimeMillis()) }
+    var selectedDateMillis by remember { mutableStateOf(todayStart) }
+    val isToday = (selectedDateMillis == todayStart)
+
+    val dateFormat = remember { java.text.SimpleDateFormat("EEE, MMM d, yyyy", java.util.Locale.getDefault()) }
+    val dateText = remember(selectedDateMillis, isToday) {
+        val formatted = dateFormat.format(java.util.Date(selectedDateMillis))
+        if (isToday) "Today ($formatted)" else formatted
+    }
+
     val nowCal = java.util.Calendar.getInstance()
-    val todayStart = BookingUtils.startOfDay(nowCal.timeInMillis)
     val currentHour = nowCal.get(java.util.Calendar.HOUR_OF_DAY)
     val gridHours = (8..18).toList() // 8 AM to 6 PM
 
@@ -1410,6 +1419,62 @@ private fun BayScheduleGrid(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
+            // Date Selector Bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = { selectedDateMillis -= 86400000L },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Previous Day",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Text(
+                        text = dateText,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isToday) Color(0xFF00E6C3) else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                    IconButton(
+                        onClick = { selectedDateMillis += 86400000L },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.ArrowForward,
+                            contentDescription = "Next Day",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+
+                if (!isToday) {
+                    FilterChip(
+                        selected = true,
+                        onClick = { selectedDateMillis = todayStart },
+                        label = { Text("Jump to Today", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                        leadingIcon = {
+                            Icon(Icons.Default.Today, contentDescription = null, modifier = Modifier.size(14.dp))
+                        }
+                    )
+                }
+            }
+
+            HorizontalDivider(
+                modifier = Modifier.padding(bottom = 8.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+            )
+
+            // Grid Header: TIME / BAY 1 / BAY 2 ...
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -1445,7 +1510,7 @@ private fun BayScheduleGrid(
             Spacer(modifier = Modifier.height(8.dp))
 
             gridHours.forEach { hour ->
-                val isCurrentHour = (hour == currentHour)
+                val isCurrentHour = isToday && (hour == currentHour)
                 val hourLabel = BookingUtils.minutesToSlotLabel(hour * 60)
 
                 Row(
@@ -1493,7 +1558,7 @@ private fun BayScheduleGrid(
                             val bookingInSlot = allBookings.find { b ->
                                 b.assignedBay == bayNum &&
                                 b.status in listOf(BookingStatus.CONFIRMED, BookingStatus.IN_PROGRESS) &&
-                                BookingUtils.startOfDay(b.bookingDate) == todayStart &&
+                                BookingUtils.startOfDay(b.bookingDate) == selectedDateMillis &&
                                 run {
                                     val startMins = BookingUtils.parseTimeSlotToMinutes(b.timeSlot)
                                     val dur = if (b.durationMinutes > 0) b.durationMinutes else 30
@@ -1504,14 +1569,14 @@ private fun BayScheduleGrid(
                                 }
                             }
 
-                            val walkIn = if (isCurrentHour) activeWalkIns.find { it.bay == bayNum } else null
+                            val walkIn = if (isToday && isCurrentHour) activeWalkIns.find { it.bay == bayNum } else null
 
                             Surface(
                                 modifier = Modifier
                                     .weight(1f)
                                     .heightIn(min = 96.dp)
                                     .clickable {
-                                        if (bookingInSlot == null && walkIn == null) {
+                                        if (bookingInSlot == null && walkIn == null && isToday) {
                                             onLogWalkIn(bayNum)
                                         }
                                     },
