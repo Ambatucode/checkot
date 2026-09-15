@@ -402,8 +402,9 @@ fun BookingDetailsScreen(
                                             }
                                         }
                                         Spacer(modifier = Modifier.width(12.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
+                                         Column(modifier = Modifier.weight(1f)) {
                                             if (showBayToClient) {
+                                                val myBayWalkIn = shopCustomization?.activeWalkIns?.find { it.bay == booking.assignedBay }
                                                 Text(
                                                     text = "Proceed to Bay ${booking.assignedBay}",
                                                     style = MaterialTheme.typography.titleMedium,
@@ -412,7 +413,11 @@ fun BookingDetailsScreen(
                                                 )
                                                 Spacer(modifier = Modifier.height(2.dp))
                                                 Text(
-                                                    text = "Your vehicle is assigned to Bay ${booking.assignedBay}. Please drive directly to this bay on arrival.",
+                                                    text = if (myBayWalkIn != null) {
+                                                        "Your vehicle is assigned to Bay ${booking.assignedBay}. Bay ${booking.assignedBay} is currently finishing a walk-in service (~${myBayWalkIn.remainingTimeText()} left) and will be open for your arrival."
+                                                    } else {
+                                                        "Your vehicle is assigned to Bay ${booking.assignedBay}. Please drive directly to this bay on arrival."
+                                                    },
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                                 )
@@ -462,6 +467,7 @@ fun BookingDetailsScreen(
                                                     modifier = Modifier.weight(1f),
                                                     shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
                                                     color = when {
+                                                        isMyBay && isWalkIn -> Color(0xFF2C221A)
                                                         isMyBay -> Color(0xFF00E6C3).copy(alpha = 0.2f)
                                                         isWalkIn -> Color(0xFFFF9800).copy(alpha = 0.2f)
                                                         else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
@@ -469,6 +475,7 @@ fun BookingDetailsScreen(
                                                     border = androidx.compose.foundation.BorderStroke(
                                                         1.dp,
                                                         when {
+                                                            isMyBay && isWalkIn -> Color(0xFF00E6C3)
                                                             isMyBay -> Color(0xFF00E6C3)
                                                             isWalkIn -> Color(0xFFFF9800)
                                                             else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
@@ -484,6 +491,7 @@ fun BookingDetailsScreen(
                                                             style = MaterialTheme.typography.labelSmall,
                                                             fontWeight = FontWeight.Bold,
                                                             color = when {
+                                                                isMyBay && isWalkIn -> Color(0xFF00E6C3)
                                                                 isMyBay -> Color(0xFF00E6C3)
                                                                 isWalkIn -> Color(0xFFFFB74D)
                                                                 else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -491,13 +499,15 @@ fun BookingDetailsScreen(
                                                         )
                                                         Text(
                                                             text = when {
+                                                                isMyBay && isWalkIn -> "🚶 ${walkIn.remainingTimeText()} ➔ 🚗 YOU"
                                                                 isMyBay -> "🚗 YOU"
                                                                 isWalkIn -> "🚶 ${walkIn.remainingTimeText()}"
                                                                 else -> "🟢 Free"
                                                             },
-                                                            fontSize = 10.sp,
+                                                            fontSize = 9.sp,
                                                             fontWeight = FontWeight.SemiBold,
                                                             color = when {
+                                                                isMyBay && isWalkIn -> Color(0xFFFFB74D)
                                                                 isMyBay -> Color(0xFF00E6C3)
                                                                 isWalkIn -> Color(0xFFFFB74D)
                                                                 else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
