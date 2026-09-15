@@ -1751,12 +1751,21 @@ fun LiveShopBaysHeaderCard(
     val maxBays = (shopCustomization?.bayCount ?: 1).coerceIn(1, 4)
     val activeWalkIns = shopCustomization?.activeWalkIns ?: emptyList()
 
+    val nowCal = java.util.Calendar.getInstance()
+    val curMins = nowCal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + nowCal.get(java.util.Calendar.MINUTE)
+    val openMins = shopCustomization?.openMinutes ?: 540
+    val closeMins = shopCustomization?.closeMinutes ?: 1260
+    val isClosedNow = (shopCustomization?.isClosed == true) || (curMins < openMins || curMins >= closeMins)
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
+            containerColor = if (isClosedNow)
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            else
+                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
         ),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -1771,18 +1780,18 @@ fun LiveShopBaysHeaderCard(
                         Icons.Default.DirectionsCar,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = if (isClosedNow) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "LIVE SHOP BAYS (TODAY)",
+                        text = if (isClosedNow) "LIVE SHOP BAYS (CLOSED NOW)" else "LIVE SHOP BAYS (TODAY)",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = if (isClosedNow) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
                     )
                 }
                 Text(
-                    text = "$maxBays Bays Active",
+                    text = if (isClosedNow) "Opens ${BookingUtils.minutesToSlotLabel(openMins)}" else "$maxBays Bays Active",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
@@ -1794,7 +1803,7 @@ fun LiveShopBaysHeaderCard(
             ) {
                 (1..maxBays).forEach { bayNum ->
                     val walkIn = activeWalkIns.find { it.bay == bayNum }
-                    val isWalkIn = walkIn != null
+                    val isWalkIn = walkIn != null && !isClosedNow
 
                     Surface(
                         modifier = Modifier
@@ -1802,12 +1811,14 @@ fun LiveShopBaysHeaderCard(
                             .heightIn(min = 54.dp),
                         shape = RoundedCornerShape(8.dp),
                         color = when {
+                            isClosedNow -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                             isWalkIn -> Color(0xFF2C1D18)
                             else -> MaterialTheme.colorScheme.surface
                         },
                         border = BorderStroke(
                             1.dp,
                             when {
+                                isClosedNow -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
                                 isWalkIn -> Color(0xFFFF9800)
                                 else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                             }
@@ -1822,21 +1833,41 @@ fun LiveShopBaysHeaderCard(
                                 text = "Bay $bayNum",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isWalkIn) Color(0xFFFFB74D) else MaterialTheme.colorScheme.onSurface
+                                color = when {
+                                    isClosedNow -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    isWalkIn -> Color(0xFFFFB74D)
+                                    else -> MaterialTheme.colorScheme.onSurface
+                                }
                             )
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = if (isWalkIn) Icons.Default.Schedule else Icons.Default.CheckCircle,
+                                    imageVector = when {
+                                        isClosedNow -> Icons.Default.Lock
+                                        isWalkIn -> Icons.Default.Schedule
+                                        else -> Icons.Default.CheckCircle
+                                    },
                                     contentDescription = null,
-                                    tint = if (isWalkIn) Color(0xFFFFB74D) else MaterialTheme.colorScheme.primary,
+                                    tint = when {
+                                        isClosedNow -> MaterialTheme.colorScheme.onSurfaceVariant
+                                        isWalkIn -> Color(0xFFFFB74D)
+                                        else -> MaterialTheme.colorScheme.primary
+                                    },
                                     modifier = Modifier.size(11.dp)
                                 )
                                 Spacer(modifier = Modifier.width(2.dp))
                                 Text(
-                                     text = if (isWalkIn && walkIn != null) "🚶 ${walkIn.remainingTimeText()}" else "FREE",
+                                    text = when {
+                                        isClosedNow -> "CLOSED"
+                                        isWalkIn && walkIn != null -> "🚶 ${walkIn.remainingTimeText()}"
+                                        else -> "FREE"
+                                    },
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = if (isWalkIn) Color(0xFFFFB74D) else MaterialTheme.colorScheme.primary
+                                    color = when {
+                                        isClosedNow -> MaterialTheme.colorScheme.onSurfaceVariant
+                                        isWalkIn -> Color(0xFFFFB74D)
+                                        else -> MaterialTheme.colorScheme.primary
+                                    }
                                 )
                             }
                         }

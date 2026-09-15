@@ -276,6 +276,24 @@ fun OwnerBookingsTab(
                     val currentHour = nowCal.get(java.util.Calendar.HOUR_OF_DAY)
                     val currentMinute = nowCal.get(java.util.Calendar.MINUTE)
                     val currentMins = currentHour * 60 + currentMinute
+                    val isClosedNow = customization.isClosed || (currentMins < customization.openMinutes || currentMins >= customization.closeMinutes)
+
+                    if (isClosedNow) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ) {
+                            Text(
+                                text = "🌙 Shop is currently closed for the night (Operating Hours: ${BookingUtils.minutesToSlotLabel(customization.openMinutes)} - ${BookingUtils.minutesToSlotLabel(customization.closeMinutes)}). Live walk-ins are paused.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -309,15 +327,16 @@ fun OwnerBookingsTab(
                                 modifier = Modifier
                                     .weight(1f)
                                     .heightIn(min = 72.dp)
-                                    .clickable {
+                                    .clickable(enabled = !isClosedNow || isWalkIn) {
                                         if (isWalkIn) {
                                             confirmClearWalkInBay = bayNum
-                                        } else {
+                                        } else if (!isClosedNow) {
                                             walkInDialogBay = bayNum
                                         }
                                     },
                                 shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
                                 color = when {
+                                    isClosedNow -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                                     isWalkIn && isAppBookedNow -> Color(0xFF1E1E24)
                                     isAppBookedNow -> Color(0xFF0F2530)
                                     isWalkIn -> Color(0xFF2C1D18)
@@ -459,6 +478,9 @@ fun OwnerBookingsTab(
                     customerNames = customerNames,
                     bayCount = customization.bayCount,
                     activeWalkIns = customization.activeWalkIns,
+                    openMinutes = customization.openMinutes,
+                    closeMinutes = customization.closeMinutes,
+                    isShopClosed = customization.isClosed,
                     onLogWalkIn = { bayNum -> walkInDialogBay = bayNum }
                 )
             }
@@ -1392,6 +1414,9 @@ private fun BayScheduleGrid(
     customerNames: Map<String, String>,
     bayCount: Int,
     activeWalkIns: List<WalkInOccupancy>,
+    openMinutes: Int = 540,
+    closeMinutes: Int = 1260,
+    isShopClosed: Boolean = false,
     onLogWalkIn: (Int) -> Unit
 ) {
     val maxBays = bayCount.coerceIn(1, 4)
@@ -1407,6 +1432,9 @@ private fun BayScheduleGrid(
 
     val nowCal = java.util.Calendar.getInstance()
     val currentHour = nowCal.get(java.util.Calendar.HOUR_OF_DAY)
+    val currentMinute = nowCal.get(java.util.Calendar.MINUTE)
+    val currentMins = currentHour * 60 + currentMinute
+    val isClosedNow = isShopClosed || (currentMins < openMinutes || currentMins >= closeMinutes)
     val gridHours = (8..18).toList() // 8 AM to 6 PM
 
     Card(
@@ -1511,6 +1539,7 @@ private fun BayScheduleGrid(
 
             gridHours.forEach { hour ->
                 val isCurrentHour = isToday && (hour == currentHour)
+                val isPastHour = isToday && ((hour + 1) * 60 <= currentMins)
                 val hourLabel = BookingUtils.minutesToSlotLabel(hour * 60)
 
                 Row(
@@ -1534,7 +1563,11 @@ private fun BayScheduleGrid(
                                 text = hourLabel,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = if (isCurrentHour) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isCurrentHour) Color(0xFF00E6C3) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                color = when {
+                                    isCurrentHour -> Color(0xFF00E6C3)
+                                    isPastHour -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                    else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                },
                                 fontSize = 10.sp
                             )
                             if (isCurrentHour) {
@@ -1570,13 +1603,14 @@ private fun BayScheduleGrid(
                             }
 
                             val walkIn = if (isToday && isCurrentHour) activeWalkIns.find { it.bay == bayNum } else null
+                            val canClickCell = bookingInSlot == null && walkIn == null && isToday && !isPastHour && !isClosedNow
 
                             Surface(
                                 modifier = Modifier
                                     .weight(1f)
                                     .heightIn(min = 96.dp)
-                                    .clickable {
-                                        if (bookingInSlot == null && walkIn == null && isToday) {
+                                    .clickable(enabled = canClickCell) {
+                                        if (canClickCell) {
                                             onLogWalkIn(bayNum)
                                         }
                                     },
@@ -1585,6 +1619,7 @@ private fun BayScheduleGrid(
                                     bookingInSlot != null && walkIn != null -> Color(0xFF1E1E24)
                                     bookingInSlot != null -> Color(0xFF0F2530)
                                     walkIn != null -> Color(0xFF2C1D18)
+                                    isPastHour -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
                                     else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
                                 },
                                 border = androidx.compose.foundation.BorderStroke(
@@ -1592,6 +1627,7 @@ private fun BayScheduleGrid(
                                     when {
                                         bookingInSlot != null -> Color(0xFF00E6C3)
                                         walkIn != null -> Color(0xFFFF9800)
+                                        isPastHour -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f)
                                         else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
                                     }
                                 )
