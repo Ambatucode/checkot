@@ -83,6 +83,11 @@ fun OwnerBookingsTab(
     val queuePositions = remember(activeSorted) {
         activeSorted.mapIndexed { i, b -> b.bookingId to (i + 1) }.toMap()
     }
+    val activeAssignedBaysMap = remember(allBookings) {
+        allBookings
+            .filter { it.assignedBay > 0 && it.status in listOf(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.IN_PROGRESS) }
+            .associate { it.assignedBay to it.bookingId }
+    }
     var walkInDialogBay by remember { mutableStateOf<Int?>(null) }
     var confirmClearWalkInBay by remember { mutableStateOf<Int?>(null) }
 
@@ -467,6 +472,7 @@ fun OwnerBookingsTab(
                     queuePosition = queuePositions[booking.bookingId] ?: 0,
                     staffNames = customization.staffNames,
                     bayCount = customization.bayCount,
+                    activeAssignedBays = activeAssignedBaysMap,
                     onAssignBay = { bay -> ownerViewModel.assignBayToBooking(booking.bookingId, bay) },
                     onNoShow = { ownerViewModel.markNoShow(booking.bookingId) },
                     onApprove = {
@@ -505,6 +511,7 @@ fun OwnerBookingCard(
     customerName: String = "",
     queuePosition: Int = 0,
     bayCount: Int = 1,
+    activeAssignedBays: Map<Int, String> = emptyMap(),
     onAssignBay: (Int) -> Unit = {},
     onNoShow: () -> Unit = {},
     onApprove: () -> Unit,
@@ -1062,22 +1069,30 @@ fun OwnerBookingCard(
                                         safeAssignBay(0)
                                     }
                                 )
-                                val totalBays = bayCount.coerceAtLeast(1)
-                                (1..totalBays).forEach { bayNum ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = "Bay $bayNum ${if (booking.assignedBay == bayNum) "✓" else ""}",
-                                                fontWeight = if (booking.assignedBay == bayNum) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal
-                                            )
-                                        },
-                                        onClick = {
-                                            showBayMenu = false
-                                            safeAssignBay(bayNum)
-                                        }
-                                    )
-                                }
-                            }
+                                 val totalBays = bayCount.coerceAtLeast(1)
+                                 (1..totalBays).forEach { bayNum ->
+                                     val assignedBookingId = activeAssignedBays[bayNum]
+                                     val isOccupiedByOther = assignedBookingId != null && assignedBookingId != booking.bookingId
+                                     val statusLabel = when {
+                                         booking.assignedBay == bayNum -> " ✓"
+                                         isOccupiedByOther -> " (In Use)"
+                                         else -> ""
+                                     }
+                                     DropdownMenuItem(
+                                         text = {
+                                             Text(
+                                                 text = "Bay $bayNum$statusLabel",
+                                                 color = if (isOccupiedByOther && booking.assignedBay != bayNum) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface,
+                                                 fontWeight = if (booking.assignedBay == bayNum) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal
+                                             )
+                                         },
+                                         onClick = {
+                                             showBayMenu = false
+                                             safeAssignBay(bayNum)
+                                         }
+                                     )
+                                 }
+                             }
                         }
                     }
                 }

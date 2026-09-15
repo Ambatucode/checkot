@@ -517,6 +517,24 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                     Log.e(TAG, "❌ Security: assignBay on a booking not belonging to this shop. Blocked.")
                     return@launch
                 }
+                if (bayNumber > 0) {
+                    // Enforce 1 App Booking per Bay limit: unassign any existing active booking using this bay
+                    val activeConflictQuery = firestore.collection("bookings")
+                        .whereEqualTo("shopId", ownerShopId)
+                        .whereEqualTo("assignedBay", bayNumber)
+                        .get().await()
+
+                    for (conflictDoc in activeConflictQuery.documents) {
+                        if (conflictDoc.id != bookingId) {
+                            val status = conflictDoc.getString("status") ?: ""
+                            if (status in listOf("PENDING", "CONFIRMED", "IN_PROGRESS")) {
+                                conflictDoc.reference.update("assignedBay", 0).await()
+                                Log.d(TAG, "🔄 Auto-unassigned Bay $bayNumber from conflicting booking ${conflictDoc.id}")
+                            }
+                        }
+                    }
+                }
+
                 firestore.collection("bookings").document(bookingId).update("assignedBay", bayNumber).await()
                 Log.d(TAG, "✅ Booking $bookingId assigned to bay $bayNumber")
 
