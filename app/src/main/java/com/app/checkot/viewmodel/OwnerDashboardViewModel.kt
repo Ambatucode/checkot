@@ -495,12 +495,21 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    private var lastBayAssignmentTime: Long = 0L
+
     /**
      * Assigns a specific bay (1..bayCount) to a booking, or 0 to unassign.
      */
     fun assignBayToBooking(bookingId: String, bayNumber: Int) {
         viewModelScope.launch {
             try {
+                val now = System.currentTimeMillis()
+                if (now - lastBayAssignmentTime < 2000L) {
+                    Log.w(TAG, "⚠️ Rate limit: Bay assignment requested too quickly (${now - lastBayAssignmentTime}ms). Blocked.")
+                    return@launch
+                }
+                lastBayAssignmentTime = now
+
                 val doc = firestore.collection("bookings").document(bookingId).get().await()
                 val booking = doc.toObject(Booking::class.java)
                 val ownerShopId = _currentOwnerShopId.value
