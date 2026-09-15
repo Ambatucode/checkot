@@ -1259,10 +1259,13 @@ fun BookServiceScreen(
                     if (selectedTimeSlot.isNotBlank()) {
                         item {
                             val maxBays = (currentShopCustomization?.bayCount ?: 1).coerceIn(1, 4)
+                            val isToday = BookingUtils.startOfDay(selectedDate) == BookingUtils.startOfDay(System.currentTimeMillis())
                             SlotBayStatusStrip(
                                 selectedSlot = selectedTimeSlot,
                                 maxBays = maxBays,
-                                daySlotEntries = daySlotEntries
+                                daySlotEntries = daySlotEntries,
+                                activeWalkIns = currentShopCustomization?.activeWalkIns ?: emptyList(),
+                                isToday = isToday
                             )
                         }
                     }
@@ -1821,7 +1824,9 @@ fun LiveShopBaysHeaderCard(
 fun SlotBayStatusStrip(
     selectedSlot: String,
     maxBays: Int,
-    daySlotEntries: List<DaySlotEntry>
+    daySlotEntries: List<DaySlotEntry>,
+    activeWalkIns: List<WalkInOccupancy> = emptyList(),
+    isToday: Boolean = false
 ) {
     if (selectedSlot.isBlank()) return
 
@@ -1833,8 +1838,10 @@ fun SlotBayStatusStrip(
         .map { it.bay }
         .toSet()
 
-    val occupiedCount = occupiedBayIndices.size.coerceAtMost(maxBays)
-    val freeCount = (maxBays - occupiedCount).coerceAtLeast(0)
+    val activeWalkInBays = if (isToday) activeWalkIns.map { it.bay }.toSet() else emptySet()
+
+    val totalOccupiedCount = (1..maxBays).count { bayNum -> occupiedBayIndices.contains(bayNum - 1) || activeWalkInBays.contains(bayNum) }
+    val freeCount = (maxBays - totalOccupiedCount).coerceAtLeast(0)
 
     Card(
         modifier = Modifier
@@ -1880,17 +1887,27 @@ fun SlotBayStatusStrip(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 (1..maxBays).forEach { bayNum ->
-                    val isBayOccupied = occupiedBayIndices.contains(bayNum - 1)
+                    val isAppBooked = occupiedBayIndices.contains(bayNum - 1)
+                    val isWalkIn = activeWalkInBays.contains(bayNum)
+                    val isBayOccupied = isAppBooked || isWalkIn
 
                     Surface(
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 54.dp),
                         shape = RoundedCornerShape(8.dp),
-                        color = if (isBayOccupied) Color(0xFF1E1E24) else Color(0xFF0A2E28),
+                        color = when {
+                            isWalkIn -> Color(0xFF2C1D18)
+                            isAppBooked -> Color(0xFF1E1E24)
+                            else -> Color(0xFF0A2E28)
+                        },
                         border = BorderStroke(
                             1.dp,
-                            if (isBayOccupied) Color(0xFFFF9800) else Color(0xFF00E6C3).copy(alpha = 0.5f)
+                            when {
+                                isWalkIn -> Color(0xFFFF9800)
+                                isAppBooked -> Color(0xFF00E6C3).copy(alpha = 0.8f)
+                                else -> Color(0xFF00E6C3).copy(alpha = 0.3f)
+                            }
                         )
                     ) {
                         Column(
@@ -1902,21 +1919,41 @@ fun SlotBayStatusStrip(
                                 text = "Bay $bayNum",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isBayOccupied) Color(0xFFFFB74D) else Color(0xFF00E6C3)
+                                color = when {
+                                    isWalkIn -> Color(0xFFFFB74D)
+                                    isAppBooked -> Color(0xFF00E6C3)
+                                    else -> Color(0xFF00E6C3).copy(alpha = 0.8f)
+                                }
                             )
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = if (isBayOccupied) Icons.Default.DirectionsCar else Icons.Default.CheckCircle,
+                                    imageVector = when {
+                                        isWalkIn -> Icons.Default.Schedule
+                                        isAppBooked -> Icons.Default.DirectionsCar
+                                        else -> Icons.Default.CheckCircle
+                                    },
                                     contentDescription = null,
-                                    tint = if (isBayOccupied) Color(0xFFFFB74D) else Color(0xFF00E6C3),
+                                    tint = when {
+                                        isWalkIn -> Color(0xFFFFB74D)
+                                        isAppBooked -> Color(0xFF00E6C3)
+                                        else -> Color(0xFF00E6C3)
+                                    },
                                     modifier = Modifier.size(11.dp)
                                 )
                                 Spacer(modifier = Modifier.width(2.dp))
                                 Text(
-                                    text = if (isBayOccupied) "Booked" else "Available",
+                                    text = when {
+                                        isWalkIn -> "Walk-In"
+                                        isAppBooked -> "Booked"
+                                        else -> "Available"
+                                    },
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isBayOccupied) Color(0xFFFFB74D) else Color(0xFF00E6C3)
+                                    color = when {
+                                        isWalkIn -> Color(0xFFFFB74D)
+                                        isAppBooked -> Color(0xFF00E6C3)
+                                        else -> Color(0xFF00E6C3)
+                                    }
                                 )
                             }
                         }

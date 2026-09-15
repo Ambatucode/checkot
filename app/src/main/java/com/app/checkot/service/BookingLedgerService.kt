@@ -92,4 +92,35 @@ object BookingLedgerService {
             android.util.Log.e("BookingLedgerService", "❌ Failed to release booking $bookingId from ledger: ${e.message}")
         }
     }
+
+    /**
+     * Updates the bay index in [day_slots] ledger for [bookingId] when the owner assigns or changes a bay.
+     */
+    suspend fun updateBayAssignment(
+        firestore: FirebaseFirestore,
+        shopId: String,
+        date: Long,
+        bookingId: String,
+        newBayNumber: Int // 1-indexed (1..4)
+    ) {
+        if (shopId.isEmpty() || bookingId.isEmpty()) return
+        val ref = ledgerRef(firestore, shopId, date)
+        try {
+            firestore.runTransaction { transaction ->
+                val snap = transaction.get(ref)
+                if (!snap.exists()) return@runTransaction null
+                val ledger = snap.toObject(DaySlotLedger::class.java) ?: return@runTransaction null
+                val updatedEntries = ledger.entries.map { entry ->
+                    if (entry.bookingId == bookingId) {
+                        entry.copy(bay = if (newBayNumber > 0) newBayNumber - 1 else entry.bay)
+                    } else entry
+                }
+                transaction.set(ref, ledger.copy(entries = updatedEntries))
+                null
+            }.await()
+            android.util.Log.d("BookingLedgerService", "✅ Updated ledger bay for booking $bookingId -> bay $newBayNumber")
+        } catch (e: Exception) {
+            android.util.Log.e("BookingLedgerService", "❌ Failed to update ledger bay for booking $bookingId: ${e.message}")
+        }
+    }
 }

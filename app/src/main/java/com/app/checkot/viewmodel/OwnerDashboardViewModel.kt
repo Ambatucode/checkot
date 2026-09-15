@@ -536,6 +536,13 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 }
 
                 firestore.collection("bookings").document(bookingId).update("assignedBay", bayNumber).await()
+                com.app.checkot.service.BookingLedgerService.updateBayAssignment(
+                    firestore = firestore,
+                    shopId = ownerShopId,
+                    date = booking.bookingDate,
+                    bookingId = bookingId,
+                    newBayNumber = bayNumber
+                )
                 Log.d(TAG, "✅ Booking $bookingId assigned to bay $bayNumber")
 
                 // Only send an immediate "Bay Assigned" notification if the booking is ALREADY confirmed or in progress.
