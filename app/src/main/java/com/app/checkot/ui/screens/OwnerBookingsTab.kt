@@ -84,6 +84,41 @@ fun OwnerBookingsTab(
         activeSorted.mapIndexed { i, b -> b.bookingId to (i + 1) }.toMap()
     }
     var walkInDialogBay by remember { mutableStateOf<Int?>(null) }
+    var confirmClearWalkInBay by remember { mutableStateOf<Int?>(null) }
+
+    if (confirmClearWalkInBay != null) {
+        val bayNum = confirmClearWalkInBay!!
+        AlertDialog(
+            onDismissRequest = { confirmClearWalkInBay = null },
+            title = {
+                Text("Clear Walk-In for Bay $bayNum?", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    "Are you sure you want to clear the walk-in on Bay $bayNum? This will open the bay and update live status to FREE on customer screens.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        ownerViewModel.toggleWalkInForBay(bayNum)
+                        confirmClearWalkInBay = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Yes, Clear Walk-In")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearWalkInBay = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     if (walkInDialogBay != null) {
         val bayNum = walkInDialogBay!!
@@ -245,7 +280,7 @@ fun OwnerBookingsTab(
                                     .heightIn(min = 72.dp)
                                     .clickable {
                                         if (isWalkIn) {
-                                            ownerViewModel.toggleWalkInForBay(bayNum)
+                                            confirmClearWalkInBay = bayNum
                                         } else {
                                             walkInDialogBay = bayNum
                                         }
