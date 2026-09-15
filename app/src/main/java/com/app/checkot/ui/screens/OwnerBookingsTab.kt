@@ -240,6 +240,7 @@ fun OwnerBookingsTab(
                         Surface(
                             modifier = Modifier
                                 .weight(1f)
+                                .heightIn(min = 72.dp)
                                 .clickable {
                                     if (isWalkIn) {
                                         ownerViewModel.toggleWalkInForBay(bayNum)
@@ -247,17 +248,16 @@ fun OwnerBookingsTab(
                                         walkInDialogBay = bayNum
                                     }
                                 },
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
                             color = when {
-                                isWalkIn && isAppBooked -> Color(0xFF2C221A)
+                                isWalkIn && isAppBooked -> Color(0xFF1E1E24)
                                 isAppBooked -> Color(0xFF0F2530)
-                                isWalkIn -> Color(0xFF3E2723)
+                                isWalkIn -> Color(0xFF2C1D18)
                                 else -> MaterialTheme.colorScheme.surface
                             },
                             border = androidx.compose.foundation.BorderStroke(
                                 1.dp,
                                 when {
-                                    isWalkIn && isAppBooked -> Color(0xFF00E6C3)
                                     isAppBooked -> Color(0xFF00E6C3)
                                     isWalkIn -> Color(0xFFFF9800)
                                     else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
@@ -266,37 +266,62 @@ fun OwnerBookingsTab(
                         ) {
                             Column(
                                 modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
                                     text = "Bay $bayNum",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = when {
-                                        isWalkIn && isAppBooked -> Color(0xFF00E6C3)
                                         isAppBooked -> Color(0xFF00E6C3)
                                         isWalkIn -> Color(0xFFFFB74D)
                                         else -> MaterialTheme.colorScheme.onSurface
                                     }
                                 )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = when {
-                                        isWalkIn && isAppBooked -> "🚶 ${walkIn.remainingTimeText()} ➔ 🚗 App"
-                                        isAppBooked -> "🚗 App"
-                                        isWalkIn -> "🚶 ${walkIn.remainingTimeText()}"
-                                        else -> "🟢 Free"
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = when {
-                                        isWalkIn && isAppBooked -> Color(0xFFFFB74D)
-                                        isAppBooked -> Color(0xFF00E6C3)
-                                        isWalkIn -> Color(0xFFFFB74D)
-                                        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+
+                                if (isWalkIn && isAppBooked) {
+                                    Surface(
+                                        color = Color(0xFFFF9800).copy(alpha = 0.25f),
+                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "🚶 ${walkIn.remainingTimeText()}",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color(0xFFFFB74D),
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                        )
                                     }
-                                )
+                                    Surface(
+                                        color = Color(0xFF00E6C3).copy(alpha = 0.25f),
+                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "🚗 App",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF00E6C3),
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                } else {
+                                    Text(
+                                        text = when {
+                                            isAppBooked -> "🚗 App"
+                                            isWalkIn -> "🚶 ${walkIn.remainingTimeText()}"
+                                            else -> "🟢 Free"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = when {
+                                            isAppBooked -> Color(0xFF00E6C3)
+                                            isWalkIn -> Color(0xFFFFB74D)
+                                            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

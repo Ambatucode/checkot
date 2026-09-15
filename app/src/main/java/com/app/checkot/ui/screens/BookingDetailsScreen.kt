@@ -467,18 +467,19 @@ fun BookingDetailsScreen(
                                                 val isWalkIn = walkIn != null
 
                                                 Surface(
-                                                    modifier = Modifier.weight(1f),
-                                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .heightIn(min = 72.dp),
+                                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
                                                     color = when {
-                                                        isMyBay && isWalkIn -> Color(0xFF2C221A)
-                                                        isMyBay -> Color(0xFF00E6C3).copy(alpha = 0.2f)
-                                                        isWalkIn -> Color(0xFFFF9800).copy(alpha = 0.2f)
-                                                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                                        isMyBay && isWalkIn -> Color(0xFF1E1E24)
+                                                        isMyBay -> Color(0xFF0F2530)
+                                                        isWalkIn -> Color(0xFF2C1D18)
+                                                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                                                     },
                                                     border = androidx.compose.foundation.BorderStroke(
                                                         1.dp,
                                                         when {
-                                                            isMyBay && isWalkIn -> Color(0xFF00E6C3)
                                                             isMyBay -> Color(0xFF00E6C3)
                                                             isWalkIn -> Color(0xFFFF9800)
                                                             else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
@@ -486,36 +487,62 @@ fun BookingDetailsScreen(
                                                     )
                                                 ) {
                                                     Column(
-                                                        modifier = Modifier.padding(vertical = 6.dp, horizontal = 2.dp),
-                                                        horizontalAlignment = Alignment.CenterHorizontally
+                                                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+                                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                                        verticalArrangement = Arrangement.SpaceBetween
                                                     ) {
                                                         Text(
                                                             text = "Bay $bayNum",
                                                             style = MaterialTheme.typography.labelSmall,
                                                             fontWeight = FontWeight.Bold,
                                                             color = when {
-                                                                isMyBay && isWalkIn -> Color(0xFF00E6C3)
                                                                 isMyBay -> Color(0xFF00E6C3)
                                                                 isWalkIn -> Color(0xFFFFB74D)
                                                                 else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                                             }
                                                         )
-                                                        Text(
-                                                            text = when {
-                                                                isMyBay && isWalkIn -> "🚶 ${walkIn.remainingTimeText()} ➔ 🚗 YOU"
-                                                                isMyBay -> "🚗 YOU"
-                                                                isWalkIn -> "🚶 ${walkIn.remainingTimeText()}"
-                                                                else -> "🟢 Free"
-                                                            },
-                                                            fontSize = 9.sp,
-                                                            fontWeight = FontWeight.SemiBold,
-                                                            color = when {
-                                                                isMyBay && isWalkIn -> Color(0xFFFFB74D)
-                                                                isMyBay -> Color(0xFF00E6C3)
-                                                                isWalkIn -> Color(0xFFFFB74D)
-                                                                else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+
+                                                        if (isMyBay && isWalkIn) {
+                                                            Surface(
+                                                                color = Color(0xFFFF9800).copy(alpha = 0.25f),
+                                                                shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                                                            ) {
+                                                                Text(
+                                                                    text = "🚶 ${walkIn.remainingTimeText()}",
+                                                                    fontSize = 9.sp,
+                                                                    fontWeight = FontWeight.SemiBold,
+                                                                    color = Color(0xFFFFB74D),
+                                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                                )
                                                             }
-                                                        )
+                                                            Surface(
+                                                                color = Color(0xFF00E6C3).copy(alpha = 0.25f),
+                                                                shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                                                            ) {
+                                                                Text(
+                                                                    text = "🚗 YOU",
+                                                                    fontSize = 9.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = Color(0xFF00E6C3),
+                                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                                )
+                                                            }
+                                                        } else {
+                                                            Text(
+                                                                text = when {
+                                                                    isMyBay -> "🚗 YOU"
+                                                                    isWalkIn -> "🚶 ${walkIn.remainingTimeText()}"
+                                                                    else -> "🟢 Free"
+                                                                },
+                                                                fontSize = 10.sp,
+                                                                fontWeight = FontWeight.SemiBold,
+                                                                color = when {
+                                                                    isMyBay -> Color(0xFF00E6C3)
+                                                                    isWalkIn -> Color(0xFFFFB74D)
+                                                                    else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                                                }
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
