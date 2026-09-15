@@ -381,12 +381,15 @@ fun BookingDetailsScreen(
                                     ),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Row(
+                                    Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                            .padding(12.dp)
                                     ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
                                         Surface(
                                             color = if (showBayToClient) Color(0xFF00E6C3) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
                                             shape = androidx.compose.foundation.shape.CircleShape,
@@ -525,8 +528,9 @@ fun BookingDetailsScreen(
                     }
                 }
             }
-            item {
-                ServiceProgressStepper(status = booking.status)
+        }
+        item {
+            ServiceProgressStepper(status = booking.status)
             }
             // Queue Position Card — only for active waiting bookings (PENDING or CONFIRMED)
             if (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED) {
