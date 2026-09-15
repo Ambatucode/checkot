@@ -252,6 +252,27 @@ fun BookServiceScreen(
     val shopRating = shopReviews.takeIf { it.isNotEmpty() }
         ?.let { reviews -> reviews.map { it.rating }.average() to reviews.size }
 
+    // Immediately clear selected slot and force step back to 3 if date changes
+    LaunchedEffect(selectedDate) {
+        selectedTimeSlot = ""
+        if (step > 3) {
+            step = 3
+        }
+    }
+
+    // Auto-invalidate selected slot if it becomes unavailable or disappears from availableTimeSlots
+    LaunchedEffect(availableTimeSlots, selectedTimeSlot) {
+        if (selectedTimeSlot.isNotEmpty()) {
+            val isStillAvailable = availableTimeSlots.any { it.slot == selectedTimeSlot && it.available }
+            if (!isStillAvailable) {
+                selectedTimeSlot = ""
+                if (step > 3) {
+                    step = 3
+                }
+            }
+        }
+    }
+
     LaunchedEffect(selectedDate, shopId, totalDurationMinutes, effectiveOpen, effectiveClose) {
         bookingViewModel.fetchAvailableTimeSlots(
             selectedDate, shopId, totalDurationMinutes, effectiveOpen, effectiveClose
@@ -530,9 +551,12 @@ fun BookServiceScreen(
         }
     }
 
-    // Booking form is valid only when a service, a car, and a time slot are chosen.
+    // Booking form is valid only when a service, a car, and an available time slot are chosen.
     val isBookingValid =
-        selectedServiceConfigs.isNotEmpty() && selectedCar != null && selectedTimeSlot.isNotEmpty()
+        selectedServiceConfigs.isNotEmpty() &&
+        selectedCar != null &&
+        selectedTimeSlot.isNotEmpty() &&
+        availableTimeSlots.any { it.slot == selectedTimeSlot && it.available }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -640,7 +664,7 @@ fun BookServiceScreen(
                             enabled = !isShopClosed && (if (step < 4) when (step) {
                                 1 -> selectedServiceConfigs.isNotEmpty()
                                 2 -> selectedCar != null
-                                3 -> selectedTimeSlot.isNotEmpty()
+                                3 -> selectedTimeSlot.isNotEmpty() && availableTimeSlots.any { it.slot == selectedTimeSlot && it.available }
                                 else -> true
                             } else isBookingValid),
                             isLoading = isCreating
@@ -1131,7 +1155,7 @@ fun BookServiceScreen(
                     item {
                         val today = java.time.LocalDate.now()
                         val dates = remember { (0..13).map { today.plusDays(it.toLong()) } }
-                        var selectedDateLocal by remember {
+                        var selectedDateLocal by remember(selectedDate) {
                             mutableStateOf(
                                 java.time.Instant.ofEpochMilli(selectedDate)
                                     .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
@@ -1139,9 +1163,12 @@ fun BookServiceScreen(
                         }
                         // Sync outward when date changes
                         LaunchedEffect(selectedDateLocal) {
-                            selectedDate = selectedDateLocal
+                            val newMillis = selectedDateLocal
                                 .atStartOfDay(java.time.ZoneId.systemDefault())
                                 .toInstant().toEpochMilli()
+                            if (selectedDate != newMillis) {
+                                selectedDate = newMillis
+                            }
                         }
                         Column {
                             androidx.compose.foundation.lazy.LazyRow(
