@@ -240,7 +240,7 @@ fun OwnerBookingCard(
     customerName: String = "",
     queuePosition: Int = 0,
     bayCount: Int = 1,
-    onAssignBay: (Int?) -> Unit = {},
+    onAssignBay: (Int) -> Unit = {},
     onNoShow: () -> Unit = {},
     onApprove: () -> Unit,
     onReject: () -> Unit,
@@ -703,10 +703,10 @@ fun OwnerBookingCard(
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                 )
                                 Text(
-                                    text = if (booking.assignedBay != null) "Bay ${booking.assignedBay}" else "Unassigned",
+                                    text = if (booking.assignedBay > 0) "Bay ${booking.assignedBay}" else "Unassigned",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                    color = if (booking.assignedBay != null) com.app.checkot.ui.theme.CheckotBadgeTeal else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                    color = if (booking.assignedBay > 0) com.app.checkot.ui.theme.CheckotBadgeTeal else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                                 )
                             }
                         }
@@ -718,7 +718,7 @@ fun OwnerBookingCard(
                                 shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
                             ) {
                                 Text(
-                                    text = if (booking.assignedBay != null) "Change Bay" else "Assign Bay",
+                                    text = if (booking.assignedBay > 0) "Change Bay" else "Assign Bay",
                                     style = MaterialTheme.typography.labelMedium
                                 )
                                 Icon(
@@ -735,7 +735,7 @@ fun OwnerBookingCard(
                                     text = { Text("Unassigned", color = MaterialTheme.colorScheme.error) },
                                     onClick = {
                                         showBayMenu = false
-                                        onAssignBay(null)
+                                        onAssignBay(0)
                                     }
                                 )
                                 val totalBays = bayCount.coerceAtLeast(1)
@@ -764,7 +764,7 @@ fun OwnerBookingCard(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = {
-                            if (booking.assignedBay == null) {
+                            if (booking.assignedBay <= 0) {
                                 showRequireBayDialog = true
                             } else {
                                 showApproveDialog = true

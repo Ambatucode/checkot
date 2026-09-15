@@ -103,8 +103,8 @@ data class Booking(
     // Server timestamp when the owner confirmed cash received. null = not yet.
     val paidAt: Long? = null,
     // --- Bay Assignment ---
-    // 1-based index of assigned bay (e.g. 1 for Bay 1, 2 for Bay 2). null = unassigned.
-    val assignedBay: Int? = null
+    // 1-based index of assigned bay (1 for Bay 1, 2 for Bay 2, etc.). 0 = unassigned.
+    val assignedBay: Int = 0
 )
 enum class ServiceType(
     val displayName: String,

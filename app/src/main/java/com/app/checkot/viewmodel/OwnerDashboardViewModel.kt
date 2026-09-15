@@ -393,7 +393,7 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 }
 
                 // Guardrail: Must assign a bay before confirming a booking
-                if (status == BookingStatus.CONFIRMED && booking.assignedBay == null) {
+                if (status == BookingStatus.CONFIRMED && booking.assignedBay <= 0) {
                     Log.e(TAG, "❌ Security: Cannot approve booking $bookingId without assigned bay. Blocked.")
                     return@launch
                 }
@@ -495,9 +495,9 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
     }
 
     /**
-     * Assigns a specific bay (1..bayCount) to a booking, or null to unassign.
+     * Assigns a specific bay (1..bayCount) to a booking, or 0 to unassign.
      */
-    fun assignBayToBooking(bookingId: String, bayNumber: Int?) {
+    fun assignBayToBooking(bookingId: String, bayNumber: Int) {
         viewModelScope.launch {
             try {
                 val doc = firestore.collection("bookings").document(bookingId).get().await()
@@ -510,7 +510,7 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 firestore.collection("bookings").document(bookingId).update("assignedBay", bayNumber).await()
                 Log.d(TAG, "✅ Booking $bookingId assigned to bay $bayNumber")
 
-                if (bayNumber != null && bayNumber != booking.assignedBay) {
+                if (bayNumber > 0 && bayNumber != booking.assignedBay) {
                     triggerPushNotification(
                         targetToken = "",
                         title = "Bay Assigned! 🚗",
