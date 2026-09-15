@@ -428,8 +428,9 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 val services = booking.services.joinToString(", ") { it.displayName }
                 val (title, body) = when (status) {
                     BookingStatus.CONFIRMED -> Pair(
-                        "Booking Confirmed!",
-                        "Your booking for $services has been confirmed."
+                        "Booking Confirmed! 🚗",
+                        if (booking.assignedBay > 0) "Your booking for $services has been confirmed. Proceed to Bay ${booking.assignedBay}!"
+                        else "Your booking for $services has been confirmed."
                     )
                     BookingStatus.IN_PROGRESS -> Pair(
                         "Service In Progress",
@@ -510,7 +511,9 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 firestore.collection("bookings").document(bookingId).update("assignedBay", bayNumber).await()
                 Log.d(TAG, "✅ Booking $bookingId assigned to bay $bayNumber")
 
-                if (bayNumber > 0 && bayNumber != booking.assignedBay) {
+                // Only send an immediate "Bay Assigned" notification if the booking is ALREADY confirmed or in progress.
+                // For PENDING bookings, the bay is quiet until the owner taps "Approve" (which sends the confirmation push).
+                if (bayNumber > 0 && bayNumber != booking.assignedBay && booking.status != BookingStatus.PENDING) {
                     triggerPushNotification(
                         targetToken = "",
                         title = "Bay Assigned! 🚗",
