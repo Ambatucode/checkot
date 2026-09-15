@@ -4,6 +4,7 @@ import com.app.checkot.viewmodel.*
 import com.app.checkot.navigation.*
 import com.app.checkot.utils.*
 import com.app.checkot.service.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
@@ -116,6 +119,111 @@ fun OwnerBookingsTab(
                 StatsBadge(label = "Pending", count = pendingCount, color = MaterialTheme.colorScheme.error)
                 StatsBadge(label = "Active", count = confirmedCount + inProgressCount, color = MaterialTheme.colorScheme.primary)
                 StatsBadge(label = "Done Today", count = todayCompleted, color = MaterialTheme.colorScheme.tertiary)
+            }
+        }
+
+        // Live Bay Occupancy & Walk-In Quick Controls
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+            ),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "LIVE BAY OCCUPANCY (TODAY)",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "${customization.bayCount.coerceIn(1, 4)} Bays Active",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                val maxBays = customization.bayCount.coerceIn(1, 4)
+                val activeWalkIns = customization.activeWalkIns
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    (1..maxBays).forEach { bayNum ->
+                        val walkIn = activeWalkIns.find { it.bay == bayNum }
+                        val appBooking = allBookings.find {
+                            it.assignedBay == bayNum &&
+                            it.status in listOf(BookingStatus.CONFIRMED, BookingStatus.IN_PROGRESS)
+                        }
+                        val isWalkIn = walkIn != null
+                        val isAppBooked = appBooking != null
+
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    if (!isAppBooked) {
+                                        ownerViewModel.toggleWalkInForBay(bayNum)
+                                    }
+                                },
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                            color = when {
+                                isAppBooked -> Color(0xFF0F2530)
+                                isWalkIn -> Color(0xFF3E2723)
+                                else -> MaterialTheme.colorScheme.surface
+                            },
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                when {
+                                    isAppBooked -> Color(0xFF00E6C3)
+                                    isWalkIn -> Color(0xFFFF9800)
+                                    else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                }
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "Bay $bayNum",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = when {
+                                        isAppBooked -> Color(0xFF00E6C3)
+                                        isWalkIn -> Color(0xFFFFB74D)
+                                        else -> MaterialTheme.colorScheme.onSurface
+                                    }
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = when {
+                                        isAppBooked -> "🚗 App"
+                                        isWalkIn -> "🚶 Walk-In"
+                                        else -> "🟢 Free"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = when {
+                                        isAppBooked -> Color(0xFF00E6C3)
+                                        isWalkIn -> Color(0xFFFFB74D)
+                                        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
         // Filter Chips — the chip's own selected state is the only selection

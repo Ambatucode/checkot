@@ -180,12 +180,20 @@ data class ShopCustomization(
     // Staff the owner can assign to a service when starting it. Display-only —
     // does not affect bay count or booking capacity.
     val staffNames: List<String> = emptyList(),
+    val activeWalkIns: List<WalkInOccupancy> = emptyList(),
     val isDeleted: Boolean = false,
     @get:PropertyName("isClosed")
     @set:PropertyName("isClosed")
     var isClosed: Boolean = false,
     val averageRating: Double = 0.0,
     val reviewCount: Int = 0
+)
+
+@Immutable
+data class WalkInOccupancy(
+    val bay: Int = 0,
+    val note: String = "Walk-In",
+    val occupiedAt: Long = 0
 )
 
 @Immutable

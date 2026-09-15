@@ -432,6 +432,82 @@ fun BookingDetailsScreen(
                                             }
                                         }
                                     }
+
+                                    val isBookingToday = BookingUtils.startOfDay(booking.bookingDate) == BookingUtils.startOfDay(System.currentTimeMillis())
+                                    if (isBookingToday && showBayToClient && shopCustomization != null) {
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Text(
+                                            text = "LIVE SHOP BAYS (TODAY)",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF00E6C3),
+                                            modifier = Modifier.padding(horizontal = 12.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        val maxBays = (shopCustomization?.bayCount ?: 1).coerceIn(1, 4)
+                                        val activeWalkIns = shopCustomization?.activeWalkIns ?: emptyList()
+
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            (1..maxBays).forEach { bayNum ->
+                                                val isMyBay = booking.assignedBay == bayNum
+                                                val isWalkIn = activeWalkIns.any { it.bay == bayNum }
+
+                                                Surface(
+                                                    modifier = Modifier.weight(1f),
+                                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                                                    color = when {
+                                                        isMyBay -> Color(0xFF00E6C3).copy(alpha = 0.2f)
+                                                        isWalkIn -> Color(0xFFFF9800).copy(alpha = 0.2f)
+                                                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                                    },
+                                                    border = androidx.compose.foundation.BorderStroke(
+                                                        1.dp,
+                                                        when {
+                                                            isMyBay -> Color(0xFF00E6C3)
+                                                            isWalkIn -> Color(0xFFFF9800)
+                                                            else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                                        }
+                                                    )
+                                                ) {
+                                                    Column(
+                                                        modifier = Modifier.padding(vertical = 6.dp, horizontal = 2.dp),
+                                                        horizontalAlignment = Alignment.CenterHorizontally
+                                                    ) {
+                                                        Text(
+                                                            text = "Bay $bayNum",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = when {
+                                                                isMyBay -> Color(0xFF00E6C3)
+                                                                isWalkIn -> Color(0xFFFFB74D)
+                                                                else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                                            }
+                                                        )
+                                                        Text(
+                                                            text = when {
+                                                                isMyBay -> "🚗 YOU"
+                                                                isWalkIn -> "🚶 Walk-In"
+                                                                else -> "🟢 Free"
+                                                            },
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = when {
+                                                                isMyBay -> Color(0xFF00E6C3)
+                                                                isWalkIn -> Color(0xFFFFB74D)
+                                                                else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                    }
                                 }
                             }
                         }

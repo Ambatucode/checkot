@@ -538,6 +538,25 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    fun toggleWalkInForBay(bayNumber: Int, note: String = "Walk-In") {
+        val shopId = _currentOwnerShopId.value ?: return
+        viewModelScope.launch {
+            try {
+                val currentCust = _shopCustomization.value
+                val currentWalkIns = currentCust.activeWalkIns.filter { it.bay != bayNumber }.toMutableList()
+                val isCurrentlyOccupied = currentCust.activeWalkIns.any { it.bay == bayNumber }
+                if (!isCurrentlyOccupied) {
+                    currentWalkIns.add(WalkInOccupancy(bay = bayNumber, note = note, occupiedAt = System.currentTimeMillis()))
+                }
+                firestore.collection("shop_services").document(shopId)
+                    .update("activeWalkIns", currentWalkIns).await()
+                Log.d(TAG, "✅ Walk-in status toggled for bay $bayNumber")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Failed to toggle walk-in for bay $bayNumber: ${e.message}")
+            }
+        }
+    }
+
     private val _saveResult = MutableStateFlow<String?>(null)
     val saveResult: StateFlow<String?> = _saveResult
 
