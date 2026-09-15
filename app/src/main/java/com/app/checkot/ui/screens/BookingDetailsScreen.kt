@@ -241,212 +241,199 @@ fun BookingDetailsScreen(
                 if (booking.status == BookingStatus.IN_PROGRESS) {
                     com.app.checkot.ui.components.LiveWashTimerCard(booking = booking)
                 } else {
-                    // Status Card (for PENDING, CONFIRMED, COMPLETED, CANCELLED)
+                    val isConfirmedOrActive = booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS
+                    val showBayToClient = booking.assignedBay > 0 && isConfirmedOrActive
+
+                    val arrivalText = remember(booking.bookingId, booking.status, booking.bookingDate, booking.timeSlot) {
+                        if (booking.status == BookingStatus.CONFIRMED) {
+                            try {
+                                val sdf = java.text.SimpleDateFormat("EEE, MMM d", java.util.Locale.getDefault())
+                                val dayOfWeekAndDate = sdf.format(java.util.Date(booking.bookingDate))
+                                "$dayOfWeekAndDate • ${booking.timeSlot}"
+                            } catch (e: Exception) {
+                                booking.timeSlot
+                            }
+                        } else ""
+                    }
+
+                    val countdownEnd = remember(booking.bookingId) {
+                        if (booking.status == BookingStatus.PENDING) booking.createdAt + 2 * 60 * 60 * 1000L else 0L
+                    }
+                    var countdownText by remember { mutableStateOf("") }
+                    LaunchedEffect(countdownEnd) {
+                        if (countdownEnd > 0) {
+                            while (countdownEnd > System.currentTimeMillis()) {
+                                val diff = countdownEnd - System.currentTimeMillis()
+                                val totalMin = (diff / 60000).toInt()
+                                countdownText = if (totalMin > 0) {
+                                    val h = totalMin / 60
+                                    val m = totalMin % 60
+                                    if (h > 0) "Auto-cancels in ${h}h ${m}m" else "Auto-cancels in ${m}m"
+                                } else "Cancelling soon..."
+                                kotlinx.coroutines.delay(1000)
+                            }
+                        }
+                    }
+
                     Card(
                         modifier = Modifier.fillMaxWidth(),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = when (booking.status) {
-                                BookingStatus.PENDING -> MaterialTheme.colorScheme.secondaryContainer
-                                BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.primaryContainer
-                                BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.tertiaryContainer
+                                BookingStatus.PENDING -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f)
+                                BookingStatus.CONFIRMED -> Color(0xFF0F2530)
+                                BookingStatus.IN_PROGRESS -> Color(0xFF0F2530)
                                 BookingStatus.COMPLETED -> MaterialTheme.colorScheme.surfaceVariant
-                                BookingStatus.CANCELLED -> MaterialTheme.colorScheme.errorContainer
+                                BookingStatus.CANCELLED -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f)
+                            }
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            width = 1.dp,
+                            color = when (booking.status) {
+                                BookingStatus.CONFIRMED, BookingStatus.IN_PROGRESS -> Color(0xFF00E6C3).copy(alpha = 0.5f)
+                                else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                             }
                         )
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(16.dp)
                         ) {
-                            Column {
-                                Text(
-                                    text = "Status",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                )
-                                Text(
-                                    text = booking.status.displayName,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                    color = when (booking.status) {
+                            // Top Row: Status + Animated Status Icon
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "STATUS",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = booking.status.displayName,
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = when (booking.status) {
+                                            BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
+                                            BookingStatus.CONFIRMED -> Color(0xFF00E6C3)
+                                            BookingStatus.IN_PROGRESS -> Color(0xFF00E6C3)
+                                            BookingStatus.COMPLETED -> MaterialTheme.colorScheme.onSurfaceVariant
+                                            BookingStatus.CANCELLED -> MaterialTheme.colorScheme.onErrorContainer
+                                        }
+                                    )
+                                }
+                                AnimatedStatusIcon(
+                                    status = booking.status,
+                                    modifier = Modifier.size(42.dp),
+                                    tint = when (booking.status) {
                                         BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
-                                        BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.onPrimaryContainer
-                                        BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.onTertiaryContainer
+                                        BookingStatus.CONFIRMED -> Color(0xFF00E6C3)
+                                        BookingStatus.IN_PROGRESS -> Color(0xFF00E6C3)
                                         BookingStatus.COMPLETED -> MaterialTheme.colorScheme.onSurfaceVariant
                                         BookingStatus.CANCELLED -> MaterialTheme.colorScheme.onErrorContainer
                                     }
                                 )
                             }
-                            AnimatedStatusIcon(
-                                status = booking.status,
-                                modifier = Modifier.size(48.dp),
-                                tint = when (booking.status) {
-                                    BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
-                                    BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.onPrimaryContainer
-                                    BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.onTertiaryContainer
-                                    BookingStatus.COMPLETED -> MaterialTheme.colorScheme.onSurfaceVariant
-                                    BookingStatus.CANCELLED -> MaterialTheme.colorScheme.onErrorContainer
-                                }
-                            )
-                        }
-                    }
-                }
-            }
 
-            // Bay Assignment Card (for active bookings)
-            if (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS) {
-                val isConfirmedOrActive = booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.IN_PROGRESS
-                val showBayToClient = booking.assignedBay > 0 && isConfirmedOrActive
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (showBayToClient) Color(0xFF00E6C3).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(
-                            width = 1.dp,
-                            color = if (showBayToClient) Color(0xFF00E6C3) else MaterialTheme.colorScheme.outlineVariant
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Surface(
-                                color = if (showBayToClient) Color(0xFF00E6C3) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                shape = androidx.compose.foundation.shape.CircleShape,
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.DirectionsCar,
-                                        contentDescription = null,
-                                        tint = if (showBayToClient) Color(0xFF0D1B2A) else MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.size(24.dp)
-                                    )
+                            // Arrival Date & Time Row (if CONFIRMED or PENDING countdown)
+                            if (arrivalText.isNotEmpty() || countdownText.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = if (booking.status == BookingStatus.CONFIRMED) Icons.Default.CalendarToday else Icons.Default.Timer,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = if (booking.status == BookingStatus.CONFIRMED) Color(0xFF00E6C3) else MaterialTheme.colorScheme.secondary
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = if (booking.status == BookingStatus.CONFIRMED) "Arrive: $arrivalText" else countdownText,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
                                 }
                             }
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                if (showBayToClient) {
-                                    Text(
-                                        text = "Proceed to Bay ${booking.assignedBay}",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "Your vehicle is assigned to Bay ${booking.assignedBay}. Please drive directly to this bay on arrival.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                    )
-                                } else {
-                                    Text(
-                                        text = "Bay Assignment Pending",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "The shop owner will assign your bay upon approval.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                    )
+
+                            // Inner Bay Prompt Banner (for active bookings)
+                            if (booking.status == BookingStatus.PENDING || booking.status == BookingStatus.CONFIRMED) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Surface(
+                                    color = if (showBayToClient) Color(0xFF00E6C3).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        width = 1.dp,
+                                        color = if (showBayToClient) Color(0xFF00E6C3).copy(alpha = 0.8f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            color = if (showBayToClient) Color(0xFF00E6C3) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                                            shape = androidx.compose.foundation.shape.CircleShape,
+                                            modifier = Modifier.size(38.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.DirectionsCar,
+                                                    contentDescription = null,
+                                                    tint = if (showBayToClient) Color(0xFF0D1B2A) else MaterialTheme.colorScheme.onSurface,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            if (showBayToClient) {
+                                                Text(
+                                                    text = "Proceed to Bay ${booking.assignedBay}",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = "Your vehicle is assigned to Bay ${booking.assignedBay}. Please drive directly to this bay on arrival.",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = "Bay Assignment Pending",
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = "The shop owner will assign your bay upon approval.",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    }
-                }
-            }
-
-            // Countdown / Arrival card
-            item {
-                val countdownEnd = remember(booking.bookingId) {
-                    if (booking.status == BookingStatus.PENDING) {
-                        booking.createdAt + 2 * 60 * 60 * 1000L
-                    } else {
-                        0L
-                    }
-                }
-                val arrivalText = remember(booking.bookingId, booking.status) {
-                    if (booking.status == BookingStatus.CONFIRMED) {
-                        try {
-                            val sdf = java.text.SimpleDateFormat("EEE, MMM d", java.util.Locale.getDefault())
-                            val dayOfWeekAndDate = sdf.format(java.util.Date(booking.bookingDate))
-                            "Arrive: $dayOfWeekAndDate • ${booking.timeSlot}"
-                        } catch (e: Exception) {
-                            "Arrive at ${booking.timeSlot}"
-                        }
-                    } else {
-                        ""
-                    }
-                }
-                var countdownText by remember { mutableStateOf("") }
-                LaunchedEffect(countdownEnd) {
-                    if (countdownEnd > 0) {
-                        while (countdownEnd > System.currentTimeMillis()) {
-                            val diff = countdownEnd - System.currentTimeMillis()
-                            val totalMin = (diff / 60000).toInt()
-                            countdownText = if (totalMin > 0) {
-                                val h = totalMin / 60
-                                val m = totalMin % 60
-                                if (h > 0) "Auto-cancels in ${h}h ${m}m" else "Auto-cancels in ${m}m"
-                            } else {
-                                "Cancelling soon..."
-                            }
-                            kotlinx.coroutines.delay(1000)
-                        }
-                    } else {
-                        countdownText = ""
-                    }
-                }
-
-                val displayText = if (booking.status == BookingStatus.CONFIRMED) arrivalText else countdownText
-
-                if (displayText.isNotEmpty()) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = when (booking.status) {
-                                BookingStatus.PENDING -> MaterialTheme.colorScheme.secondaryContainer
-                                BookingStatus.CONFIRMED -> Color(0xFF00E6C3).copy(alpha = 0.15f) // Sleek welcome teal container
-                                else -> MaterialTheme.colorScheme.surfaceVariant
-                            }
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = if (booking.status == BookingStatus.CONFIRMED) Icons.Default.CalendarToday else Icons.Default.Timer,
-                                contentDescription = null,
-                                tint = when (booking.status) {
-                                    BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
-                                    BookingStatus.CONFIRMED -> Color(0xFF00E6C3)
-                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = displayText,
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                color = when (booking.status) {
-                                    BookingStatus.PENDING -> MaterialTheme.colorScheme.onSecondaryContainer
-                                    BookingStatus.CONFIRMED -> Color(0xFF00E6C3)
-                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
                         }
                     }
                 }
