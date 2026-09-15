@@ -392,6 +392,12 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                     return@launch
                 }
 
+                // Guardrail: Must assign a bay before confirming a booking
+                if (status == BookingStatus.CONFIRMED && booking.assignedBay == null) {
+                    Log.e(TAG, "❌ Security: Cannot approve booking $bookingId without assigned bay. Blocked.")
+                    return@launch
+                }
+
                 // 2. Update status and timestamp
                 val updates = mutableMapOf<String, Any>("status" to status.name)
                 when (status) {

@@ -258,6 +258,7 @@ fun OwnerBookingCard(
     var showNoShowDialog by remember { mutableStateOf(false) }
     var showCancelConfirmedDialog by remember { mutableStateOf(false) }
     var showMarkPaidDialog by remember { mutableStateOf(false) }
+    var showRequireBayDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun runAction(action: () -> Unit) {
@@ -267,6 +268,19 @@ fun OwnerBookingCard(
             kotlinx.coroutines.delay(2000)
             isProcessing = false
         }
+    }
+
+    if (showRequireBayDialog) {
+        AlertDialog(
+            onDismissRequest = { showRequireBayDialog = false },
+            title = { Text("Bay Assignment Required") },
+            text = { Text("Please assign a bay (e.g. Bay 1, Bay 2) to this booking before approving it.") },
+            confirmButton = {
+                TextButton(onClick = { showRequireBayDialog = false }) {
+                    Text("OK")
+                }
+            }
+        )
     }
 
     if (showApproveDialog) {
@@ -749,7 +763,13 @@ fun OwnerBookingCard(
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
-                        onClick = { showApproveDialog = true },
+                        onClick = {
+                            if (booking.assignedBay == null) {
+                                showRequireBayDialog = true
+                            } else {
+                                showApproveDialog = true
+                            }
+                        },
                         modifier = Modifier.weight(1f),
                         enabled = !isProcessing,
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
