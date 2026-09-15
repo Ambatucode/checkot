@@ -39,8 +39,7 @@ data class CarWashShop(
     val isClosed: Boolean = false,
     val averageRating: Double = 0.0,
     val reviewCount: Int = 0,
-    val distanceKm: Double = 0.0,
-    val reservationFee: Double = 50.0
+    val distanceKm: Double = 0.0
 )
 
 enum class CarSize(val label: String, val sizeKey: String) {
@@ -97,15 +96,12 @@ data class Booking(
     // Staff member assigned when the service is started. Display-only: shown to
     // the client and owner, never gates bay capacity or scheduling.
     val servicedBy: String = "",
-    // --- Payment (PayMongo + Cash) ---
-    val paymentMethod: String = "PayMongo",
-    // "unpaid" until PayMongo payment succeeds or owner confirms cash received.
+    // --- Payment (cash only) ---
+    val paymentMethod: String = "Cash",
+    // "unpaid" until the owner confirms cash received at the shop.
     val paymentStatus: String = "unpaid",
-    // Server timestamp when payment was confirmed. null = not yet.
-    val paidAt: Long? = null,
-    val reservationFee: Double = 0.0,
-    val paymongoCheckoutId: String? = null,
-    val paymongoCheckoutUrl: String? = null
+    // Server timestamp when the owner confirmed cash received. null = not yet.
+    val paidAt: Long? = null
 )
 enum class ServiceType(
     val displayName: String,
@@ -186,8 +182,7 @@ data class ShopCustomization(
     @set:PropertyName("isClosed")
     var isClosed: Boolean = false,
     val averageRating: Double = 0.0,
-    val reviewCount: Int = 0,
-    val reservationFee: Double = 50.0
+    val reviewCount: Int = 0
 )
 
 @Immutable

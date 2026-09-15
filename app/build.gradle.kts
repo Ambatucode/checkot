@@ -17,8 +17,6 @@ val localProps = Properties().apply {
 // Google Maps API key. Missing key → maps render blank but the build still works.
 val mapsApiKey: String = localProps.getProperty("MAPS_API_KEY") ?: ""
 
-val paymongoSecretKey: String = localProps.getProperty("PAYMONGO_SECRET_KEY") ?: ""
-
 // Demo mode credentials: the app silently signs in as the configured demo role
 // and skips the login/signup screens. Uncomment exactly ONE role at a time in
 // local.properties (owner wins if both are set). Empty → demo mode off.
@@ -49,7 +47,9 @@ android {
         // Injected into AndroidManifest as the Maps API key placeholder.
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
 
-        buildConfigField("String", "PAYMONGO_SECRET_KEY", "\"${paymongoSecretKey.replace("\"", "\\\"")}\"")
+        // Demo mode (see AuthViewModel.init): the app auto-signs-in as a fixed
+        // demo customer. Exposed via BuildConfig so credentials never live in
+        // source control.
         buildConfigField("String", "DEMO_EMAIL", "\"${demoEmail.replace("\"", "\\\"")}\"")
         buildConfigField("String", "DEMO_PASSWORD", "\"${demoPassword.replace("\"", "\\\"")}\"")
         buildConfigField("String", "DEMO_OWNER_EMAIL", "\"${demoOwnerEmail.replace("\"", "\\\"")}\"")
