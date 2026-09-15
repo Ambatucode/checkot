@@ -2,9 +2,9 @@ name: Android CI/CD Build # Build Trigger: v4.2
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "feature/owner-walkins-transparency" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "feature/owner-walkins-transparency" ]
 
 permissions:
   contents: write
@@ -59,7 +59,7 @@ jobs:
         echo "version=$VERSION_NAME" >> $GITHUB_OUTPUT
 
     - name: Create GitHub Release and Upload APK
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/owner-walkins-transparency')
       uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ steps.get_version.outputs.version }}-test
