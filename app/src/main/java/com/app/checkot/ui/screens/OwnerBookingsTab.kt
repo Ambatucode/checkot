@@ -1127,20 +1127,26 @@ fun OwnerBookingCard(
             }
             if (booking.status == BookingStatus.CONFIRMED) {
                 Spacer(modifier = Modifier.height(16.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Button(
                         onClick = { showStartDialog = true },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1.2f),
                         enabled = !isProcessing,
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         if (isProcessing) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary)
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary)
                         } else {
-                            Icon(Icons.Default.PlayArrow, contentDescription = "Start Service", modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Start Service")
+                            Icon(Icons.Default.PlayArrow, contentDescription = "Start Service", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "Start Service",
+                                maxLines = 1,
+                                fontSize = 12.sp,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            )
                         }
                     }
                     OutlinedButton(
@@ -1148,12 +1154,18 @@ fun OwnerBookingCard(
                         modifier = Modifier.weight(1f),
                         enabled = !isProcessing,
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
                     ) {
-                        Icon(Icons.Default.Close, contentDescription = "Cancel", modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Cancel")
+                        Icon(Icons.Default.Close, contentDescription = "Cancel", modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = "Cancel",
+                            maxLines = 1,
+                            fontSize = 12.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
                     }
                     // Only show "No Show" if the time slot has passed (+ 30 min grace period)
                     val slotPast = remember(booking) {
@@ -1180,12 +1192,18 @@ fun OwnerBookingCard(
                             modifier = Modifier.weight(1f),
                             enabled = !isProcessing,
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
                         ) {
-                            Icon(Icons.Default.PersonOff, contentDescription = "No Show", modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("No Show")
+                            Icon(Icons.Default.PersonOff, contentDescription = "No Show", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "No Show",
+                                maxLines = 1,
+                                fontSize = 12.sp,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            )
                         }
                     }
                 }
