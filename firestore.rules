@@ -191,7 +191,7 @@ service cloud.firestore {
         && request.resource.data.services.size() <= 50
         && request.resource.data.bayCount is number
         && request.resource.data.bayCount >= 1
-        && request.resource.data.bayCount <= 10)
+        && request.resource.data.bayCount <= 4)
         || (isAdmin()
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly(['status']))

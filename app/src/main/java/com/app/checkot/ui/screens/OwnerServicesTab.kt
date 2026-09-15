@@ -374,11 +374,17 @@ fun OwnerServicesTab(
                     tint = CheckotTeal
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    "Service Bays",
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.weight(1f)
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Service Bays",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        "Max simultaneous cars (1–4)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
                 IconButton(
                     onClick = {
                         val current = bayCountText.toIntOrNull() ?: 1
@@ -399,12 +405,12 @@ fun OwnerServicesTab(
                 IconButton(
                     onClick = {
                         val current = bayCountText.toIntOrNull() ?: 1
-                        if (current < 10) {
+                        if (current < 4) {
                             bayCountText = (current + 1).toString()
                         }
                     },
                     modifier = Modifier.size(40.dp),
-                    enabled = (bayCountText.toIntOrNull() ?: 1) < 10
+                    enabled = (bayCountText.toIntOrNull() ?: 1) < 4
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Increase bay count", modifier = Modifier.size(16.dp))
                 }
