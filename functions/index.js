@@ -67,15 +67,12 @@ async function recordUsage(uid) {
   return newCount;
 }
 
-// Cheap, image-capable, current-gen (3.x) model. We use 3.1-flash-lite, NOT
-// 3.5: the 3.5/3.6 flash-lite line forces heavy "thinking" that makes it take
-// 80-90s+ even on a one-word prompt (measured: gemini-flash-lite-latest = 81.9s
-// on plain text) and it timed out. 3.1-flash-lite is the same 3.x generation,
-// answers in <1s, and has good longevity. This one string swaps the model.
-const MODEL = "gemini-3.1-flash-lite";
-
-const GEMINI_URL =
-  `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+// Model choices with automatic failover fallback if gemini-3.1-flash-lite experiences 503 high demand or temporary outage.
+const MODELS = [
+  "gemini-3.1-flash-lite",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+];
 
 // What we ask Gemini to judge. Kept tight to the agreed scope: cleanliness only
 // (exterior body + visible seats). Scratches, dents, and other damage are
@@ -205,20 +202,37 @@ exports.checkCar = onCall(
     };
 
     let response;
+    let successfulModel = "";
     const controller = new AbortController();
     const abortTimer = setTimeout(() => controller.abort(), 90_000);
     const t0 = Date.now();
     try {
-      response = await fetch(GEMINI_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": GEMINI_KEY.value(),
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-      console.log(`Gemini responded in ${Date.now() - t0}ms (${MODEL})`);
+      for (const modelName of MODELS) {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+        try {
+          const res = await fetch(geminiUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-goog-api-key": GEMINI_KEY.value(),
+            },
+            body: JSON.stringify(body),
+            signal: controller.signal,
+          });
+
+          if (res.ok) {
+            response = res;
+            successfulModel = modelName;
+            console.log(`Gemini responded in ${Date.now() - t0}ms (${modelName})`);
+            break;
+          }
+
+          const errText = await res.text();
+          console.warn(`Gemini (${modelName}) returned HTTP ${res.status}: ${errText}. Trying fallback model...`);
+        } catch (singleErr) {
+          console.warn(`Error calling Gemini (${modelName}):`, singleErr);
+        }
+      }
     } catch (err) {
       console.error(
         `Network/timeout error calling Gemini after ${Date.now() - t0}ms:`,
@@ -232,12 +246,10 @@ exports.checkCar = onCall(
       clearTimeout(abortTimer);
     }
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("Gemini returned", response.status, errText);
+    if (!response || !response.ok) {
       throw new HttpsError(
         "internal",
-        "The AI service returned an error. Please try again.",
+        "The AI service is temporarily busy. Please try again in a few moments.",
       );
     }
 
