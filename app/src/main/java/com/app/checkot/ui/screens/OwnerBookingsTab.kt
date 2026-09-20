@@ -287,7 +287,7 @@ fun OwnerBookingsTab(
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                         ) {
                             Text(
-                                text = "🌙 Shop is currently closed for the night (Operating Hours: ${BookingUtils.minutesToSlotLabel(customization.openMinutes)} - ${BookingUtils.minutesToSlotLabel(customization.closeMinutes)}). Live walk-ins are paused.",
+                                text = " Shop is currently closed for the night (Operating Hours: ${BookingUtils.minutesToSlotLabel(customization.openMinutes)} - ${BookingUtils.minutesToSlotLabel(customization.closeMinutes)}). Live walk-ins are paused.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(10.dp)
@@ -476,7 +476,7 @@ fun OwnerBookingsTab(
                 BayScheduleGrid(
                     allBookings = allBookings,
                     customerNames = customerNames,
-                    bayCount = customization.bayCount,
+                    bayCount = customization.bayCount.coerceIn(1, 4),
                     activeWalkIns = customization.activeWalkIns,
                     openMinutes = customization.openMinutes,
                     closeMinutes = customization.closeMinutes,
@@ -563,7 +563,7 @@ fun OwnerBookingsTab(
                         customerName = customerNames[booking.userId] ?: "",
                         queuePosition = queuePositions[booking.bookingId] ?: 0,
                         staffNames = customization.staffNames,
-                        bayCount = customization.bayCount,
+                        bayCount = customization.bayCount.coerceIn(1, 4),
                         activeAssignedBays = activeAssignedBaysMap,
                         onAssignBay = { bay -> ownerViewModel.assignBayToBooking(booking.bookingId, bay) },
                         onNoShow = { ownerViewModel.markNoShow(booking.bookingId) },
@@ -1162,7 +1162,7 @@ fun OwnerBookingCard(
                                         safeAssignBay(0)
                                     }
                                 )
-                                 val totalBays = bayCount.coerceAtLeast(1)
+                                 val totalBays = bayCount.coerceIn(1, 4)
                                  (1..totalBays).forEach { bayNum ->
                                      val assignedBookingId = activeAssignedBays[bayNum]
                                      val isOccupiedByOther = assignedBookingId != null && assignedBookingId != booking.bookingId
