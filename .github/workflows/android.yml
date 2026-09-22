@@ -2,9 +2,9 @@ name: Android CI/CD Build # Build Trigger: v4.2
 
 on:
   push:
-    branches: [ "main", "feature/owner-walkins-transparency", "feature/upwork-landing-ui" ]
+    branches: [ "main", "dev-integration", "feature/owner-walkins-transparency", "feature/upwork-landing-ui" ]
   pull_request:
-    branches: [ "main", "feature/owner-walkins-transparency", "feature/upwork-landing-ui" ]
+    branches: [ "main", "dev-integration", "feature/owner-walkins-transparency", "feature/upwork-landing-ui" ]
 
 permissions:
   contents: write
@@ -59,7 +59,7 @@ jobs:
         echo "version=$VERSION_NAME" >> $GITHUB_OUTPUT
 
     - name: Create GitHub Release and Upload APK
-      if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/owner-walkins-transparency' || github.ref == 'refs/heads/feature/upwork-landing-ui')
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev-integration' || github.ref == 'refs/heads/feature/owner-walkins-transparency' || github.ref == 'refs/heads/feature/upwork-landing-ui')
       uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ steps.get_version.outputs.version }}-test
