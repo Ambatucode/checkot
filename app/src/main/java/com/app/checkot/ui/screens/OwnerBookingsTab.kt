@@ -583,9 +583,11 @@ fun OwnerBookingsTab(
                             ownerViewModel.markBookingPaid(booking.bookingId)
                         },
                         onChat = {
-                            val name = customerNames[booking.userId] ?: "Customer"
-                            val encodedRecipient = try { java.net.URLEncoder.encode(name, "UTF-8") } catch (_: Exception) { "Customer" }
-                            val encodedCar = try { java.net.URLEncoder.encode(booking.carDetails, "UTF-8") } catch (_: Exception) { "" }
+                            val rawName = customerNames[booking.userId] ?: "Customer"
+                            val cleanCustomerName = try { java.net.URLDecoder.decode(rawName, "UTF-8") } catch (_: Exception) { rawName.replace("+", " ") }
+                            val encodedRecipient = try { android.net.Uri.encode(cleanCustomerName) } catch (_: Exception) { "Customer" }
+                            val cleanCar = try { java.net.URLDecoder.decode(booking.carDetails, "UTF-8") } catch (_: Exception) { booking.carDetails.replace("+", " ") }
+                            val encodedCar = try { android.net.Uri.encode(cleanCar) } catch (_: Exception) { "" }
                             val chatId = "${booking.shopId}_${booking.userId}"
                             val route = "chat/$chatId?bookingId=${booking.bookingId}&shopId=${booking.shopId}&customerId=${booking.userId}&recipientName=$encodedRecipient&carDetails=$encodedCar"
                             navController.navigate(route)

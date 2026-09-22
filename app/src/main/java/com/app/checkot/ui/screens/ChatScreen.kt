@@ -32,6 +32,15 @@ import java.util.Locale
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 
+private fun safeDecode(str: String): String {
+    if (str.isBlank()) return str
+    return try {
+        java.net.URLDecoder.decode(str, "UTF-8")
+    } catch (_: Exception) {
+        str.replace("+", " ")
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
@@ -46,6 +55,9 @@ fun ChatScreen(
     authViewModel: AuthViewModel = viewModel(),
     chatViewModel: ChatViewModel = viewModel()
 ) {
+    val decodedRecipientName = remember(recipientName) { safeDecode(recipientName) }
+    val decodedCarDetails = remember(carDetails) { safeDecode(carDetails) }
+
     val currentUserData by authViewModel.currentUserData.collectAsState()
     val currentUserId = com.google.firebase.ktx.Firebase.auth.currentUser?.uid ?: currentUserData?.userId ?: ""
     val currentUserRole = currentUserData?.role ?: "customer"
@@ -68,8 +80,8 @@ fun ChatScreen(
                 bookingId = bookingId,
                 shopId = shopId,
                 userId = targetUserId,
-                customerName = if (isCustomer) (currentUserData?.fullName ?: "Customer") else recipientName,
-                shopName = if (isCustomer) recipientName else ""
+                customerName = if (isCustomer) (currentUserData?.fullName ?: "Customer") else decodedRecipientName,
+                shopName = if (isCustomer) decodedRecipientName else ""
             )
             chatViewModel.markAsRead(chatId, isCustomer)
         }
@@ -94,12 +106,12 @@ fun ChatScreen(
                 title = {
                     Column {
                         Text(
-                            text = recipientName.ifBlank { "In-App Chat" },
+                            text = decodedRecipientName.ifBlank { "In-App Chat" },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
-                        if (carDetails.isNotBlank()) {
+                        if (decodedCarDetails.isNotBlank()) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     Icons.Default.DirectionsCar,
@@ -109,7 +121,7 @@ fun ChatScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = carDetails,
+                                    text = decodedCarDetails,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = Color.White.copy(alpha = 0.6f)
                                 )

@@ -173,11 +173,12 @@ fun UserChatsScreen(
                                         thread.chatId.ifBlank { thread.bookingId }
                                     }
                                     if (effectiveChatId.isNotBlank()) {
-                                        val recipientName = if (isOwner) {
+                                        val rawName = if (isOwner) {
                                             thread.customerName.ifBlank { "Customer" }
                                         } else {
                                             thread.shopName.ifBlank { "Car Wash Shop" }
                                         }
+                                        val recipientName = safeDecode(rawName)
                                         val encodedName = try { Uri.encode(recipientName) } catch (_: Exception) { "Chat" }
                                         val route = "chat/$effectiveChatId?bookingId=${thread.bookingId}&shopId=${thread.shopId}&customerId=${thread.userId}&recipientName=${encodedName}"
                                         navController.navigate(route)
@@ -192,6 +193,15 @@ fun UserChatsScreen(
     }
 }
 
+private fun safeDecode(str: String): String {
+    if (str.isBlank()) return str
+    return try {
+        java.net.URLDecoder.decode(str, "UTF-8")
+    } catch (_: Exception) {
+        str.replace("+", " ")
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatThreadRow(
@@ -199,11 +209,12 @@ private fun ChatThreadRow(
     isOwner: Boolean,
     onClick: () -> Unit
 ) {
-    val displayName = if (isOwner) {
+    val rawName = if (isOwner) {
         thread.customerName.ifBlank { "Customer" }
     } else {
         thread.shopName.ifBlank { "Car Wash Shop" }
     }
+    val displayName = safeDecode(rawName)
 
     val unreadCount = if (isOwner) thread.unreadCountOwner else thread.unreadCountCustomer
     val hasUnread = unreadCount > 0
