@@ -9,19 +9,25 @@ service firebase.storage {
     // the path on the uploader's uid.
     match /shop_logos/{uid}/{fileName} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null
+      allow create, update: if request.auth != null
         && request.auth.uid == uid
+        && request.resource != null
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null
+        && request.auth.uid == uid;
     }
 
     // Shop cover/banner images, same owner-keyed rule as logos.
     match /shop_banners/{uid}/{fileName} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null
+      allow create, update: if request.auth != null
         && request.auth.uid == uid
+        && request.resource != null
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null
+        && request.auth.uid == uid;
     }
 
     // Everything else denied.

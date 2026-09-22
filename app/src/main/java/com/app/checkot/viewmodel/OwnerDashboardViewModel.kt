@@ -177,6 +177,7 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                             BookingStatus.IN_PROGRESS -> 3
                             BookingStatus.COMPLETED -> 4    // History
                             BookingStatus.CANCELLED -> 5    // Lowest priority
+                            else -> 6
                         }
                     }.thenByDescending { it.createdAt } // Newest first within same priority group
                 )
@@ -203,9 +204,6 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
 
                 // Clean up inactive (COMPLETED/CANCELLED) bookings from day_slots ledger
                 sanitizeLedgerEntries(bookingsList)
-
-                // Auto-cancel stale pending bookings
-                autoCancelStaleBookings()
             }
     }
 
@@ -224,88 +222,6 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
 
     fun loadBookings() {
         setupRealTimeBookingsListener()
-        autoCancelStaleBookings()
-    }
-
-    /** Cancel PENDING bookings older than 2 hours or past their scheduled booking date */
-    private fun autoCancelStaleBookings() {
-        viewModelScope.launch {
-            try {
-                val shopId = _currentOwnerShopId.value ?: return@launch
-                val cutoff = System.currentTimeMillis() - 2 * 60 * 60 * 1000L // 2 hours
-                val todayStart = BookingUtils.startOfDay(System.currentTimeMillis())
-                val snapshot = firestore.collection("bookings")
-                    .whereEqualTo("shopId", shopId)
-                    .whereEqualTo("status", "PENDING")
-                    .get().await()
-                for (doc in snapshot.documents) {
-                    val createdAt = doc.getLong("createdAt") ?: continue
-                    val bookingDate = doc.getLong("bookingDate") ?: 0L
-                    val isPastDate = bookingDate > 0 && BookingUtils.startOfDay(bookingDate) < todayStart
-                    if (createdAt < cutoff || isPastDate) {
-                        val bookingId = doc.id
-                        firestore.collection("bookings").document(bookingId)
-                            .update("status", "CANCELLED", "cancelledAt", System.currentTimeMillis())
-                            .await()
-                        if (bookingDate > 0) {
-                            BookingLedgerService.release(firestore, shopId, bookingDate, bookingId)
-                        }
-                        // Notify customer
-                        val userId = doc.getString("userId") ?: ""
-                        triggerPushNotification(
-                            targetToken = "",
-                            title = "Booking Cancelled",
-                            body = "Your booking was cancelled because it wasn't approved in time.",
-                            bookingId = bookingId,
-                            targetUserId = userId
-                        )
-                        Log.d(TAG, "📬 Auto-cancelled stale booking $bookingId")
-                    }
-                }
-                // Also auto-cancel CONFIRMED bookings past their slot + 2 hours
-                val confirmedSnapshot = firestore.collection("bookings")
-                    .whereEqualTo("shopId", shopId)
-                    .whereEqualTo("status", "CONFIRMED")
-                    .get().await()
-                for (doc in confirmedSnapshot.documents) {
-                    val timeSlot = doc.getString("timeSlot") ?: continue
-                    val bookingDate = doc.getLong("bookingDate") ?: continue
-                    val confirmedAt = doc.getLong("confirmedAt") ?: 0L
-                    // Skip if confirmed less than 30 min ago (prevents immediate cancel after approval)
-                    if (confirmedAt > 0 && System.currentTimeMillis() - confirmedAt < 30 * 60 * 1000L) continue
-                    try {
-                        val (h, m) = BookingUtils.parseTimeSlotToHourMinute(timeSlot)
-                        val cal = java.util.Calendar.getInstance().apply {
-                            timeInMillis = bookingDate
-                            set(java.util.Calendar.HOUR_OF_DAY, h)
-                            set(java.util.Calendar.MINUTE, m)
-                            add(java.util.Calendar.MINUTE, 30) // grace period
-                            add(java.util.Calendar.HOUR_OF_DAY, 2) // 2 extra hours
-                        }
-                        if (cal.timeInMillis < System.currentTimeMillis()) {
-                            val bookingId = doc.id
-                            firestore.collection("bookings").document(bookingId)
-                                .update("status", "CANCELLED", "cancelledAt", System.currentTimeMillis())
-                                .await()
-                            BookingLedgerService.release(firestore, shopId, bookingDate, bookingId)
-                            val userId = doc.getString("userId") ?: ""
-                            triggerPushNotification(
-                                targetToken = "",
-                                title = "Booking Cancelled",
-                                body = "Your confirmed booking was cancelled because the service wasn't started in time.",
-                                bookingId = bookingId,
-                                targetUserId = userId
-                            )
-                            Log.d(TAG, "📬 Auto-cancelled stale confirmed booking $bookingId")
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "⚠️ Failed to parse slot for $timeSlot: ${e.message}")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "❌ Auto-cancel error: ${e.message}")
-            }
-        }
     }
 
     /** Mark a confirmed booking as no-show (past their time slot) */
