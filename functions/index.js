@@ -10,7 +10,7 @@
  */
 
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onDocumentUpdated, onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
@@ -358,6 +358,7 @@ exports.sendPushNotification = onCall(
       );
     }
 
+    const callerUid = request.auth.uid;
     const { targetToken, title, body, data } = request.data || {};
 
     if (!targetToken) {
@@ -373,7 +374,129 @@ exports.sendPushNotification = onCall(
       );
     }
 
-    // Build the FCM payload
+    const db = admin.firestore();
+
+    // Verify caller authorization: caller must be either the customer userId
+    // or shop ownerId associated with the target booking/shop/chat, or an admin.
+    const callerSnap = await db.collection("users").doc(callerUid).get();
+    const callerData = callerSnap.exists ? callerSnap.data() : {};
+    const callerRole = callerData.role || "";
+    const callerOwnedShopId = callerData.ownedShopId || "";
+
+    const bookingId = (data && data.bookingId) || request.data.bookingId;
+    const shopId = (data && data.shopId) || request.data.shopId;
+    const chatId = (data && data.chatId) || request.data.chatId;
+
+    let isAuthorized = callerRole === "admin";
+
+    if (!isAuthorized && bookingId) {
+      const bookingSnap = await db.collection("bookings").doc(bookingId).get();
+      if (bookingSnap.exists) {
+        const bookingData = bookingSnap.data();
+        const targetUserId = bookingData.userId;
+        const targetShopId = bookingData.shopId;
+
+        if (callerUid === targetUserId) {
+          isAuthorized = true;
+        } else if (callerOwnedShopId && callerOwnedShopId === targetShopId) {
+          isAuthorized = true;
+        } else {
+          const shopSnap = await db.collection("shop_services").doc(targetShopId).get();
+          if (shopSnap.exists && shopSnap.data().ownerId === callerUid) {
+            isAuthorized = true;
+          }
+        }
+      }
+    }
+
+    if (!isAuthorized && chatId) {
+      const chatSnap = await db.collection("chats").doc(chatId).get();
+      if (chatSnap.exists) {
+        const chatData = chatSnap.data();
+        if (callerUid === chatData.userId) {
+          isAuthorized = true;
+        } else if (callerOwnedShopId && callerOwnedShopId === chatData.shopId) {
+          isAuthorized = true;
+        } else if (chatData.shopId) {
+          const shopSnap = await db.collection("shop_services").doc(chatData.shopId).get();
+          if (shopSnap.exists && shopSnap.data().ownerId === callerUid) {
+            isAuthorized = true;
+          }
+        }
+      }
+    }
+
+    if (!isAuthorized && shopId) {
+      if (callerOwnedShopId && callerOwnedShopId === shopId) {
+        isAuthorized = true;
+      } else {
+        const shopSnap = await db.collection("shop_services").doc(shopId).get();
+        if (shopSnap.exists && shopSnap.data().ownerId === callerUid) {
+          isAuthorized = true;
+        } else {
+          const bookingCheck = await db.collection("bookings")
+            .where("shopId", "==", shopId)
+            .where("userId", "==", callerUid)
+            .limit(1)
+            .get();
+          const chatCheck = await db.collection("chats")
+            .where("shopId", "==", shopId)
+            .where("userId", "==", callerUid)
+            .limit(1)
+            .get();
+          if (!bookingCheck.empty || !chatCheck.empty) {
+            isAuthorized = true;
+          }
+        }
+      }
+    }
+
+    // Fallback if no specific entity ID was supplied in the payload: verify token recipient association
+    if (!isAuthorized && !bookingId && !shopId && !chatId) {
+      const shopOwnerTokenSnap = await db.collection("shop_services").where("ownerFcmToken", "==", targetToken).get();
+      if (!shopOwnerTokenSnap.empty) {
+        const shopData = shopOwnerTokenSnap.docs[0].data();
+        const targetShopId = shopOwnerTokenSnap.docs[0].id;
+        if (callerOwnedShopId === targetShopId || shopData.ownerId === callerUid) {
+          isAuthorized = true;
+        } else {
+          const customerBooking = await db.collection("bookings")
+            .where("shopId", "==", targetShopId)
+            .where("userId", "==", callerUid)
+            .limit(1)
+            .get();
+          if (!customerBooking.empty) isAuthorized = true;
+        }
+      }
+
+      if (!isAuthorized) {
+        const userTokenSnap = await db.collection("users").where("fcmToken", "==", targetToken).get();
+        if (!userTokenSnap.empty) {
+          const targetUserDoc = userTokenSnap.docs[0];
+          const targetUid = targetUserDoc.id;
+          if (targetUid === callerUid) {
+            isAuthorized = true;
+          } else if (callerOwnedShopId) {
+            const ownerBooking = await db.collection("bookings")
+              .where("shopId", "==", callerOwnedShopId)
+              .where("userId", "==", targetUid)
+              .limit(1)
+              .get();
+            if (!ownerBooking.empty) isAuthorized = true;
+          }
+        }
+      }
+    }
+
+    if (!isAuthorized) {
+      console.warn(`Unauthorized push notification attempt by user ${callerUid} to token ${targetToken.substring(0, 10)}...`);
+      throw new HttpsError(
+        "permission-denied",
+        "You are not authorized to send push notifications to this recipient.",
+      );
+    }
+
+    // Build FCM payload
     const message = {
       token: targetToken,
       notification: {
@@ -810,6 +933,257 @@ exports.autoCancelStaleBookingsCron = onSchedule(
       }
     } catch (err) {
       console.error("❌ Cron autoCancelStaleBookings failed:", err);
+    }
+  }
+);
+
+/**
+ * Shop Ownership Guard:
+ * Firestore trigger that runs whenever a new user document is created in users/{userId}.
+ * Prevents non-authorized users from self-assigning an existing ownedShopId belonging to another owner.
+ */
+exports.guardShopOwnership = onDocumentCreated(
+  {
+    document: "users/{userId}",
+    region: "asia-southeast1",
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const userData = snap.data();
+    if (!userData) return;
+
+    const userId = event.params.userId;
+    const { role, ownedShopId } = userData;
+
+    // Only inspect if ownedShopId is set
+    if (!ownedShopId || typeof ownedShopId !== "string" || ownedShopId.trim() === "") {
+      return;
+    }
+
+    const db = admin.firestore();
+
+    // Check if the shop exists in shop_services
+    const shopRef = db.collection("shop_services").doc(ownedShopId);
+    const shopSnap = await shopRef.get();
+
+    let isViolation = false;
+
+    if (shopSnap.exists) {
+      const shopData = shopSnap.data();
+      const existingOwnerId = shopData.ownerId;
+      // If shop already has an ownerId and it's not this user, it's a security violation
+      if (existingOwnerId && existingOwnerId !== userId) {
+        isViolation = true;
+      }
+    }
+
+    // Check if another existing user document already claims this ownedShopId as an owner
+    if (!isViolation) {
+      const existingOwnerQuery = await db.collection("users")
+        .where("ownedShopId", "==", ownedShopId)
+        .where("role", "==", "owner")
+        .get();
+
+      const otherOwnerDoc = existingOwnerQuery.docs.find(doc => doc.id !== userId);
+      if (otherOwnerDoc) {
+        isViolation = true;
+      }
+    }
+
+    if (isViolation) {
+      console.warn(`⚠️ SECURITY VIOLATION PREVENTED: User ${userId} attempted to self-assign existing ownedShopId '${ownedShopId}'.`);
+      await snap.ref.update({
+        ownedShopId: admin.firestore.FieldValue.delete(),
+        role: "customer",
+        securityNotice: "Self-assignment of existing shop ID was rejected by server security guard.",
+      });
+    }
+  }
+);
+
+/**
+ * Server-Side Bay Assignment & Booking Status Transition:
+ * Atomic Firestore transaction to assign a bay to a booking and update booking status.
+ * Ensures bay allocations and status updates run atomically on the server and prevents double-booking.
+ */
+exports.assignBayAndStatus = onCall(
+  {
+    region: "asia-southeast1",
+    memory: "256MiB",
+    timeoutSeconds: 60,
+    maxInstances: 10,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Please sign in to update booking status and bay assignments.",
+      );
+    }
+
+    const callerUid = request.auth.uid;
+    const { bookingId, newStatus, assignedBay, servicedBy, paymentStatus } = request.data || {};
+
+    if (!bookingId || typeof bookingId !== "string") {
+      throw new HttpsError("invalid-argument", "The bookingId parameter is required.");
+    }
+    if (!newStatus || typeof newStatus !== "string") {
+      throw new HttpsError("invalid-argument", "The newStatus parameter is required.");
+    }
+
+    const VALID_STATUSES = ["PENDING", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
+    if (!VALID_STATUSES.includes(newStatus)) {
+      throw new HttpsError("invalid-argument", `Invalid status '${newStatus}'. Must be one of: ${VALID_STATUSES.join(", ")}`);
+    }
+
+    const db = admin.firestore();
+    const bookingRef = db.collection("bookings").doc(bookingId);
+
+    let customerUserId = "";
+    let finalAssignedBay = null;
+
+    try {
+      await db.runTransaction(async (tx) => {
+        // 1. Fetch booking document
+        const bookingSnap = await tx.get(bookingRef);
+        if (!bookingSnap.exists) {
+          throw new HttpsError("not-found", "Booking not found.");
+        }
+        const booking = bookingSnap.data();
+        customerUserId = booking.userId;
+
+        // 2. Validate caller ownership
+        const userSnap = await tx.get(db.collection("users").doc(callerUid));
+        const userData = userSnap.exists ? userSnap.data() : {};
+        let isOwner = (userData.role === "owner" && userData.ownedShopId === booking.shopId) || userData.role === "admin";
+
+        if (!isOwner) {
+          const shopSnap = await tx.get(db.collection("shop_services").doc(booking.shopId));
+          if (shopSnap.exists && shopSnap.data().ownerId === callerUid) {
+            isOwner = true;
+          }
+        }
+
+        if (!isOwner) {
+          throw new HttpsError("permission-denied", "You are not authorized to update bookings for this shop.");
+        }
+
+        // 3. Handle Bay Assignment and Ledger overlap checks
+        const ledgerRef = db.collection("day_slots").doc(`${booking.shopId}_${booking.bookingDate}`);
+        const ledgerSnap = await tx.get(ledgerRef);
+        let ledger = ledgerSnap.exists ? ledgerSnap.data() : { shopId: booking.shopId, date: booking.bookingDate, entries: [] };
+        if (!ledger.entries) ledger.entries = [];
+
+        if (assignedBay !== undefined && assignedBay !== null && assignedBay !== "") {
+          const bayIndex = parseInt(assignedBay, 10);
+          if (isNaN(bayIndex) || bayIndex < 0) {
+            throw new HttpsError("invalid-argument", "Invalid bay number.");
+          }
+
+          const startMin = parseTimeSlotToMinutes(booking.timeSlot);
+          const endMin = startMin + (booking.durationMinutes || 30);
+
+          // Check for overlapping bookings on the same bay
+          const isConflict = ledger.entries.some(entry =>
+            entry.bookingId !== bookingId &&
+            entry.bay === bayIndex &&
+            startMin < entry.end &&
+            endMin > entry.start
+          );
+
+          if (isConflict) {
+            throw new HttpsError("already-exists", `Bay ${bayIndex + 1} is already assigned to another booking during this time slot.`);
+          }
+
+          finalAssignedBay = bayIndex;
+
+          // Update entry in ledger
+          const entryIdx = ledger.entries.findIndex(e => e.bookingId === bookingId);
+          if (entryIdx >= 0) {
+            ledger.entries[entryIdx].bay = bayIndex;
+          } else {
+            ledger.entries.push({ bay: bayIndex, start: startMin, end: endMin, bookingId: bookingId });
+          }
+        }
+
+        // 4. Update Booking Document
+        const now = Date.now();
+        const updates = {
+          status: newStatus,
+          updatedAt: now,
+        };
+
+        if (finalAssignedBay !== null) updates.assignedBay = finalAssignedBay;
+        if (servicedBy !== undefined) updates.servicedBy = servicedBy;
+        if (paymentStatus !== undefined) {
+          updates.paymentStatus = paymentStatus;
+          if (paymentStatus === "paid") updates.paidAt = now;
+        }
+
+        if (newStatus === "CONFIRMED" && !booking.confirmedAt) updates.confirmedAt = now;
+        if (newStatus === "IN_PROGRESS" && !booking.inProgressAt) updates.inProgressAt = now;
+        if (newStatus === "COMPLETED" && !booking.completedAt) updates.completedAt = now;
+        if (newStatus === "CANCELLED" && !booking.cancelledAt) updates.cancelledAt = now;
+
+        tx.update(bookingRef, updates);
+
+        // 5. Clean up ledger if COMPLETED or CANCELLED
+        if (newStatus === "COMPLETED" || newStatus === "CANCELLED") {
+          ledger.entries = ledger.entries.filter(e => e.bookingId !== bookingId);
+        }
+
+        tx.set(ledgerRef, ledger);
+      });
+
+      // Send status update notification to customer asynchronously
+      if (customerUserId) {
+        try {
+          const customerSnap = await db.collection("users").doc(customerUserId).get();
+          if (customerSnap.exists && customerSnap.data().fcmToken) {
+            const fcmToken = customerSnap.data().fcmToken;
+            let title = "Booking Update";
+            let body = `Your booking status is now ${newStatus}`;
+            if (newStatus === "CONFIRMED") {
+              title = "Booking Confirmed!";
+              body = finalAssignedBay !== null
+                ? `Your booking has been confirmed for Bay ${finalAssignedBay + 1}.`
+                : "Your booking has been confirmed by the shop.";
+            } else if (newStatus === "IN_PROGRESS") {
+              title = "Service Started!";
+              body = "Your vehicle service is now in progress.";
+            } else if (newStatus === "COMPLETED") {
+              title = "Service Completed!";
+              body = "Your car wash service is finished. Thank you!";
+            } else if (newStatus === "CANCELLED") {
+              title = "Booking Cancelled";
+              body = "Your booking has been cancelled.";
+            }
+
+            await admin.messaging().send({
+              token: fcmToken,
+              notification: { title, body },
+              data: { bookingId: bookingId, status: newStatus },
+              android: { priority: "high", notification: { channelId: "checkot_bookings", sound: "default" } },
+            });
+          }
+        } catch (pushErr) {
+          console.error("Failed to send customer notification on status change:", pushErr);
+        }
+      }
+
+      return {
+        success: true,
+        bookingId: bookingId,
+        status: newStatus,
+        assignedBay: finalAssignedBay,
+      };
+    } catch (error) {
+      console.error("assignBayAndStatus transaction failed:", error);
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+      throw new HttpsError("internal", `Failed to assign bay and status: ${error.message}`);
     }
   }
 );
