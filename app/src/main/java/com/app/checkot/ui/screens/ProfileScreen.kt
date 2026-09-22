@@ -65,6 +65,15 @@ fun ProfileScreen(
     var isSavingName by remember { mutableStateOf(false) }
     var saveNameError by remember { mutableStateOf<String?>(null) }
 
+    var selectedGuide by remember { mutableStateOf<com.app.checkot.ui.components.GuideTutorialItem?>(null) }
+
+    if (selectedGuide != null) {
+        com.app.checkot.ui.components.AppGuideDetailDialog(
+            guide = selectedGuide!!,
+            onDismiss = { selectedGuide = null }
+        )
+    }
+
     var updateAvailableVersion by remember { mutableStateOf<String?>(null) }
     var updateDownloadUrl by remember { mutableStateOf<String?>(null) }
 
@@ -698,6 +707,11 @@ fun ProfileScreen(
                         }
                     }
                 }
+            }
+            item {
+                com.app.checkot.ui.components.AppGuideSection(
+                    onGuideSelected = { selectedGuide = it }
+                )
             }
             item {
                 // Client-only navigation rows
