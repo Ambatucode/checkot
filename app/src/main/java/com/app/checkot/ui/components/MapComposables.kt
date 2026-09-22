@@ -46,10 +46,9 @@ import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
 
-// Fallback map center when no location is set yet — Valenzuela City, around the
-// Ugong / Gen. T. de Leon area (the project's locale). This is only the initial
-// camera position; no pin is placed here — the owner still taps to set the real one.
-private val DEFAULT_LOCATION = LatLng(14.6850, 120.9980)
+// Fallback map center when no location is set yet — Karuhatan, Valenzuela City
+// (the project's locale). This is only the initial camera position; no pin is placed here.
+private val DEFAULT_LOCATION = LatLng(14.6874, 120.9806)
 private const val DEFAULT_ZOOM = 13.5f
 
 /**

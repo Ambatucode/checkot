@@ -51,9 +51,9 @@ fun HomeScreen(
     val userData by authViewModel.currentUserData.collectAsState()
     val recentBookings by bookingViewModel.userBookings.collectAsState()
 
-    // User location state for distance calculation (defaults to Metro Manila center)
-    var userLat by remember { mutableStateOf(14.5995) }
-    var userLon by remember { mutableStateOf(120.9842) }
+    // User location state for distance calculation (defaults to Karuhatan, Valenzuela City)
+    var userLat by remember { mutableStateOf(14.6874) }
+    var userLon by remember { mutableStateOf(120.9806) }
 
     // Load shops and reviews from Firestore
     var shopList by remember { mutableStateOf<List<CarWashShop>>(emptyList()) }
