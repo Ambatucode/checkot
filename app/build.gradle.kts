@@ -39,8 +39,8 @@ android {
         applicationId = "com.app.checkot"
         minSdk = 26
         targetSdk = 36
-        versionCode = 50
-        versionName = "5.9"
+        versionCode = 51
+        versionName = "6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
