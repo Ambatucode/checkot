@@ -21,13 +21,23 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage
+
+    fun clearErrorMessage() {
+        _errorMessage.value = null
+    }
+
     fun updateUserProfile(updates: Map<String, Any>, onResult: (success: Boolean, error: String?) -> Unit = { _, _ -> }) {
         viewModelScope.launch {
             _isLoading.value = true
+            _errorMessage.value = null
             val user = auth.currentUser
             if (user == null) {
                 _isLoading.value = false
-                onResult(false, "You're not signed in.")
+                val err = "You're not signed in."
+                _errorMessage.value = err
+                onResult(false, err)
                 return@launch
             }
             try {
@@ -66,7 +76,9 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 onResult(true, null)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to update profile: ${e.message}")
-                onResult(false, "Couldn't save your profile. Check your connection and try again.")
+                val errStr = "Couldn't save your profile. Check your connection and try again."
+                _errorMessage.value = errStr
+                onResult(false, errStr)
             } finally {
                 _isLoading.value = false
             }

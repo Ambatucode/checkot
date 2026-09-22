@@ -43,6 +43,13 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
 
     private val _currentOwnerShopId = MutableStateFlow<String?>(null)
 
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage
+
+    fun clearErrorMessage() {
+        _errorMessage.value = null
+    }
+
     private val _shopCustomization = MutableStateFlow(ShopCustomization())
     val shopCustomization: StateFlow<ShopCustomization> = _shopCustomization
 
@@ -461,6 +468,7 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 loadBookings()
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Failed to update booking: ${e.message}")
+                _errorMessage.value = "Failed to update booking status: ${e.localizedMessage ?: e.message}"
             }
         }
     }
@@ -478,11 +486,13 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 val ownerShopId = _currentOwnerShopId.value
                 if (booking == null || booking.shopId != ownerShopId) {
                     Log.e(TAG, "❌ Security: mark-paid on a booking not belonging to this shop. Blocked.")
+                    _errorMessage.value = "Unable to verify booking ownership."
                     return@launch
                 }
                 if (booking.paymentStatus == "paid") return@launch
                 if (booking.status != BookingStatus.IN_PROGRESS && booking.status != BookingStatus.COMPLETED) {
                     Log.e(TAG, "❌ Can only mark paid while In Progress or Completed. Blocked.")
+                    _errorMessage.value = "Can only mark paid while In Progress or Completed."
                     return@launch
                 }
                 firestore.collection("bookings").document(bookingId).update(
@@ -495,6 +505,7 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 loadBookings()
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Failed to mark paid: ${e.message}")
+                _errorMessage.value = "Failed to mark payment as paid: ${e.localizedMessage ?: e.message}"
             }
         }
     }
@@ -510,6 +521,7 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 val now = System.currentTimeMillis()
                 if (now - lastBayAssignmentTime < 2000L) {
                     Log.w(TAG, "⚠️ Rate limit: Bay assignment requested too quickly (${now - lastBayAssignmentTime}ms). Blocked.")
+                    _errorMessage.value = "Bay assignment requested too quickly. Please wait a moment."
                     return@launch
                 }
                 lastBayAssignmentTime = now
@@ -519,6 +531,7 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 val ownerShopId = _currentOwnerShopId.value
                 if (booking == null || booking.shopId != ownerShopId) {
                     Log.e(TAG, "❌ Security: assignBay on a booking not belonging to this shop. Blocked.")
+                    _errorMessage.value = "Unable to verify shop ownership."
                     return@launch
                 }
                 if (bayNumber > 0) {
@@ -563,6 +576,7 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 loadBookings()
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Failed to assign bay: ${e.message}")
+                _errorMessage.value = "Failed to assign bay: ${e.localizedMessage ?: e.message}"
             }
         }
     }
@@ -589,6 +603,7 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
                 Log.d(TAG, "✅ Walk-in status updated for bay $bayNumber (duration: ${durationMinutes}m)")
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Failed to update walk-in for bay $bayNumber: ${e.message}")
+                _errorMessage.value = "Failed to update walk-in status for bay $bayNumber: ${e.localizedMessage ?: e.message}"
             }
         }
     }

@@ -37,10 +37,18 @@ fun OwnerDashboard(
     var showChecklistDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val saveResult by ownerViewModel.saveResult.collectAsState()
+    val errorMessage by ownerViewModel.errorMessage.collectAsState()
 
     LaunchedEffect(saveResult) {
         saveResult?.let {
             snackbarHostState.showSnackbar(it, duration = SnackbarDuration.Short)
+        }
+    }
+
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let { err ->
+            snackbarHostState.showSnackbar(err, duration = SnackbarDuration.Short)
+            ownerViewModel.clearErrorMessage()
         }
     }
 
