@@ -142,6 +142,7 @@ fun AnimatedStatusIcon(
         BookingStatus.IN_PROGRESS -> Icons.Filled.LocalCarWash
         BookingStatus.COMPLETED -> Icons.Filled.DoneAll
         BookingStatus.CANCELLED -> Icons.Filled.Cancel
+        else -> Icons.Filled.HourglassEmpty
     }
 
     val transition = rememberInfiniteTransition(label = "status-$status")

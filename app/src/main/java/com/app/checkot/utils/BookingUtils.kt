@@ -282,6 +282,12 @@ object BookingUtils {
             busyRanges.values.any { ranges -> ranges.none { (s, e) -> start < e && end > s } }
     }
 
+    /** Converts a 0-based storage bay index (0..3) to a 1-based UI bay number (1..4). Returns 0 for invalid/unassigned indices. */
+    fun bayIndexToNumber(bayIndex: Int): Int = if (bayIndex >= 0) bayIndex + 1 else 0
+
+    /** Converts a 1-based UI bay number (1..4) to a 0-based storage bay index (0..3). Returns -1 for unassigned (<=0). */
+    fun bayNumberToIndex(bayNumber: Int): Int = if (bayNumber > 0) bayNumber - 1 else -1
+
     /** The lowest-numbered bay (0-indexed) with no range overlapping [start, end), or null if none. */
     fun findFreeBayIndex(busyRanges: Map<Int, List<Pair<Int, Int>>>, bayCount: Int, start: Int, end: Int): Int? {
         for (bay in 0 until bayCount) {
@@ -289,6 +295,12 @@ object BookingUtils {
             if (ranges.none { (s, e) -> start < e && end > s }) return bay
         }
         return null
+    }
+
+    /** The lowest-numbered 1-based bay UI number (1..bayCount) with no range overlapping [start, end), or null if none. */
+    fun findFreeBayNumber(busyRanges: Map<Int, List<Pair<Int, Int>>>, bayCount: Int, start: Int, end: Int): Int? {
+        val index = findFreeBayIndex(busyRanges, bayCount, start, end)
+        return if (index != null) bayIndexToNumber(index) else null
     }
 
     /** Deterministic document ID for a shop's day_slots ledger entry. */

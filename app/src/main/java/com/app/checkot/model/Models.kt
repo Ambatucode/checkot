@@ -131,14 +131,34 @@ enum class ServiceType(
     INTERIOR_VACUUM("Interior Vacuum", 200.0, "30 mins", "Deep vacuum cleaning of seats, carpets, and mats."),
     TIRE_SHINE("Tire Shine", 150.0, "30 mins", "Tire cleaning and premium dressing for a deep shine."),
     ENGINE_WASH("Engine Wash", 500.0, "1 hour", "Professional engine bay detailing and wash."),
-    CUSTOM("Custom Service", 0.0, "N/A", "")
+    CUSTOM("Custom Service", 0.0, "N/A", ""),
+    UNKNOWN("Unknown Service", 0.0, "N/A", "");
+
+    companion object {
+        fun fromString(value: String?): ServiceType {
+            if (value.isNullOrBlank()) return UNKNOWN
+            return entries.firstOrNull {
+                it.name.equals(value, ignoreCase = true) || it.displayName.equals(value, ignoreCase = true)
+            } ?: UNKNOWN
+        }
+    }
 }
 enum class BookingStatus(val displayName: String) {
     PENDING("Pending"),
     CONFIRMED("Confirmed"),
     IN_PROGRESS("In Progress"),
     COMPLETED("Completed"),
-    CANCELLED("Cancelled")
+    CANCELLED("Cancelled"),
+    UNKNOWN("Unknown");
+
+    companion object {
+        fun fromString(value: String?): BookingStatus {
+            if (value.isNullOrBlank()) return UNKNOWN
+            return entries.firstOrNull {
+                it.name.equals(value, ignoreCase = true) || it.displayName.equals(value, ignoreCase = true)
+            } ?: UNKNOWN
+        }
+    }
 }
 @Immutable
 data class TimeSlot(
@@ -280,11 +300,14 @@ data class Review(
  * booking that reserved it.
  */
 data class DaySlotEntry(
-    val bay: Int = 0,
+    val bay: Int = 0, // 0-based storage index (0..3)
     val start: Int = 0, // minutes since 9:00 AM
     val end: Int = 0,
     val bookingId: String = ""
-)
+) {
+    /** 1-based UI bay number (1..4) for display mapping. */
+    val bayNumber: Int get() = if (bay >= 0) bay + 1 else 0
+}
 
 /**
  * Per-shop-per-day bay reservation ledger, stored at day_slots/{shopId}_{date}.

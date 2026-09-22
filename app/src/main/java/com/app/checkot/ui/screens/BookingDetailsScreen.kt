@@ -285,6 +285,7 @@ fun BookingDetailsScreen(
                                 BookingStatus.IN_PROGRESS -> Color(0xFF0F2530)
                                 BookingStatus.COMPLETED -> MaterialTheme.colorScheme.surfaceVariant
                                 BookingStatus.CANCELLED -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f)
+                                else -> MaterialTheme.colorScheme.surfaceVariant
                             }
                         ),
                         border = androidx.compose.foundation.BorderStroke(
@@ -324,6 +325,7 @@ fun BookingDetailsScreen(
                                             BookingStatus.IN_PROGRESS -> Color(0xFF00E6C3)
                                             BookingStatus.COMPLETED -> MaterialTheme.colorScheme.onSurfaceVariant
                                             BookingStatus.CANCELLED -> MaterialTheme.colorScheme.onErrorContainer
+                                            else -> MaterialTheme.colorScheme.onSurfaceVariant
                                         }
                                     )
                                 }
@@ -336,6 +338,7 @@ fun BookingDetailsScreen(
                                         BookingStatus.IN_PROGRESS -> Color(0xFF00E6C3)
                                         BookingStatus.COMPLETED -> MaterialTheme.colorScheme.onSurfaceVariant
                                         BookingStatus.CANCELLED -> MaterialTheme.colorScheme.onErrorContainer
+                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
                                     }
                                 )
                             }
@@ -1356,6 +1359,7 @@ fun ServiceProgressStepper(status: BookingStatus) {
         BookingStatus.IN_PROGRESS -> 2
         BookingStatus.COMPLETED -> 3
         BookingStatus.CANCELLED -> -1
+        else -> -1
     }
 
     // Sweep shimmer wave animation along the active line segment
