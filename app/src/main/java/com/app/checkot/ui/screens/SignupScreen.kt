@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.app.checkot.ui.components.AppButton
+import com.app.checkot.ui.components.TermsAndPrivacyDialog
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
@@ -61,6 +62,7 @@ fun SignupScreen(
     var phoneError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
     var googleError by remember { mutableStateOf<String?>(null) }
+    var showTermsDialog by remember { mutableStateOf(false) }
     val authState by authViewModel.authState.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -364,7 +366,7 @@ fun SignupScreen(
                 fontSize = 12.sp,
                 color = Color(0xFF00E6C3),
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { /* Handle terms click */ }
+                modifier = Modifier.clickable { showTermsDialog = true }
             )
             Text(
                 text = " and ",
@@ -376,7 +378,7 @@ fun SignupScreen(
                 fontSize = 12.sp,
                 color = Color(0xFF00E6C3),
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { /* Handle privacy click */ }
+                modifier = Modifier.clickable { showTermsDialog = true }
             )
         }
         Spacer(modifier = Modifier.height(24.dp))
@@ -485,6 +487,10 @@ fun SignupScreen(
                     }
                 }
             )
+        }
+
+        if (showTermsDialog) {
+            TermsAndPrivacyDialog(onDismiss = { showTermsDialog = false })
         }
         }
     }

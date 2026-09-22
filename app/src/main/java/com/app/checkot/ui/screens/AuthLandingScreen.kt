@@ -50,6 +50,8 @@ import androidx.navigation.NavController
 import com.app.checkot.R
 import com.app.checkot.viewmodel.AuthState
 import com.app.checkot.viewmodel.AuthViewModel
+import com.app.checkot.ui.components.TermsAndPrivacyDialog
+import com.app.checkot.ui.components.TermsAndPrivacyFooterLink
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.launch
@@ -188,6 +190,7 @@ fun AuthLandingScreen(
 ) {
     var isOwnerMode by remember { mutableStateOf(false) }
     var googleError by remember { mutableStateOf<String?>(null) }
+    var showTermsDialog by remember { mutableStateOf(false) }
     val authState by authViewModel.authState.collectAsState()
     val currentUser by authViewModel.currentUserData.collectAsState()
     val scope = rememberCoroutineScope()
@@ -390,7 +393,7 @@ fun AuthLandingScreen(
             // Bottom Link: Already have an account? Log in
             Row(
                 modifier = Modifier
-                    .padding(bottom = 24.dp)
+                    .padding(bottom = 12.dp)
                     .clickable { signInWithGoogle() },
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -405,6 +408,16 @@ fun AuthLandingScreen(
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
+            }
+
+            // Terms of Service & Privacy Policy Link
+            TermsAndPrivacyFooterLink(
+                onClick = { showTermsDialog = true },
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            if (showTermsDialog) {
+                TermsAndPrivacyDialog(onDismiss = { showTermsDialog = false })
             }
         }
     }

@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.app.checkot.ui.components.AppButton
+import com.app.checkot.ui.components.TermsAndPrivacyDialog
+import com.app.checkot.ui.components.TermsAndPrivacyFooterLink
 import com.app.checkot.viewmodel.AuthViewModel
 import com.app.checkot.navigation.Screen
 
@@ -33,6 +35,7 @@ fun CompleteProfileScreen(
 ) {
     var fullName by remember { mutableStateOf("") }
     var fullNameError by remember { mutableStateOf<String?>(null) }
+    var showTermsDialog by remember { mutableStateOf(false) }
     
     val currentUser by authViewModel.currentUserData.collectAsState()
     
@@ -164,6 +167,14 @@ fun CompleteProfileScreen(
                 enabled = isFormValid && !isSubmitting,
                 modifier = Modifier.fillMaxWidth()
             )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            TermsAndPrivacyFooterLink(onClick = { showTermsDialog = true })
+
+            if (showTermsDialog) {
+                TermsAndPrivacyDialog(onDismiss = { showTermsDialog = false })
+            }
         }
     }
 }

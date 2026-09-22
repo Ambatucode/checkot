@@ -25,6 +25,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import com.app.checkot.ui.components.ConfirmDialog
 import com.app.checkot.ui.components.AppButton
+import com.app.checkot.ui.components.TermsAndPrivacyDialog
+import com.app.checkot.ui.components.TermsAndPrivacyFooterLink
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.platform.LocalContext
@@ -67,6 +69,7 @@ fun LoginScreen(
     val authState by authViewModel.authState.collectAsState()
     val currentUserData by authViewModel.currentUserData.collectAsState()
     var showResetDialog by remember { mutableStateOf(false) }
+    var showTermsDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var googleError by remember { mutableStateOf<String?>(null) }
@@ -376,6 +379,11 @@ fun LoginScreen(
             )
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Terms of Service & Privacy Policy Link
+        TermsAndPrivacyFooterLink(onClick = { showTermsDialog = true })
+
         // Reset Password Dialog
         if (showResetDialog) {
             ConfirmDialog(
@@ -388,6 +396,11 @@ fun LoginScreen(
                 },
                 onDismiss = { showResetDialog = false }
             )
+        }
+
+        // Terms & Privacy Policy Dialog
+        if (showTermsDialog) {
+            TermsAndPrivacyDialog(onDismiss = { showTermsDialog = false })
         }
         }
     }
