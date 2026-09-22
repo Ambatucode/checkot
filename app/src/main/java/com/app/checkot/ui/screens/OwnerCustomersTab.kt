@@ -30,6 +30,11 @@ fun OwnerCustomersTab(
     val allUsers by ownerViewModel.allUsers.collectAsState()
     val allUsersLoaded by ownerViewModel.allUsersLoaded.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        ownerViewModel.loadBookings()
+    }
+
     val filteredUsers = remember(allUsers, searchQuery) {
         if (searchQuery.isEmpty()) {
             allUsers
@@ -104,21 +109,23 @@ fun OwnerCustomersTab(
 }
 @Composable
 fun CustomerCard(user: CarWashUser) {
+    val avatarInitial = user.fullName.trim().firstOrNull()?.uppercase() ?: "C"
     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF0F2530))) {
         Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(modifier = Modifier.size(50.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(text = user.fullName.first().uppercase(), style = MaterialTheme.typography.titleLarge)
+                    Text(text = avatarInitial, style = MaterialTheme.typography.titleLarge)
                 }
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = user.fullName, style = MaterialTheme.typography.titleMedium)
-                Text(text = user.email, style = MaterialTheme.typography.bodyMedium)
-                Text(text = user.phoneNumber, style = MaterialTheme.typography.bodySmall)
-            }
-            Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.small) {
-                Text(text = "${user.savedCars.size} cars", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                Text(text = user.fullName.ifBlank { "Customer" }, style = MaterialTheme.typography.titleMedium)
+                if (user.email.isNotBlank()) {
+                    Text(text = user.email, style = MaterialTheme.typography.bodyMedium)
+                }
+                if (user.phoneNumber.isNotBlank()) {
+                    Text(text = user.phoneNumber, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
     }

@@ -262,25 +262,34 @@ class OwnerDashboardViewModel(application: Application) : AndroidViewModel(appli
     }
 
     private suspend fun loadUsers(userIds: List<String>) {
-        if (userIds.isEmpty()) {
+        val validUserIds = userIds.filter { it.isNotBlank() }.distinct()
+        if (validUserIds.isEmpty()) {
             _allUsers.value = emptyList()
             _allUsersLoaded.value = true
             return
         }
         try {
-            Log.d(TAG, "🔥 Attempting to load users...")
-            // Firestore whereIn() caps out at 10 values per query, so batch
-            // in chunks instead of fetching the entire users collection.
-            val usersList = userIds.chunked(10).flatMap { chunk ->
-                firestore.collection("users")
-                    .whereIn("userId", chunk)
-                    .get().await()
-                    .documents.mapNotNull { it.toObject(CarWashUser::class.java) }
+            Log.d(TAG, "🔥 Loading user profiles for ${validUserIds.size} customers...")
+            // Fetch users doc-by-doc via document reference so security rules
+            // validate resource access per customer rather than rejecting collection query
+            val usersList = validUserIds.mapNotNull { uid ->
+                try {
+                    val doc = firestore.collection("users").document(uid).get().await()
+                    if (doc.exists()) {
+                        doc.toObject(CarWashUser::class.java)
+                    } else {
+                        Log.w(TAG, "⚠️ User doc $uid does not exist")
+                        null
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Error loading user doc $uid: ${e.message}")
+                    null
+                }
             }
 
             _allUsers.value = usersList
             _allUsersLoaded.value = true
-            Log.d(TAG, "🔥 Total users loaded: ${usersList.size}")
+            Log.d(TAG, "🔥 Total customer profiles loaded: ${usersList.size}")
         } catch (e: Exception) {
             Log.e(TAG, "🔥 ERROR loading users: ${e.message}")
             _allUsersLoaded.value = true

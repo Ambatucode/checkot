@@ -84,12 +84,12 @@ service cloud.firestore {
 
       // --- READ ---
       // Users can read their own profile
-      // Owners can only read profiles of users with active bookings at their shop
+      // Owners can read profiles of customers (needed for bookings and Customers tab)
       // Admins can read any profile (needed for approval dashboard)
       allow read: if isSignedIn()
         && (request.auth.uid == userId
          || isAdmin()
-         || (isOwner() && ownerHasBookingWithUser(userId)));
+         || isOwner());
 
       // --- CREATE ---
       // Only during signup, user must match their UID
