@@ -67,14 +67,25 @@ service cloud.firestore {
     // Returns true if user is a participant of a chat document
     function isChatParticipant(chatData) {
       return isSignedIn()
-        && (request.auth.uid == chatData.customerId || request.auth.uid == chatData.ownerId);
+        && (
+          request.auth.uid == chatData.userId
+          || request.auth.uid == chatData.customerId
+          || ownsShop(chatData.shopId)
+          || request.auth.uid == chatData.ownerId
+        );
     }
 
-    // Returns true if user is a participant of the parent chat document
+    // Returns true if user is a participant of the parent chat document or chatId matches user/shop
     function isParentChatParticipant(chatId) {
       return isSignedIn()
-        && (request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.customerId
-         || request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.ownerId);
+        && (
+          (exists(/databases/$(database)/documents/chats/$(chatId))
+           && isChatParticipant(get(/databases/$(database)/documents/chats/$(chatId)).data))
+          || chatId.contains(request.auth.uid)
+          || (isOwner() && getUserData(request.auth.uid).ownedShopId != null
+              && getUserData(request.auth.uid).ownedShopId != ''
+              && chatId.contains(getUserData(request.auth.uid).ownedShopId))
+        );
     }
 
     // ============================================================
@@ -242,9 +253,18 @@ service cloud.firestore {
     //   matches the chat's customerId or ownerId.
     // ============================================================
     match /chats/{chatId} {
-      allow read: if isChatParticipant(resource.data);
-      allow create: if isChatParticipant(request.resource.data);
-      allow update: if isChatParticipant(resource.data) && isChatParticipant(request.resource.data);
+      allow read: if isChatParticipant(resource.data)
+        || chatId.contains(request.auth.uid)
+        || (isOwner() && getUserData(request.auth.uid).ownedShopId != null
+            && getUserData(request.auth.uid).ownedShopId != ''
+            && chatId.contains(getUserData(request.auth.uid).ownedShopId));
+      allow create: if isChatParticipant(request.resource.data)
+        || chatId.contains(request.auth.uid)
+        || (isOwner() && getUserData(request.auth.uid).ownedShopId != null
+            && getUserData(request.auth.uid).ownedShopId != ''
+            && chatId.contains(getUserData(request.auth.uid).ownedShopId));
+      allow update: if (isChatParticipant(resource.data) || chatId.contains(request.auth.uid) || (isOwner() && chatId.contains(getUserData(request.auth.uid).ownedShopId)))
+        && (isChatParticipant(request.resource.data) || chatId.contains(request.auth.uid) || (isOwner() && chatId.contains(getUserData(request.auth.uid).ownedShopId)));
       allow delete: if false;
 
       match /messages/{messageId} {

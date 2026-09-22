@@ -367,6 +367,8 @@ data class ChatThread(
     val bookingId: String = "",
     val shopId: String = "",
     val userId: String = "",
+    val customerId: String = "",
+    val ownerId: String = "",
     val customerName: String = "",
     val shopName: String = "",
     val lastMessage: String = "",

@@ -84,6 +84,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 // Self-healing: Update any missing fields if parameters are provided
                 val updates = mutableMapOf<String, Any>()
                 if (userId.isNotBlank() && existing?.userId.isNullOrBlank()) updates["userId"] = userId
+                if (userId.isNotBlank() && existing?.customerId.isNullOrBlank()) updates["customerId"] = userId
                 if (shopId.isNotBlank() && existing?.shopId.isNullOrBlank()) updates["shopId"] = shopId
                 if (bookingId.isNotBlank() && existing?.bookingId.isNullOrBlank()) updates["bookingId"] = bookingId
                 if (cleanCustomerName.isNotBlank() && (existing?.customerName.isNullOrBlank() || existing?.customerName.orEmpty().contains("+"))) updates["customerName"] = cleanCustomerName
@@ -99,6 +100,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     bookingId = bookingId,
                     shopId = shopId,
                     userId = userId,
+                    customerId = userId,
                     customerName = cleanCustomerName,
                     shopName = cleanShopName,
                     lastMessage = "Chat started",
