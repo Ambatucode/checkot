@@ -36,13 +36,12 @@ service cloud.firestore {
 
     // Returns true if an owner has an active booking or chat link with a specific customer
     function ownerHasBookingWithUser(userId) {
-      let shopId = getUserData(request.auth.uid).ownedShopId;
       return isOwner()
-        && shopId != null
-        && shopId != ''
+        && getUserData(request.auth.uid).ownedShopId != null
+        && getUserData(request.auth.uid).ownedShopId != ''
         && (
-          exists(/databases/$(database)/documents/chats/$(shopId)_$(userId))
-          || exists(/databases/$(database)/documents/chats/$(userId)_$(shopId))
+          exists(/databases/$(database)/documents/chats/$(getUserData(request.auth.uid).ownedShopId + '_' + userId))
+          || exists(/databases/$(database)/documents/chats/$(userId + '_' + getUserData(request.auth.uid).ownedShopId))
         );
     }
 
