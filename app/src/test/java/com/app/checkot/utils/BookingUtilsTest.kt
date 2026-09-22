@@ -347,4 +347,81 @@ class BookingUtilsTest {
         val ahead = listOf(b1)
         assertEquals(0, BookingUtils.calculateEstimatedWaitMinutes(ahead, bayCount = 1))
     }
+
+    // ---- isShopOpenNow ----
+
+    private fun timeMillisAt(hour: Int, minute: Int): Long {
+        return java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, hour)
+            set(java.util.Calendar.MINUTE, minute)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+
+    @Test
+    fun `isShopOpenNow returns true during operating hours`() {
+        val now = timeMillisAt(13, 30) // 1:30 PM (810 mins)
+        // Hours: 9:00 AM (540 mins) – 4:00 PM (960 mins)
+        assertTrue(BookingUtils.isShopOpenNow(openMinutes = 540, closeMinutes = 960, nowMillis = now))
+    }
+
+    @Test
+    fun `isShopOpenNow returns false when current time reaches or exceeds closeMinutes`() {
+        val exactClose = timeMillisAt(16, 0) // 4:00 PM (960 mins)
+        val pastClose = timeMillisAt(17, 54) // 5:54 PM (1074 mins)
+
+        assertFalse(BookingUtils.isShopOpenNow(openMinutes = 540, closeMinutes = 960, nowMillis = exactClose))
+        assertFalse(BookingUtils.isShopOpenNow(openMinutes = 540, closeMinutes = 960, nowMillis = pastClose))
+    }
+
+    @Test
+    fun `isShopOpenNow returns false before openMinutes`() {
+        val beforeOpen = timeMillisAt(8, 30) // 8:30 AM (510 mins)
+        assertFalse(BookingUtils.isShopOpenNow(openMinutes = 540, closeMinutes = 960, nowMillis = beforeOpen))
+    }
+
+    @Test
+    fun `isShopOpenNow returns false when isClosed toggle is set`() {
+        val openTime = timeMillisAt(12, 0)
+        assertFalse(
+            BookingUtils.isShopOpenNow(
+                openMinutes = 540,
+                closeMinutes = 960,
+                isClosedToggle = true,
+                nowMillis = openTime
+            )
+        )
+    }
+
+    @Test
+    fun `isShopOpenNow returns false on closed blacked out dates`() {
+        val openTime = timeMillisAt(12, 0)
+        val today = BookingUtils.startOfDay(openTime)
+        assertFalse(
+            BookingUtils.isShopOpenNow(
+                openMinutes = 540,
+                closeMinutes = 960,
+                closedDates = listOf(today),
+                nowMillis = openTime
+            )
+        )
+    }
+
+    @Test
+    fun `isShopOpenNow respects dayOverrides`() {
+        val time = timeMillisAt(17, 0) // 5:00 PM (1020 mins)
+        val today = BookingUtils.startOfDay(time)
+        // Standard hours 9-4 (540-960), but override today 9-6 (540-1080)
+        val override = com.app.checkot.model.DayHoursOverride(date = today, openMinutes = 540, closeMinutes = 1080)
+
+        assertTrue(
+            BookingUtils.isShopOpenNow(
+                openMinutes = 540,
+                closeMinutes = 960,
+                dayOverrides = listOf(override),
+                nowMillis = time
+            )
+        )
+    }
 }

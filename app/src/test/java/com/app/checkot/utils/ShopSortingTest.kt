@@ -94,7 +94,24 @@ class ShopSortingTest {
     @Test
     fun `sortShops Open Now excludes closed shops`() {
         val sorted = ShopSortingUtils.sortShops(allShops, ShopSortOption.OPEN_NOW, userLat, userLon)
-        assertTrue(sorted.none { it.isClosed })
+        assertTrue(sorted.none { !it.isOpenNow() })
         assertEquals(3, sorted.size)
+    }
+
+    @Test
+    fun `sortShops Open Now excludes shops past closing hours`() {
+        val pastHoursShop = CarWashShop(
+            shopId = "shop_past_hours",
+            name = "Night Closed Wash",
+            openMinutes = 540,  // 9:00 AM
+            closeMinutes = 960, // 4:00 PM
+            isClosed = false
+        )
+        val pastTimeMillis = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 17) // 5:54 PM
+            set(java.util.Calendar.MINUTE, 54)
+        }.timeInMillis
+
+        org.junit.Assert.assertFalse(pastHoursShop.isOpenNow(pastTimeMillis))
     }
 }

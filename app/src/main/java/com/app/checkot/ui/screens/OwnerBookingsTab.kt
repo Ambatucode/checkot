@@ -276,7 +276,7 @@ fun OwnerBookingsTab(
                     val currentHour = nowCal.get(java.util.Calendar.HOUR_OF_DAY)
                     val currentMinute = nowCal.get(java.util.Calendar.MINUTE)
                     val currentMins = currentHour * 60 + currentMinute
-                    val isClosedNow = customization.isClosed || (currentMins < customization.openMinutes || currentMins >= customization.closeMinutes)
+                    val isClosedNow = !customization.isOpenNow()
 
                     if (isClosedNow) {
                         Surface(
@@ -1434,7 +1434,7 @@ private fun BayScheduleGrid(
     val currentHour = nowCal.get(java.util.Calendar.HOUR_OF_DAY)
     val currentMinute = nowCal.get(java.util.Calendar.MINUTE)
     val currentMins = currentHour * 60 + currentMinute
-    val isClosedNow = isShopClosed || (currentMins < openMinutes || currentMins >= closeMinutes)
+    val isClosedNow = !BookingUtils.isShopOpenNow(openMinutes = openMinutes, closeMinutes = closeMinutes, isClosedToggle = isShopClosed)
     val gridHours = (8..18).toList() // 8 AM to 6 PM
 
     Card(

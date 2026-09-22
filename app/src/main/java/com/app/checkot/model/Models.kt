@@ -36,11 +36,19 @@ data class CarWashShop(
     val minPrice: Double = 0.0,  // cheapest service price; 0 = unknown (legacy)
     val services: List<CustomServiceConfig> = emptyList(), // offerings — drives the "From ₱X" badge
     val bayCount: Int = 1,
+    val openMinutes: Int = 0,
+    val closeMinutes: Int = 1440,
+    val closedDates: List<Long> = emptyList(),
+    val dayOverrides: List<DayHoursOverride> = emptyList(),
     val isClosed: Boolean = false,
     val averageRating: Double = 0.0,
     val reviewCount: Int = 0,
     val distanceKm: Double = 0.0
-)
+) {
+    fun isOpenNow(nowMillis: Long = System.currentTimeMillis()): Boolean {
+        return com.app.checkot.utils.BookingUtils.isShopOpenNow(this, nowMillis)
+    }
+}
 
 enum class CarSize(val label: String, val sizeKey: String) {
     S("Hatchback", "S"),
@@ -187,7 +195,11 @@ data class ShopCustomization(
     var isClosed: Boolean = false,
     val averageRating: Double = 0.0,
     val reviewCount: Int = 0
-)
+) {
+    fun isOpenNow(nowMillis: Long = System.currentTimeMillis()): Boolean {
+        return com.app.checkot.utils.BookingUtils.isShopOpenNow(this, nowMillis)
+    }
+}
 
 @Immutable
 data class WalkInOccupancy(

@@ -60,17 +60,18 @@ fun OwnerDashboard(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(shopCust.shopName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                                 if (shopStatus == "active") {
+                                    val isOpen = shopCust.isOpenNow()
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = if (!shopCust.isClosed) Color(0xFF0F2D2A) else Color(0xFF331619),
-                                        border = BorderStroke(1.dp, if (!shopCust.isClosed) Color(0xFF00E6C3) else Color(0xFFFF5252))
+                                        color = if (isOpen) Color(0xFF0F2D2A) else Color(0xFF331619),
+                                        border = BorderStroke(1.dp, if (isOpen) Color(0xFF00E6C3) else Color(0xFFFF5252))
                                     ) {
                                         Text(
-                                            text = if (!shopCust.isClosed) "OPEN" else "CLOSED",
+                                            text = if (isOpen) "OPEN" else "CLOSED",
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (!shopCust.isClosed) Color(0xFF00E6C3) else Color(0xFFFF5252),
+                                            color = if (isOpen) Color(0xFF00E6C3) else Color(0xFFFF5252),
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
                                     }

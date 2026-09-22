@@ -37,7 +37,7 @@ object ShopSortingUtils {
                 // Foodpanda-style smart ranking formula:
                 // Open status (+50 pts) + Rating (+0-50 pts) + Proximity (+0-50 pts)
                 shopsWithDistance.sortedByDescending { shop ->
-                    val openBonus = if (!shop.isClosed) 50.0 else 0.0
+                    val openBonus = if (shop.isOpenNow()) 50.0 else 0.0
                     val ratingScore = shop.averageRating * 10.0 // Max 50
                     val proximityScore = if (shop.distanceKm != Double.MAX_VALUE && shop.distanceKm >= 0) {
                         max(0.0, 50.0 - shop.distanceKm * 3.0)
@@ -50,7 +50,7 @@ object ShopSortingUtils {
 
             ShopSortOption.NEAREST -> {
                 shopsWithDistance.sortedWith(
-                    compareBy<CarWashShop> { if (it.isClosed) 1 else 0 }
+                    compareBy<CarWashShop> { if (!it.isOpenNow()) 1 else 0 }
                         .thenBy { if (it.distanceKm == Double.MAX_VALUE) Double.MAX_VALUE else it.distanceKm }
                 )
             }
@@ -72,7 +72,7 @@ object ShopSortingUtils {
 
             ShopSortOption.OPEN_NOW -> {
                 shopsWithDistance
-                    .filter { !it.isClosed }
+                    .filter { it.isOpenNow() }
                     .sortedWith(
                         compareBy<CarWashShop> { if (it.distanceKm == Double.MAX_VALUE) Double.MAX_VALUE else it.distanceKm }
                             .thenByDescending { it.averageRating }

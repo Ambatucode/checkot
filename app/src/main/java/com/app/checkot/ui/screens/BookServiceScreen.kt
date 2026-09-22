@@ -1755,7 +1755,7 @@ fun LiveShopBaysHeaderCard(
     val curMins = nowCal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + nowCal.get(java.util.Calendar.MINUTE)
     val openMins = shopCustomization?.openMinutes ?: 540
     val closeMins = shopCustomization?.closeMinutes ?: 1260
-    val isClosedNow = (shopCustomization?.isClosed == true) || (curMins < openMins || curMins >= closeMins)
+    val isClosedNow = shopCustomization?.isOpenNow() == false
 
     Card(
         modifier = Modifier

@@ -113,6 +113,10 @@ fun HomeScreen(
                         logoUrl = doc.getString("logoUrl") ?: "",
                         services = customization?.services ?: emptyList(),
                         bayCount = customization?.bayCount ?: 1,
+                        openMinutes = customization?.openMinutes ?: 540,
+                        closeMinutes = customization?.closeMinutes ?: 960,
+                        closedDates = customization?.closedDates ?: emptyList(),
+                        dayOverrides = customization?.dayOverrides ?: emptyList(),
                         isClosed = customization?.isClosed ?: false,
                         averageRating = avgRating,
                         reviewCount = revCount
@@ -565,7 +569,7 @@ fun ShopCard(
                 .filter { it > 0 }
                 .minOrNull()
             Column(horizontalAlignment = Alignment.End) {
-                if (shop.isClosed) {
+                if (!shop.isOpenNow()) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = Color(0xFF331619)

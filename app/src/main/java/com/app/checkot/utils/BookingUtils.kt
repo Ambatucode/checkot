@@ -6,6 +6,7 @@ import com.app.checkot.model.DaySlotEntry
 import com.app.checkot.model.ServiceType
 import com.app.checkot.model.ShopCustomization
 import com.app.checkot.model.BookingStatus
+import com.app.checkot.model.CarWashShop
 
 /**
  * Shared booking-slot math. Previously duplicated (with slight drift) across
@@ -115,6 +116,55 @@ object BookingUtils {
         val override = overrides.firstOrNull { it.date == day }
         return if (override != null) override.openMinutes to override.closeMinutes
         else openMinutes to closeMinutes
+    }
+
+    /**
+     * Determines whether a shop is currently open, checking:
+     * 1. Manual closure toggle ([isClosedToggle])
+     * 2. Blackout closed dates ([closedDates])
+     * 3. Current system time ([nowMillis]) against effective opening and closing hours.
+     * Note: closeMinutes represents the closing hour / last slot limit.
+     * When current time reaches or exceeds closeMinutes, the shop is CLOSED.
+     */
+    fun isShopOpenNow(
+        openMinutes: Int,
+        closeMinutes: Int,
+        closedDates: List<Long> = emptyList(),
+        dayOverrides: List<DayHoursOverride> = emptyList(),
+        isClosedToggle: Boolean = false,
+        nowMillis: Long = System.currentTimeMillis()
+    ): Boolean {
+        if (isClosedToggle) return false
+        val today = startOfDay(nowMillis)
+        if (closedDates.contains(today)) return false
+
+        val (effOpen, effClose) = effectiveHours(openMinutes, closeMinutes, dayOverrides, today)
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = nowMillis }
+        val currentMins = cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE)
+
+        return currentMins in effOpen until effClose
+    }
+
+    fun isShopOpenNow(shop: ShopCustomization, nowMillis: Long = System.currentTimeMillis()): Boolean {
+        return isShopOpenNow(
+            openMinutes = shop.openMinutes,
+            closeMinutes = shop.closeMinutes,
+            closedDates = shop.closedDates,
+            dayOverrides = shop.dayOverrides,
+            isClosedToggle = shop.isClosed,
+            nowMillis = nowMillis
+        )
+    }
+
+    fun isShopOpenNow(shop: CarWashShop, nowMillis: Long = System.currentTimeMillis()): Boolean {
+        return isShopOpenNow(
+            openMinutes = shop.openMinutes,
+            closeMinutes = shop.closeMinutes,
+            closedDates = shop.closedDates,
+            dayOverrides = shop.dayOverrides,
+            isClosedToggle = shop.isClosed,
+            nowMillis = nowMillis
+        )
     }
 
     /**
