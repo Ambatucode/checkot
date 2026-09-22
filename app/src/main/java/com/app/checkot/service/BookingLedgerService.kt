@@ -20,51 +20,8 @@ import kotlinx.coroutines.tasks.await
  */
 object BookingLedgerService {
 
-    /** Thrown when no bay is free for the requested time range — a real "fully booked", not an error. */
-    class NoFreeBayException : Exception("No free bay for the requested time slot")
-
     private fun ledgerRef(firestore: FirebaseFirestore, shopId: String, date: Long): DocumentReference =
         firestore.collection("day_slots").document(BookingUtils.ledgerDocId(shopId, date))
-
-    /**
-     * Atomically checks bay availability and, if one is free, creates [booking]
-     * and reserves its bay in the same transaction. Throws NoFreeBayException
-     * if no bay is free; any other exception means availability could not be
-     * verified and the booking was not created.
-     */
-    suspend fun reserveAndCreateBooking(
-        firestore: FirebaseFirestore,
-        bookingDocRef: DocumentReference,
-        booking: Booking,
-        startMin: Int,
-        endMin: Int
-    ) {
-        val shopRef = firestore.collection("shop_services").document(booking.shopId)
-        val ledgerRef = ledgerRef(firestore, booking.shopId, booking.bookingDate)
-
-        firestore.runTransaction { transaction ->
-            val shopSnap = transaction.get(shopRef)
-            val bayCount = (shopSnap.getLong("bayCount")?.toInt() ?: 1).coerceAtLeast(1)
-
-            val ledgerSnap = transaction.get(ledgerRef)
-            val ledger = ledgerSnap.toObject(DaySlotLedger::class.java)
-                ?: DaySlotLedger(shopId = booking.shopId, date = booking.bookingDate)
-
-            val busyRanges = BookingUtils.busyRangesFromLedger(ledger.entries, bayCount)
-            val freeBay = BookingUtils.findFreeBayIndex(busyRanges, bayCount, startMin, endMin)
-                ?: throw NoFreeBayException()
-
-            transaction.set(bookingDocRef, booking)
-
-            val updatedLedger = ledger.copy(
-                shopId = booking.shopId,
-                date = booking.bookingDate,
-                entries = ledger.entries + DaySlotEntry(freeBay, startMin, endMin, booking.bookingId)
-            )
-            transaction.set(ledgerRef, updatedLedger)
-            null
-        }.await()
-    }
 
     /**
      * Removes [bookingId]'s reservation from the ledger. Best-effort: unlike
