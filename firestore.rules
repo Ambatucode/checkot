@@ -34,6 +34,18 @@ service cloud.firestore {
         && getUserData(request.auth.uid).role == 'admin';
     }
 
+    // Returns true if an owner has an active booking or chat link with a specific customer
+    function ownerHasBookingWithUser(userId) {
+      let shopId = getUserData(request.auth.uid).ownedShopId;
+      return isOwner()
+        && shopId != null
+        && shopId != ''
+        && (
+          exists(/databases/$(database)/documents/chats/$(shopId)_$(userId))
+          || exists(/databases/$(database)/documents/chats/$(userId)_$(shopId))
+        );
+    }
+
     // Returns true if no forbidden fields are being changed
     function isNotChanging(forbiddenFields) {
       return request.resource.data.diff(resource.data)
@@ -53,6 +65,19 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/shop_services/$(shopId)).data.status == 'active';
     }
 
+    // Returns true if user is a participant of a chat document
+    function isChatParticipant(chatData) {
+      return isSignedIn()
+        && (request.auth.uid == chatData.customerId || request.auth.uid == chatData.ownerId);
+    }
+
+    // Returns true if user is a participant of the parent chat document
+    function isParentChatParticipant(chatId) {
+      return isSignedIn()
+        && (request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.customerId
+         || request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.ownerId);
+    }
+
     // ============================================================
     // USERS COLLECTION
     // ============================================================
@@ -60,10 +85,12 @@ service cloud.firestore {
 
       // --- READ ---
       // Users can read their own profile
-      // Owners can read any profile (needed for customer list)
+      // Owners can only read profiles of users with active bookings at their shop
       // Admins can read any profile (needed for approval dashboard)
       allow read: if isSignedIn()
-        && (request.auth.uid == userId || isOwner() || isAdmin());
+        && (request.auth.uid == userId
+         || isAdmin()
+         || (isOwner() && ownerHasBookingWithUser(userId)));
 
       // --- CREATE ---
       // Only during signup, user must match their UID
@@ -82,10 +109,6 @@ service cloud.firestore {
       // --- UPDATE ---
       // Users can update their own profile
       // Cannot change: role, userId, ownedShopId (prevents privilege escalation)
-      // savedCars is capped to match the app's own 3-car limit
-      // savedCars is capped ONLY when present, so an fcmToken-only write (or
-      // any account that never seeded savedCars, e.g. admins) isn't rejected
-      // by evaluating .size() on a missing field.
       allow update: if isSignedIn()
         && request.auth.uid == userId
         && isNotChanging(['role', 'userId', 'ownedShopId'])
@@ -102,34 +125,19 @@ service cloud.firestore {
     // ============================================================
     match /bookings/{bookingId} {
 
+      // --- READ ---
       allow read: if isSignedIn()
         && (resource.data.userId == request.auth.uid
          || ownsShop(resource.data.shopId)
          || isAdmin());
 
       // --- CREATE ---
-      // Customer must book as themselves, start as PENDING
-      // Price must be positive, required fields must exist
-      // Shop must actually exist and be approved/active (blocks booking
-      // against a fake or not-yet-approved shopId)
-      // Services list and price are sanity-bounded — Firestore rules can't
-      // sum a list to verify the price matches the shop's per-service
-      // pricing, so this is a guardrail, not a full price check.
-      allow create: if isSignedIn()
-        && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status == 'PENDING'
-        && request.resource.data.shopId is string
-        && request.resource.data.shopId != ''
-        && shopIsActive(request.resource.data.shopId)
-        && request.resource.data.services is list
-        && request.resource.data.services.size() > 0
-        && request.resource.data.services.size() <= 20
-        && isPositiveNumber(request.resource.data.price)
-        && request.resource.data.price <= 1000000;
+      // Direct client creation is restricted to force clients through
+      // the server-side createBooking Cloud Function (which uses Admin SDK).
+      allow create: if false;
 
       // --- UPDATE (Customer) ---
       // Customer can only CANCEL their own PENDING or CONFIRMED booking
-      // Can only change the 'status' and 'cancelledAt' fields
       allow update: if isSignedIn()
         && resource.data.userId == request.auth.uid
         && request.resource.data.status == 'CANCELLED'
@@ -141,8 +149,6 @@ service cloud.firestore {
 
       // --- UPDATE (Owner) ---
       // Owner can advance status for their own shop's bookings
-      // Can only change 'status', the corresponding timestamp, and the
-      // display-only 'servicedBy' staff name set when starting a service.
       allow update: if ownsShop(resource.data.shopId)
         && (request.resource.data.diff(resource.data)
             .affectedKeys()
@@ -159,31 +165,17 @@ service cloud.firestore {
 
     // ============================================================
     // SHOP SERVICES COLLECTION
-    //   Stores each shop's available services, pricing, and logo.
-    //   Any signed-in user can read (clients see available services).
-    //   Only the shop owner can write.
     // ============================================================
     match /shop_services/{shopId} {
 
-      // --- READ ---
-      // Any authenticated user can read shop services
       allow read: if isSignedIn();
 
-      // --- CREATE ---
-      // Only the owner of this shop can create
-      // Must start as 'pending' — prevents an owner from self-approving
-      // their shop and skipping SuperAdmin review
       allow create: if ownsShop(shopId)
         && request.resource.data is map
         && request.resource.data.keys().hasAll(['services'])
         && request.resource.data.services is list
         && request.resource.data.status == 'pending';
 
-      // --- UPDATE ---
-      // Owner can update their shop (prices, services, logo, etc.)
-      // but CANNOT change the 'status' field
-      // Admin can ONLY change the 'status' field (approve/reject)
-      // bayCount is bounded to match the app's own stepper limit (1-10)
       allow update: if (ownsShop(shopId)
         && (isNotChanging(['status', 'isDeleted'])
             || (request.resource.data.status == 'closed' && request.resource.data.isDeleted == true))
@@ -195,7 +187,6 @@ service cloud.firestore {
         || (isAdmin()
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly(['status']))
-        // Owner may close the shop or update token
         || (ownsShop(shopId)
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly(['ownerFcmToken', 'status', 'isDeleted'])
@@ -205,31 +196,24 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly(['ownerFcmToken']));
 
-      // --- DELETE ---
-      // Nobody deletes shops from the client
       allow delete: if false;
     }
 
     // ============================================================
     // DAY SLOTS COLLECTION
-    //   Per-shop-per-day bay reservation ledger (day_slots/{shopId}_{date}).
-    //   Used transactionally by booking create/cancel so the check-and-
-    //   reserve can be atomic — Firestore transactions can't run queries,
-    //   so this document stands in for "query every booking for this
-    //   shop+date". Like bookings.price, this can't be fully validated
-    //   here (no list-sum support in rules), so this is a guardrail
-    //   against garbage writes, not a full correctness check.
+    //   Per-shop-per-day bay reservation ledger.
+    //   Only server-side Firebase Admin SDK (Cloud Functions) can write.
+    //   Signed-in users keep read access.
     // ============================================================
     match /day_slots/{docId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     // ============================================================
     // REVIEWS COLLECTION
-    //   A shop review, stored at reviews/{bookingId} so each booking can be
-    //   reviewed at most once. Writes are verified against the booking itself:
-    //   only the client who owns a COMPLETED booking at that shop may review,
-    //   which stops fake/spam reviews. Reviews are immutable (small version).
+    //   A shop review, stored at reviews/{bookingId}.
+    //   Validates that shopId is active and matches the booking's shopId.
     // ============================================================
     match /reviews/{bookingId} {
       allow read: if isSignedIn();
@@ -238,6 +222,8 @@ service cloud.firestore {
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.shopId is string
         && request.resource.data.shopId != ''
+        && shopIsActive(request.resource.data.shopId)
+        && request.resource.data.shopId == get(/databases/$(database)/documents/bookings/$(bookingId)).data.shopId
         && request.resource.data.userName is string
         && request.resource.data.rating is int
         && request.resource.data.rating >= 1
@@ -253,14 +239,20 @@ service cloud.firestore {
     // ============================================================
     // CHATS COLLECTION
     //   Real-time in-app messaging between customer and shop owner.
-    //   Only authenticated participants (the booking customer or shop owner)
-    //   may read, write, or send messages.
+    //   Restricted so read/write is strictly allowed ONLY if request.auth.uid
+    //   matches the chat's customerId or ownerId.
     // ============================================================
     match /chats/{chatId} {
-      allow read, write: if isSignedIn();
+      allow read: if isChatParticipant(resource.data);
+      allow create: if isChatParticipant(request.resource.data);
+      allow update: if isChatParticipant(resource.data) && isChatParticipant(request.resource.data);
+      allow delete: if false;
 
       match /messages/{messageId} {
-        allow read, write: if isSignedIn();
+        allow read: if isParentChatParticipant(chatId);
+        allow create: if isParentChatParticipant(chatId)
+          && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false;
       }
     }
 
