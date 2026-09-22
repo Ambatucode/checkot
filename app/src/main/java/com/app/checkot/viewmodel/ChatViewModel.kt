@@ -37,6 +37,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var messagesListener: ListenerRegistration? = null
     private var threadListener: ListenerRegistration? = null
 
+    private fun safeDecode(str: String): String {
+        if (str.isBlank()) return str
+        return try {
+            java.net.URLDecoder.decode(str, "UTF-8")
+        } catch (_: Exception) {
+            str.replace("+", " ")
+        }
+    }
+
     /**
      * Connects to a real-time chat thread and message stream.
      */
@@ -49,6 +58,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         shopName: String = ""
     ) {
         if (chatId.isBlank()) return
+
+        val cleanCustomerName = safeDecode(customerName)
+        val cleanShopName = safeDecode(shopName)
 
         _isLoading.value = true
 
@@ -63,15 +75,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
             if (snapshot != null && snapshot.exists()) {
                 val existing = snapshot.toObject(ChatThread::class.java)
-                _chatThread.value = existing
+                val sanitizedExisting = existing?.copy(
+                    customerName = safeDecode(existing.customerName),
+                    shopName = safeDecode(existing.shopName)
+                )
+                _chatThread.value = sanitizedExisting
 
                 // Self-healing: Update any missing fields if parameters are provided
                 val updates = mutableMapOf<String, Any>()
                 if (userId.isNotBlank() && existing?.userId.isNullOrBlank()) updates["userId"] = userId
                 if (shopId.isNotBlank() && existing?.shopId.isNullOrBlank()) updates["shopId"] = shopId
                 if (bookingId.isNotBlank() && existing?.bookingId.isNullOrBlank()) updates["bookingId"] = bookingId
-                if (customerName.isNotBlank() && existing?.customerName.isNullOrBlank()) updates["customerName"] = customerName
-                if (shopName.isNotBlank() && existing?.shopName.isNullOrBlank()) updates["shopName"] = shopName
+                if (cleanCustomerName.isNotBlank() && (existing?.customerName.isNullOrBlank() || existing?.customerName.orEmpty().contains("+"))) updates["customerName"] = cleanCustomerName
+                if (cleanShopName.isNotBlank() && (existing?.shopName.isNullOrBlank() || existing?.shopName.orEmpty().contains("+"))) updates["shopName"] = cleanShopName
 
                 if (updates.isNotEmpty()) {
                     threadRef.set(updates, SetOptions.merge())
@@ -83,8 +99,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     bookingId = bookingId,
                     shopId = shopId,
                     userId = userId,
-                    customerName = customerName,
-                    shopName = shopName,
+                    customerName = cleanCustomerName,
+                    shopName = cleanShopName,
                     lastMessage = "Chat started",
                     lastMessageTimestamp = System.currentTimeMillis()
                 )

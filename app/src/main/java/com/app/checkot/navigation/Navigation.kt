@@ -229,9 +229,22 @@ fun NavigationGraph(
             val bookingId = backStackEntry.arguments?.getString("bookingId") ?: ""
             val shopId = backStackEntry.arguments?.getString("shopId") ?: ""
             val customerId = backStackEntry.arguments?.getString("customerId") ?: ""
-            val recipientName = backStackEntry.arguments?.getString("recipientName") ?: "Chat"
-            val carDetails = backStackEntry.arguments?.getString("carDetails") ?: ""
+            val rawRecipientName = backStackEntry.arguments?.getString("recipientName") ?: "Chat"
+            val rawCarDetails = backStackEntry.arguments?.getString("carDetails") ?: ""
             val recipientToken = backStackEntry.arguments?.getString("recipientToken") ?: ""
+
+            fun decodeUrlParam(str: String): String {
+                if (str.isBlank()) return str
+                return try {
+                    java.net.URLDecoder.decode(str, "UTF-8")
+                } catch (_: Exception) {
+                    str.replace("+", " ")
+                }
+            }
+
+            val recipientName = decodeUrlParam(rawRecipientName)
+            val carDetails = decodeUrlParam(rawCarDetails)
+
             ChatScreen(
                 navController = navController,
                 chatId = chatId,

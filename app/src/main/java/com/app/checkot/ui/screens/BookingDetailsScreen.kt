@@ -658,8 +658,11 @@ fun BookingDetailsScreen(
                             Spacer(modifier = Modifier.height(8.dp))
                             Button(
                                 onClick = {
-                                    val encodedRecipient = try { java.net.URLEncoder.encode(shopName.ifEmpty { "Shop Owner" }, "UTF-8") } catch (_: Exception) { "Shop" }
-                                    val encodedCar = try { java.net.URLEncoder.encode(booking.carDetails, "UTF-8") } catch (_: Exception) { "" }
+                                    val rawShopName = shopName.ifEmpty { "Shop Owner" }
+                                    val cleanShopName = try { java.net.URLDecoder.decode(rawShopName, "UTF-8") } catch (_: Exception) { rawShopName.replace("+", " ") }
+                                    val encodedRecipient = try { android.net.Uri.encode(cleanShopName) } catch (_: Exception) { "Shop" }
+                                    val cleanCarDetails = try { java.net.URLDecoder.decode(booking.carDetails, "UTF-8") } catch (_: Exception) { booking.carDetails.replace("+", " ") }
+                                    val encodedCar = try { android.net.Uri.encode(cleanCarDetails) } catch (_: Exception) { "" }
                                     val chatId = "${booking.shopId}_${booking.userId}"
                                     val route = "chat/$chatId?bookingId=${booking.bookingId}&shopId=${booking.shopId}&customerId=${booking.userId}&recipientName=$encodedRecipient&carDetails=$encodedCar"
                                     navController.navigate(route)
