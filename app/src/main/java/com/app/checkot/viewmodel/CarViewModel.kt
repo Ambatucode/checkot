@@ -25,6 +25,13 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error
+
+    fun clearError() {
+        _error.value = null
+    }
+
     /** True once the first savedCars snapshot (success or error) has arrived. */
     private val _savedCarsLoaded = MutableStateFlow(false)
     val savedCarsLoaded: StateFlow<Boolean> = _savedCarsLoaded
@@ -107,6 +114,7 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
                 _savedCars.value = currentCars
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to delete car: ${e.message}")
+                _error.value = "Failed to delete car. Check your connection and try again."
             } finally {
                 _isLoading.value = false
             }

@@ -159,6 +159,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load more bookings: ${e.message}")
+                _error.value = "Failed to load more bookings. Please try again."
             } finally {
                 _isLoadingMore.value = false
             }
@@ -349,6 +350,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to cancel booking: ${e.message}")
+                _error.value = "Failed to cancel booking. Please check your connection and try again."
             }
         }
     }
@@ -449,6 +451,7 @@ class BookingViewModel(application: Application) : AndroidViewModel(application)
                     }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Failed to fetch time slots: ${e.message}")
+                _error.value = "Failed to load available time slots. Please try again."
             }
         }
     }

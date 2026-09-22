@@ -707,13 +707,15 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         resetPhoneVerify()
     }
 
-    fun resetPassword(email: String) {
+    fun resetPassword(email: String, onResult: (Boolean, String?) -> Unit = { _, _ -> }) {
         viewModelScope.launch {
             try {
                 auth.sendPasswordResetEmail(email).await()
                 Log.d(TAG, "Password reset email sent to $email")
+                onResult(true, null)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to send password reset email: ${e.message}")
+                onResult(false, e.localizedMessage ?: "Failed to send password reset email")
             }
         }
     }
